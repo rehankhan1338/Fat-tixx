@@ -72,9 +72,11 @@ export function proxy(request: NextRequest) {
   response.headers.set('X-Content-Type-Options', 'nosniff');
   if (!isEmbed) response.headers.set('X-Frame-Options', 'DENY');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  // Camera only for the check-in scanner; payment (Apple Pay / Google Pay via the Payment Request API) for Stripe's frames.
-  const camera = /\/scan\/?$/.test(pathname) ? 'camera=(self)' : 'camera=()';
-  response.headers.set('Permissions-Policy', `${camera}, microphone=(), geolocation=${pathname === '/' ? '(self)' : '()'}, payment=(self "https://js.stripe.com"), usb=()`);
+  // Camera / geolocation: `self` on every page, not per path. Permissions-Policy is fixed when the document loads,
+  // and the App Router navigates client-side (login → dashboard → scanner) without reloading, so a `camera=()`
+  // from the first page stuck to the scanner and getUserMedia was rejected with NotAllowedError. `self` still
+  // blocks third-party frames and the user must still grant permission. Payment for Stripe's frames (Apple/Google Pay).
+  response.headers.set('Permissions-Policy', 'camera=(self), microphone=(), geolocation=(self), payment=(self "https://js.stripe.com"), usb=()');
   response.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
   // The widget script, email ad pixel and uploaded images are loaded by other sites / mail clients.
   const shared = pathname === '/embed.js' || pathname === '/api/ads/px' || pathname.startsWith('/api/uploads/');

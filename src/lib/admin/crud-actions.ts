@@ -73,10 +73,7 @@ export async function deleteUser(fd: FormData): Promise<ActionState> {
   const user = await queryOne<Row & { email: string; name: string }>(`SELECT email, name FROM users WHERE id = ?`, [userId]);
   if (!user) return { error: 'User not found.' };
   const isAdmin = await queryOne(`SELECT 1 FROM user_platform_roles WHERE user_id = ? AND role = 'super_admin'`, [userId]);
-  if (isAdmin) {
-    const admins = await queryOne<Row & { n: number }>(`SELECT COUNT(*) AS n FROM user_platform_roles WHERE role = 'super_admin'`);
-    if (Number(admins?.n ?? 0) <= 1) return { error: 'There must always be at least one Super Admin.' };
-  }
+  if (isAdmin) return { error: 'Super Admins cannot be deleted. Remove their Super Admin role first.' };
   // Orders they bought stay (buyer email is kept on the order); memberships, sessions, roles and tokens cascade.
   await execute(`DELETE FROM users WHERE id = ?`, [userId]);
   await audit('user.deleted', { actorUserId: session.user.id, targetType: 'user', targetId: userId, metadata: { email: user.email, name: user.name } });

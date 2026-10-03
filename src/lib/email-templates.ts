@@ -2,6 +2,10 @@ import 'server-only';
 import { query, type Row } from './db';
 import { escapeHtml } from './email';
 import { getBranding, type Branding } from './settings';
+import { env } from './env';
+
+/** Public origin used in the sample variables shown on the Admin → Emails → Templates preview. */
+const APP = env.APP_URL;
 
 /**
  * Editable transactional email templates. Defaults live here; Super Admin edits are stored in
@@ -31,7 +35,7 @@ export const TEMPLATES: TemplateDef[] = [
 {{{tickets_html}}}
 <p class="notice">{{age_notice}}</p>
 <p class="muted">Find your tickets any time at <a href="{{find_tickets_url}}">{{find_tickets_url}}</a>.</p>`,
-    sample: { event_title: 'Demo Night Live', event_when: 'Fri, Nov 20, 2026, 8:00 PM EST', venue_line: 'The Warehouse, Charleston', order_code: 'FTX-7K2M9Q', total: '$29.62', receipt_rows: '<tr><td>1 × General Admission</td><td align="right">$25.00</td></tr><tr><td>Service fee</td><td align="right">$2.24</td></tr><tr><td>Tax</td><td align="right">$1.25</td></tr><tr><td><strong>Total paid</strong></td><td align="right"><strong>$29.62</strong></td></tr>', tickets_html: '<p><a href="#" class="btn">Open ticket</a> &nbsp; General Admission · Jane Doe <code>H2BT56TWX6TT</code></p>', age_notice: 'This event is 21+. Bring a valid photo ID.', find_tickets_url: 'http://localhost:3000/tickets/find' },
+    sample: { event_title: 'Demo Night Live', event_when: 'Fri, Nov 20, 2026, 8:00 PM EST', venue_line: 'The Warehouse, Charleston', order_code: 'FTX-7K2M9Q', total: '$29.62', receipt_rows: '<tr><td>1 × General Admission</td><td align="right">$25.00</td></tr><tr><td>Service fee</td><td align="right">$2.24</td></tr><tr><td>Tax</td><td align="right">$1.25</td></tr><tr><td><strong>Total paid</strong></td><td align="right"><strong>$29.62</strong></td></tr>', tickets_html: '<p><a href="#" class="btn">Open ticket</a> &nbsp; General Admission · Jane Doe <code>H2BT56TWX6TT</code></p>', age_notice: 'This event is 21+. Bring a valid photo ID.', find_tickets_url: `${APP}/tickets/find` },
   },
   {
     key: 'tickets_resent', name: 'Tickets re-sent', description: 'Sent when staff click “Resend tickets”. Same variables as the order confirmation.',
@@ -42,7 +46,7 @@ export const TEMPLATES: TemplateDef[] = [
 {{{tickets_html}}}
 <p class="notice">{{age_notice}}</p>
 <p class="muted">Find your tickets any time at <a href="{{find_tickets_url}}">{{find_tickets_url}}</a>.</p>`,
-    sample: { event_title: 'Demo Night Live', event_when: 'Fri, Nov 20, 2026, 8:00 PM EST', venue_line: 'The Warehouse', order_code: 'FTX-7K2M9Q', total: '$29.62', receipt_rows: '', tickets_html: '<p><a href="#" class="btn">Open ticket</a> &nbsp; General Admission · Jane Doe <code>H2BT56TWX6TT</code></p>', age_notice: '', find_tickets_url: 'http://localhost:3000/tickets/find' },
+    sample: { event_title: 'Demo Night Live', event_when: 'Fri, Nov 20, 2026, 8:00 PM EST', venue_line: 'The Warehouse', order_code: 'FTX-7K2M9Q', total: '$29.62', receipt_rows: '', tickets_html: '<p><a href="#" class="btn">Open ticket</a> &nbsp; General Admission · Jane Doe <code>H2BT56TWX6TT</code></p>', age_notice: '', find_tickets_url: `${APP}/tickets/find` },
   },
   {
     key: 'ticket_transferred', name: 'Ticket transferred to you', description: 'Sent to the new holder when a ticket is transferred to them, by the previous holder or by event staff.',
@@ -55,7 +59,7 @@ ${BUTTON('{{url}}', 'Open your ticket')}
 <p>{{note}}</p>
 <p class="notice">{{age_notice}}</p>
 <p class="muted">The ticket is now in your name and the previous QR code no longer works. Find your tickets any time at <a href="{{find_tickets_url}}">{{find_tickets_url}}</a>.</p>`,
-    sample: { recipient_name: 'Sam Lee', from_name: 'Jane Doe', event_title: 'Demo Night Live', event_when: 'Fri, Nov 20, 2026, 8:00 PM EST', venue_line: 'The Warehouse', ticket_line: 'General Admission', ticket_code: 'H2BT56TWX6TT', url: 'http://localhost:3000/t/H2BT56TWX6TT?k=example', note: '', age_notice: '', find_tickets_url: 'http://localhost:3000/tickets/find' },
+    sample: { recipient_name: 'Sam Lee', from_name: 'Jane Doe', event_title: 'Demo Night Live', event_when: 'Fri, Nov 20, 2026, 8:00 PM EST', venue_line: 'The Warehouse', ticket_line: 'General Admission', ticket_code: 'H2BT56TWX6TT', url: `${APP}/t/H2BT56TWX6TT?k=example`, note: '', age_notice: '', find_tickets_url: `${APP}/tickets/find` },
   },
   {
     key: 'refund_issued', name: 'Refund issued', description: 'Sent for every refund, full or partial.',
@@ -106,7 +110,7 @@ ${BUTTON('{{url}}', 'Open your ticket')}
     body: `<p>You have been given access to {{context}} on {{platform_name}}. Set your password to get started. The link expires in 7 days.</p>
 ${BUTTON('{{url}}', 'Set your password')}
 <p class="muted">{{url}}</p>`,
-    sample: { context: 'Demo Organization on Fat Tixx', url: 'http://localhost:3000/set-password/example' },
+    sample: { context: 'Demo Organization on Fat Tixx', url: `${APP}/set-password/example` },
   },
   {
     key: 'password_reset', name: 'Password reset', description: 'Sent from “Forgot password” and when staff send a reset link.',
@@ -116,7 +120,7 @@ ${BUTTON('{{url}}', 'Set your password')}
 ${BUTTON('{{url}}', 'Choose a new password')}
 <p class="muted">{{url}}</p>
 <p class="muted">If you did not request this, you can ignore this email.</p>`,
-    sample: { url: 'http://localhost:3000/set-password/example' },
+    sample: { url: `${APP}/set-password/example` },
   },
   {
     key: 'waitlist_available', name: 'Waitlist: tickets available', description: 'Sent to waitlisted people when the organizer releases tickets to the waitlist. First come, first served.',
@@ -126,7 +130,7 @@ ${BUTTON('{{url}}', 'Choose a new password')}
 <p>{{ticket_note}}</p>
 ${BUTTON('{{url}}', 'Get tickets')}
 <p class="muted">Tickets are first come, first served. If you no longer want to be on the waitlist, <a href="{{leave_url}}">remove yourself</a>.</p>`,
-    sample: { event_title: 'Demo Night Live', event_when: 'Fri, Nov 20, 2026, 8:00 PM EST', ticket_note: 'You asked about: General Admission.', url: 'http://localhost:3000/events/demo-night-live', leave_url: 'http://localhost:3000/events/demo-night-live?leave=example' },
+    sample: { event_title: 'Demo Night Live', event_when: 'Fri, Nov 20, 2026, 8:00 PM EST', ticket_note: 'You asked about: General Admission.', url: `${APP}/events/demo-night-live`, leave_url: `${APP}/events/demo-night-live?leave=example` },
   },
   {
     key: 'tickets_link', name: 'Find my tickets link', description: 'The one-time link sent from the “Find my tickets” page.',
@@ -135,7 +139,7 @@ ${BUTTON('{{url}}', 'Get tickets')}
     body: `<p>Open the link below to see all your tickets and orders. It works once and expires in 30 minutes.</p>
 ${BUTTON('{{url}}', 'Show my tickets')}
 <p class="muted">{{url}}</p>`,
-    sample: { url: 'http://localhost:3000/tickets/list?token=example' },
+    sample: { url: `${APP}/tickets/list?token=example` },
   },
   {
     key: 'event_reminder', name: 'Event reminder', description: 'Sent automatically to ticket holders about 24 hours before the event starts.',
@@ -146,7 +150,7 @@ ${BUTTON('{{url}}', 'Show my tickets')}
 <p>You have {{ticket_count}} ticket(s). Have the QR codes ready on your phone; screen brightness up helps at the door.</p>
 ${BUTTON('{{order_url}}', 'Show my tickets')}
 <p class="notice">{{age_notice}}</p>`,
-    sample: { buyer_name: 'Jane', event_title: 'Demo Night Live', event_when: 'Fri, Nov 20, 2026, 8:00 PM EST', doors_line: 'Doors 7:00 PM', venue_line: 'The Warehouse, Charleston', ticket_count: '2', order_url: 'http://localhost:3000/tickets/find', age_notice: 'This event is 21+. Bring a valid photo ID.' },
+    sample: { buyer_name: 'Jane', event_title: 'Demo Night Live', event_when: 'Fri, Nov 20, 2026, 8:00 PM EST', doors_line: 'Doors 7:00 PM', venue_line: 'The Warehouse, Charleston', ticket_count: '2', order_url: `${APP}/tickets/find`, age_notice: 'This event is 21+. Bring a valid photo ID.' },
   },
   {
     key: 'verify_email', name: 'Verify email address', description: 'Sent after creating an account (and from the account page) to confirm the email address.',
@@ -156,7 +160,7 @@ ${BUTTON('{{order_url}}', 'Show my tickets')}
 <p>Please confirm this is your email address. The link works once and expires in 24 hours.</p>
 ${BUTTON('{{url}}', 'Confirm email')}
 <p class="muted">If you did not create an account, you can ignore this email.</p>`,
-    sample: { name: 'Jane', url: 'http://localhost:3000/verify-email/example' },
+    sample: { name: 'Jane', url: `${APP}/verify-email/example` },
   },
   {
     key: 'application_received', name: 'Organizer application received', description: 'Confirmation sent to someone who applied to sell tickets.',
@@ -173,7 +177,7 @@ ${BUTTON('{{url}}', 'Confirm email')}
     body: `<p>Hi {{contact_name}},</p>
 <p><strong>{{org_name}}</strong> is verified and ready to sell tickets. You are the Organization Admin.</p>
 ${BUTTON('{{url}}', 'Open your organizer dashboard')}`,
-    sample: { contact_name: 'Jane', org_name: 'Lowcountry Live', url: 'http://localhost:3000/set-password/example' },
+    sample: { contact_name: 'Jane', org_name: 'Lowcountry Live', url: `${APP}/set-password/example` },
   },
   {
     key: 'application_rejected', name: 'Organizer application declined', description: 'Sent when platform staff decline an organizer application.',
@@ -191,7 +195,7 @@ ${BUTTON('{{url}}', 'Open your organizer dashboard')}`,
     subject: 'Reconciliation: {{count}} discrepancy(ies) found',
     body: `<p>The daily reconciliation between Fat Tixx orders and Stripe found <strong>{{count}}</strong> discrepancy(ies) for {{range}}.</p>
 ${BUTTON('{{url}}', 'Review in Payments')}`,
-    sample: { count: '2', range: 'the last 2 days', url: 'http://localhost:3000/admin/payments' },
+    sample: { count: '2', range: 'the last 2 days', url: `${APP}/admin/payments` },
   },
 ];
 
@@ -255,6 +259,6 @@ export async function renderEmail(key: TemplateKey, vars: Record<string, string>
   const subject = fillTemplate(stored?.subject ?? def.subject, all);
   const bodyHtml = fillTemplate(stored?.body_html ?? def.body, all).replace(/<p class="notice"><\/p>|<p><\/p>/g, '');
   // appendHtml (e.g. the email ad placement) is added outside the editable template and left out of the plain-text part.
-  const html = brandedLayout(opts.title ?? subject, bodyHtml + (opts.appendHtml ?? ''), brand, opts.appUrl ?? process.env.APP_URL ?? 'http://localhost:3000');
+  const html = brandedLayout(opts.title ?? subject, bodyHtml + (opts.appendHtml ?? ''), brand, opts.appUrl ?? env.APP_URL);
   return { subject, html, text: `${subject}\n\n${htmlToText(bodyHtml)}` };
 }

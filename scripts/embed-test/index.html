@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Embed test – partner site</title>
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; background: #f4f1ea; color: #222; }
+    header { background: #1d2b3a; color: #fff; padding: 16px; }
+    main { max-width: 960px; margin: 0 auto; padding: 24px 16px; display: grid; gap: 24px; grid-template-columns: 1fr; }
+    @media (min-width: 900px) { main { grid-template-columns: 1fr 520px; } }
+    .note { font-size: 14px; line-height: 1.5; }
+    code { background: #e6e1d6; padding: 2px 4px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <header><strong>Partner venue site</strong> (simulated third-party page)</header>
+  <main>
+    <section class="note">
+      <h1>Eve Event</h1>
+      <p>This page is served from a different origin than Fat Tixx, the way a venue or promoter site would embed the widget.</p>
+      <p>The ticket widget is inserted by:</p>
+      <p><code>&lt;script src="http://localhost:3000/embed.js" data-event="eve-event" async&gt;&lt;/script&gt;</code></p>
+    </section>
+    <section>
+      <script src="http://localhost:3000/embed.js" data-event="eve-event" async></script>
+    </section>
+  </main>
+</body>
+</html>

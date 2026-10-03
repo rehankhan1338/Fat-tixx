@@ -6,9 +6,11 @@ import { useEffect } from "react";
 export function EmbedResizer() {
   useEffect(() => {
     if (window.parent === window) return;
-    const send = () => window.parent.postMessage({ type: "fattixx:height", height: document.documentElement.scrollHeight }, "*");
+    // Measure the widget itself: <html>/<body> stretch to the iframe, so their height could only ever grow.
+    const content = document.querySelector("main") ?? document.body;
+    const send = () => window.parent.postMessage({ type: "fattixx:height", height: Math.ceil(content.getBoundingClientRect().height) }, "*");
     const ro = new ResizeObserver(send);
-    ro.observe(document.body);
+    ro.observe(content);
     send();
     return () => ro.disconnect();
   }, []);

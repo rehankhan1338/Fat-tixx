@@ -117,7 +117,9 @@ export function UsersTable({ users, currentUserId, canManage = true }: { users: 
                           {u.status === "active"
                             ? <DropdownMenuItem onClick={() => run(setUserStatus, { user_id: u.id, status: "suspended" }, "User suspended")}>Suspend user</DropdownMenuItem>
                             : <DropdownMenuItem onClick={() => run(setUserStatus, { user_id: u.id, status: "active" }, "User reactivated")}>Reactivate user</DropdownMenuItem>}
-                          <DropdownMenuItem variant="destructive" onClick={() => { if (confirm(`Delete ${u.name} (${u.email}) permanently? Their organization memberships and sessions are removed; orders they bought are kept under their email.`)) void run(deleteUser, { user_id: u.id }, "User deleted"); }}>Delete user</DropdownMenuItem>
+                          {roles.includes("super_admin")
+                            ? <DropdownMenuItem disabled>Super Admins cannot be deleted</DropdownMenuItem>
+                            : <DropdownMenuItem variant="destructive" onClick={() => { if (confirm(`Delete ${u.name} (${u.email}) permanently? Their organization memberships and sessions are removed; orders they bought are kept under their email.`)) void run(deleteUser, { user_id: u.id }, "User deleted"); }}>Delete user</DropdownMenuItem>}
                         </>
                       ) : null}
                     </DropdownMenuContent>
