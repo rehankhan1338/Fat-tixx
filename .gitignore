@@ -39,3 +39,16 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# keep the documented example env file
+!.env.example
+
+# user-uploaded images (served by /api/uploads)
+/uploads/
+
+# test output
+tests/e2e/.artifacts/
+tests/e2e/.report/
+
+# database backups (npm run db:backup)
+backups/

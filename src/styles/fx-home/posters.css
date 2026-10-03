@@ -1,0 +1,74 @@
+/*
+ * Generated poster art used on the event cards until events have real images
+ * (6 gradient styles, picked by position so neighbours differ).
+ */
+
+@layer components {
+
+
+.fx-home {
+/* ---------- Poster art (stands in for event images) ---------- */
+
+.poster {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #120C0C;
+}
+
+.poster::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(var(--deep-rgb), .35), transparent 45%);
+}
+
+.poster .pc {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 1;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(var(--deep-rgb), .5);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, .16);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  color: #fff;
+}
+
+.pv0 {
+  --ft: #A8121A;
+  background: radial-gradient(circle at 76% 38%, #E0241B 0 25%, transparent 25.4%), #FFD23F;
+}
+
+.pv1 {
+  --ft: #F5F1EA;
+  background: radial-gradient(55% 45% at 72% 28%, rgba(255, 210, 63, .95), rgba(255, 210, 63, .35) 45%, transparent 72%), linear-gradient(170deg, #D8231B, #7A0C12);
+}
+
+.pv2 {
+  --ft: #A8121A;
+  background: radial-gradient(circle at 74% 40%, #E0241B 0 22%, transparent 22.4%), repeating-linear-gradient(135deg, rgba(168, 18, 26, .13) 0 2px, transparent 2px 16px), #F5F1EA;
+}
+
+.pv3 {
+  --ft: #F5F1EA;
+  background: radial-gradient(circle at 68% 36%, transparent 0 21%, #FFD23F 21.4% 24.5%, transparent 24.9%), linear-gradient(200deg, #E0241B, #8E0E15);
+}
+
+.pv4 {
+  --ft: #A8121A;
+  background: radial-gradient(circle at 34% 38%, transparent 0 18%, #C8201A 18.4% 23.5%, transparent 23.9%), linear-gradient(170deg, #FFD23F 0%, #FFB43F 60%, #FF8F3D 100%);
+}
+
+.pv5 {
+  --ft: #FFD23F;
+  background: radial-gradient(75% 55% at 25% 15%, rgba(255, 210, 63, .5), transparent 65%), linear-gradient(180deg, #8E0E15, #5E090E);
+}
+}
+}

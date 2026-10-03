@@ -1,0 +1,164 @@
+/*
+ * Featured strip motion: tile sizes (grow on open), fade of the other tiles, the details panel
+ * fade/slide and the placeholder photo classes. Driven by FeaturedStrip.tsx; the details panel
+ * content itself is styled with Tailwind in the component.
+ */
+
+@layer components {
+@keyframes fx-fiup {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.fx-home {
+/* ---------- Featured 3D carousel ---------- */
+
+.fstrip {
+  --fw: 293px;
+  --fh: 220px;
+  --fw-on: 452px;
+  --fh-on: 340px;
+}
+
+.f-view {
+  height: var(--fh-on);
+  overflow: hidden;
+  touch-action: pan-y;
+  cursor: grab;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.f-view.dragging {
+  cursor: grabbing;
+}
+
+.f-track {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: max-content;
+  will-change: transform;
+}
+
+.ftile {
+  position: relative;
+  flex: 0 0 auto;
+  display: block;
+  width: var(--fw);
+  height: var(--fh);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #8E0E15;
+  -webkit-user-drag: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: width .55s var(--ease), height .55s var(--ease), opacity .4s ease, box-shadow .4s ease;
+}
+
+.ftile:focus-visible {
+  outline-offset: -3px;
+}
+
+.ftile.on {
+  width: var(--fw-on);
+  height: var(--fh-on);
+  box-shadow: 0 30px 50px -30px rgba(78, 7, 11, .6);
+}
+
+.fstrip.open .ftile:not(.on) {
+  opacity: .55;
+}
+
+.fimg {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background-size: cover;
+  background-position: center;
+  transition: transform .8s var(--ease);
+}
+
+.ph-club {
+  background-position: 30% center;
+}
+
+.ftile:not(.on):hover .fimg {
+  transform: scale(1.04);
+}
+
+/* details open underneath the photo you point at */
+
+.f-infobox {
+  position: relative;
+  height: 210px;
+  margin-top: 24px;
+}
+
+.f-info {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: min(540px, calc(100% - 32px));
+  display: flex;
+  gap: 18px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .3s ease;
+}
+
+.fstrip.open .f-info {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.f-info.fi-swap>*,
+.f-info.fi-swap .fi-body>* {
+  animation: fx-fiup .5s var(--ease) both;
+}
+
+.f-info.fi-swap .fi-body> :nth-child(2) {
+  animation-delay: .04s;
+}
+
+.f-info.fi-swap .fi-body> :nth-child(3) {
+  animation-delay: .08s;
+}
+
+.f-info.fi-swap .fi-body> :nth-child(4) {
+  animation-delay: .12s;
+}
+
+@media (max-width: 720px) {
+  .fstrip {
+    --fw: 200px;
+    --fh: 150px;
+    --fw-on: 320px;
+    --fh-on: 240px;
+  }
+
+  .f-infobox {
+    height: 250px;
+    margin-top: 18px;
+  }
+}
+
+/* placeholder event photos: replace with each event's real image */
+
+.ph-gala { background-image: url("/images/events/gala.jpg"); }
+
+.ph-fest { background-image: url("/images/events/fest.jpg"); }
+
+.ph-conf { background-image: url("/images/events/conf.jpg"); }
+
+.ph-party { background-image: url("/images/events/party.jpg"); }
+
+.ph-club { background-image: url("/images/events/club.jpg"); }
+}
+}

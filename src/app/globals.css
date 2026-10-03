@@ -1,26 +1,266 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+/* Public homepage design (Fattixx brand). Effects are scoped to .fx-home so they never touch the admin UI. */
+@import "../styles/fx-home/hero.css";
+@import "../styles/fx-home/how-it-works.css";
+@import "../styles/fx-home/featured.css";
+@import "../styles/fx-home/posters.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --color-background: var(--background);
+  --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
+  --font-heading: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+input:-webkit-autofill,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--foreground);
+  -webkit-box-shadow: 0 0 0 1000px var(--background) inset;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.769 0.188 70.08);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.769 0.188 70.08);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.769 0.188 70.08);
+  --sidebar-primary-foreground: oklch(0.205 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.828 0.189 84.429);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.828 0.189 84.429);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.828 0.189 84.429);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+/* ---------------------------------------------------------------------------
+ * Fattixx brand tokens (homepage design). Utilities: bg-fx-red, text-fx-yellow, font-display, ease-fx, animate-rise...
+ * The design is desktop-first; its components use max-[901px]: style variants, so Tailwind's default
+ * min-width breakpoints used by the rest of the app are unchanged.
+ * ------------------------------------------------------------------------- */
+@theme {
+  --color-fx-red: #A8121A;
+  --color-fx-red-dark: #8E0E15;
+  --color-fx-red-deep: #4E070B;
+  --color-fx-red-night: #6E0A10;
+  --color-fx-red-second: #C8201A;
+  --color-fx-red-bright: #E0241B;
+  --color-fx-yellow: #FFD23F;
+  --color-fx-ivory: #F5F1EA;
+  --color-fx-white: #FFFDFA;
+  --color-fx-sand: #F3ECE2;
+  --color-fx-ink: #2A0A0C;
+
+  --ease-fx: cubic-bezier(.16, 1, .3, 1);
+  --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+  --ease-flip: cubic-bezier(.65, 0, .35, 1);
+
+  --animate-rise: rise .6s cubic-bezier(.16, 1, .3, 1) both;
+  --animate-locpulse: locpulse 1s ease-in-out infinite;
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  @keyframes locpulse {
+    50% { opacity: .25; }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@theme inline {
+  /* self-hosted with next/font; the variables are set on the .fx-home wrapper */
+  --font-display: var(--font-fx-display), system-ui, sans-serif;
+}
+
+/* hide a horizontal scrollbar on swipeable rows */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@layer base {
+  html:has(.fx-home) {
+    scroll-behavior: smooth;
+    background: #F5F1EA;
+  }
+
+  .fx-home {
+    /* variables used by the effect stylesheets */
+    --dark: #A8121A;
+    --dark-rgb: 168, 18, 26;
+    --dark2: #8E0E15;
+    --deep: #4E070B;
+    --deep-rgb: 78, 7, 11;
+    --second: #C8201A;
+    --face: #E0241B;
+    --accent: #FFD23F;
+    --accent-rgb: 255, 210, 63;
+    --ivory: #F5F1EA;
+    --ivory-rgb: 245, 241, 234;
+    --pad: clamp(20px, 5.5vw, 80px);
+    --ease: cubic-bezier(.16, 1, .3, 1);
+    --flipease: cubic-bezier(.65, 0, .35, 1);
+    --spring: cubic-bezier(.34, 1.56, .64, 1);
+    --font-display: var(--font-fx-display), system-ui, sans-serif;
+
+    font-family: var(--font-fx-sans), system-ui, -apple-system, sans-serif;
+    background: #F5F1EA;
+    color: #A8121A;
+    line-height: normal;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    overflow-x: clip;
+  }
+
+  .fx-home :where(a, button, input, select):focus-visible {
+    outline: 2px solid #FFD23F;
+    outline-offset: 3px;
+  }
+
+  .fx-home input[type="search"]::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+  }
+
+  /* fade-in on scroll (RevealOnScroll adds .js to <html> and .in to each element) */
+  .js .fx-home .reveal {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity .9s var(--ease), transform .9s var(--ease);
+  }
+
+  .js .fx-home .reveal.in {
+    opacity: 1;
+    transform: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html:has(.fx-home) {
+      scroll-behavior: auto;
+    }
+
+    .fx-home *,
+    .fx-home *::before,
+    .fx-home *::after {
+      animation-duration: .01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: .01ms !important;
+    }
+  }
+}
+
+/* Required fields: a red asterisk after the label (FieldWrap marks its wrapper with data-fx-field). */
+[data-fx-field]:has(:is(input, select, textarea)[required]) > [data-slot="label"]::after {
+  content: "*";
+  color: var(--destructive);
+  margin-left: 0.125rem;
 }

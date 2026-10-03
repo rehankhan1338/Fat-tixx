@@ -1,0 +1,76 @@
+import type { ComponentProps, ReactNode } from "react";
+import { CheckCircle2Icon } from "lucide-react";
+import { Alert, AlertTitle } from "@/components/ui/alert";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { ErrorAlert } from "@/components/form-validation";
+
+/**
+ * Renders the {error, ok} state returned by server actions. Errors scroll into view; an action that
+ * also returns `field` (the input's name) gets that field highlighted and focused.
+ */
+export function FormStatus({ state, successText }: { state: { error?: string; ok?: boolean; field?: string } | undefined; successText?: string }) {
+  if (state?.error) return <ErrorAlert message={state.error} field={state.field} result={state} />;
+  if (state?.ok && successText) {
+    return (
+      <Alert className="border-emerald-500/40 text-emerald-700 dark:text-emerald-300 [&>svg]:text-emerald-700 dark:[&>svg]:text-emerald-300">
+        <CheckCircle2Icon />
+        <AlertTitle>{successText}</AlertTitle>
+      </Alert>
+    );
+  }
+  return null;
+}
+
+export function FieldWrap({ label, htmlFor, hint, children, className = "" }: { label: ReactNode; htmlFor: string; hint?: ReactNode; children: ReactNode; className?: string }) {
+  return (
+    <div data-fx-field="" className={`grid gap-1.5 ${className}`}>
+      <Label htmlFor={htmlFor}>{label}</Label>
+      {children}
+      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+    </div>
+  );
+}
+
+export function TextField({ label, hint, className, ...props }: { label: ReactNode; hint?: ReactNode; className?: string } & ComponentProps<typeof Input> & { id: string; name: string }) {
+  return (
+    <FieldWrap label={label} htmlFor={props.id} hint={hint} className={className}>
+      <Input {...props} />
+    </FieldWrap>
+  );
+}
+
+export function TextAreaField({ label, hint, className, ...props }: { label: ReactNode; hint?: ReactNode; className?: string } & ComponentProps<typeof Textarea> & { id: string; name: string }) {
+  return (
+    <FieldWrap label={label} htmlFor={props.id} hint={hint} className={className}>
+      <Textarea {...props} />
+    </FieldWrap>
+  );
+}
+
+export function SelectField({ label, hint, options, className, ...props }: {
+  label: ReactNode; hint?: ReactNode; className?: string; options: { value: string; label: string }[];
+} & ComponentProps<typeof NativeSelect> & { id: string; name: string }) {
+  return (
+    <FieldWrap label={label} htmlFor={props.id} hint={hint} className={className}>
+      <NativeSelect {...props}>
+        {options.map((o) => <NativeSelectOption key={o.value} value={o.value}>{o.label}</NativeSelectOption>)}
+      </NativeSelect>
+    </FieldWrap>
+  );
+}
+
+/** Native checkbox styled to match; submits "1" when checked. */
+export function CheckField({ label, hint, id, name, defaultChecked, required }: { label: ReactNode; hint?: ReactNode; id: string; name: string; defaultChecked?: boolean; required?: boolean }) {
+  return (
+    <label htmlFor={id} className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 hover:bg-accent/40 has-aria-invalid:border-destructive has-aria-invalid:bg-destructive/5">
+      <input id={id} name={name} type="checkbox" value="1" defaultChecked={defaultChecked} required={required} className="mt-0.5 size-4 accent-[var(--primary)]" />
+      <span className="grid gap-0.5 text-sm">
+        <span className="font-medium leading-none">{label}</span>
+        {hint ? <span className="text-xs text-muted-foreground">{hint}</span> : null}
+      </span>
+    </label>
+  );
+}
