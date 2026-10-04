@@ -10,7 +10,7 @@ import { EventCard } from '@/components/EventCard';
 import { CategoryPills } from '@/components/home/CategoryPills';
 import { FeaturedStrip } from '@/components/home/FeaturedStrip';
 import { HomeHero } from '@/components/home/HomeHero';
-import { Button, ErrorState, Pill, Skeleton, Txt } from '@/components/ui';
+import { Button, ErrorState, Pill, ScreenLoader, Txt } from '@/components/ui';
 import { API_URL } from '@/lib/config';
 import { inWindow, listUpcoming, type ListedEvent, type WhenFilter } from '@/lib/format';
 import { colors, fonts, GUTTER, red } from '@/theme/tokens';
@@ -81,11 +81,7 @@ export default function HomeScreen() {
   if (isLoading) {
     return (
       <SafeAreaView edges={['top']} style={styles.fill}>
-        <View style={{ padding: GUTTER, gap: 14 }}>
-          <Skeleton style={{ height: 420, borderRadius: 28 }} />
-          <Skeleton style={{ height: 46, width: 220 }} />
-          <View style={{ flexDirection: 'row', gap: 14 }}><Skeleton style={{ flex: 1, height: 220 }} /><Skeleton style={{ flex: 1, height: 220 }} /></View>
-        </View>
+        <ScreenLoader label="Finding events near you…" />
       </SafeAreaView>
     );
   }

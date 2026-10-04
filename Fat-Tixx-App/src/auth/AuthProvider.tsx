@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { api, ApiError, configureAuth, describeDevice } from '@/api/client';
 import type { Account, AuthResponse, PendingRegistration } from '@/api/types';
 import { forgetOrders, getSessionToken, setSessionToken } from './secure';
+import { clearOfflineSnapshots } from '@/scanner/store';
 
 /**
  * Session state for the whole app. The token lives in SecureStore and in memory only; it is attached to
@@ -105,6 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (hadToken) await api('/auth/logout', { method: 'POST', timeoutMs: 6000 }).catch(() => {});
     await clearLocal();
     await forgetOrders();
+    await clearOfflineSnapshots().catch(() => {});
     queryClient.clear();
   }, [clearLocal, queryClient]);
 

@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
 import { useManageAttendees, useManageEvent } from '@/api/hooks';
 import type { ManageAttendee, ScanResult } from '@/api/types';
-import { Button, ErrorState, Notice, Screen, Skeleton, StatusBadge, Txt } from '@/components/ui';
+import { Button, ErrorState, Notice, Screen, ScreenLoader, StatusBadge, Txt } from '@/components/ui';
 import { colors, fonts, radius, red } from '@/theme/tokens';
 
 /**
@@ -64,7 +64,7 @@ export default function AttendeesScreen() {
         <Txt variant="caption" style={{ marginTop: 6 }}>{data ? `${data.attendees.length} shown · ${data.total} tickets${event ? ` · ${event.counts.used} checked in` : ''}` : ' '}</Txt>
         {msg ? <View style={{ marginTop: 8 }}><Notice tone={msg.tone}>{msg.text}</Notice></View> : null}
       </View>
-      {isLoading ? <View style={{ padding: 20, gap: 10 }}><Skeleton style={{ height: 70 }} /><Skeleton style={{ height: 70 }} /></View>
+      {isLoading ? <ScreenLoader label="Loading attendees…" />
         : isError ? <View style={{ padding: 20 }}><ErrorState message={(error as Error).message} onRetry={() => refetch()} /></View>
         : (
           <FlatList

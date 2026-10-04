@@ -7,7 +7,7 @@ import * as Sharing from 'expo-sharing';
 import { api } from '@/api/client';
 import { useManageEvent } from '@/api/hooks';
 import { NavRow, StatGrid } from '@/components/manage/Stats';
-import { Button, Card, ErrorState, Notice, Screen, Skeleton, StatusBadge, Txt } from '@/components/ui';
+import { Button, Card, ErrorState, Notice, Screen, ScreenLoader, StatusBadge, Txt } from '@/components/ui';
 import { API_URL } from '@/lib/config';
 import { formatCents } from '@/lib/format';
 import { openWeb, orgWebPaths } from '@/lib/web';
@@ -36,7 +36,7 @@ export default function ManageEventScreen() {
     Alert.alert(status === 'published' ? 'Publish' : status === 'draft' ? 'Unpublish' : 'Complete', label, [{ text: 'Cancel', style: 'cancel' }, { text: 'Confirm', onPress: () => { void setStatus(status); } }]);
   }
 
-  if (isLoading) return <Screen back title="Event"><Skeleton style={{ height: 120 }} /><Skeleton style={{ height: 200, marginTop: 14 }} /></Screen>;
+  if (isLoading) return <Screen back title="Event" scroll={false}><ScreenLoader label="Loading event…" /></Screen>;
   if (isError || !data) return <Screen back title="Event"><ErrorState message={(error as Error)?.message ?? 'Event not found.'} onRetry={() => refetch()} /></Screen>;
   const { event: e, counts, sales, perms } = data;
   const publicUrl = `${API_URL}/events/${e.slug}`;

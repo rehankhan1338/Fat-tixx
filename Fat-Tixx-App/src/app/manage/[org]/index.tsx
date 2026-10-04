@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { BarChart3, CalendarPlus, Megaphone, Receipt, ScanLine, Settings, Users, MapPin } from 'lucide-react-native';
 import { useManageEvents } from '@/api/hooks';
 import { Chips, NavRow } from '@/components/manage/Stats';
-import { Button, EmptyState, ErrorState, Screen, Skeleton, StatusBadge, Txt } from '@/components/ui';
+import { Button, EmptyState, ErrorState, Screen, SectionLoader, StatusBadge, Txt } from '@/components/ui';
 import { formatCents } from '@/lib/format';
 import { openWeb, orgWebPaths } from '@/lib/web';
 import { colors } from '@/theme/tokens';
@@ -44,7 +44,7 @@ export default function OrgScreen() {
       </View>
 
       <View style={{ gap: 10, marginTop: 12 }}>
-        {isLoading ? <><Skeleton style={{ height: 84 }} /><Skeleton style={{ height: 84 }} /></>
+        {isLoading ? <SectionLoader label="Loading events…" />
           : isError ? <ErrorState message={(error as Error).message} onRetry={() => refetch()} />
           : !data?.events.length ? <EmptyState title={filter === 'upcoming' ? 'No upcoming events' : 'No events'} description={staff ? 'You have not been assigned to any event yet.' : 'Create your first event to start selling tickets.'} action={!staff ? <Button title="New event" onPress={() => openWeb(paths.newEvent, 'New event')} /> : undefined} />
           : data.events.map((e) => (

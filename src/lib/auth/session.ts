@@ -146,18 +146,21 @@ async function resolveSession(token: string, via: CurrentSession['via']): Promis
 }
 
 /**
- * Resolve the current session: the cookie for the website, else `Authorization: Bearer` for the app.
+ * Resolve the current session: `Authorization: Bearer` for the app, else the cookie for the website.
  * Cached per request so layouts, pages, actions and route handlers share one lookup.
  * Returns null for missing, expired, idle, revoked, or suspended.
  */
 export const getSession = cache(async (): Promise<CurrentSession | null> => {
-  const store = await cookies();
-  const cookieToken = store.get(SESSION_COOKIE)?.value;
-  if (plausibleToken(cookieToken)) return resolveSession(cookieToken, 'cookie');
-
+  // The app's Bearer header wins over the cookie. On a phone the in-app WebView (signed in through
+  // /app-login) shares its cookie jar with the app's own fetch, so API requests may carry a browser
+  // cookie as well; that cookie must never shadow, or (once idle) hide, the app session the request names.
   const auth = (await headers()).get('authorization');
   const m = auth?.match(/^Bearer\s+([A-Za-z0-9_-]{32,128})$/i);
   if (m && plausibleToken(m[1])) return resolveSession(m[1], 'bearer');
+
+  const store = await cookies();
+  const cookieToken = store.get(SESSION_COOKIE)?.value;
+  if (plausibleToken(cookieToken)) return resolveSession(cookieToken, 'cookie');
   return null;
 });
 

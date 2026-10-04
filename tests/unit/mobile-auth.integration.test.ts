@@ -111,6 +111,20 @@ describe("bearer sessions", () => {
     req.cookie = null;
   });
 
+  it("wins over a browser cookie sent on the same request (the in-app WebView shares the phone's cookie jar)", async () => {
+    // A live cookie session of the same user, as /app-login creates for the WebView, must not shadow the app session…
+    req.authorization = `Bearer ${token}`;
+    req.cookie = token;
+    expect((await getSession())?.via).toBe("bearer");
+    // …and neither may a stale cookie hide it: the idle-out above would otherwise turn every API call into a 401.
+    await execute(`UPDATE sessions SET last_seen_at = NOW() - INTERVAL 5 HOUR WHERE id = ?`, [sessionId]);
+    expect((await getSession())?.via).toBe("bearer");
+    req.cookie = `${"B".repeat(43)}`;
+    expect((await getSession())?.via).toBe("bearer");
+    req.cookie = null;
+    req.authorization = null;
+  });
+
   it("ignores malformed or unknown tokens", async () => {
     req.authorization = "Bearer short";
     expect(await getSession()).toBeNull();

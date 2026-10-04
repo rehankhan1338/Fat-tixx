@@ -9,7 +9,7 @@ import { useOrder } from '@/api/hooks';
 import type { OrderDetail, Ticket } from '@/api/types';
 import { rememberedOrderToken } from '@/auth/secure';
 import { TicketQr } from '@/components/TicketQr';
-import { Button, Card, ErrorState, Field, Notice, Screen, Skeleton, StatusBadge, Txt } from '@/components/ui';
+import { Button, Card, ErrorState, Field, Notice, Screen, ScreenLoader, StatusBadge, Txt } from '@/components/ui';
 import { API_URL } from '@/lib/config';
 import { formatCents } from '@/lib/format';
 import { colors, red } from '@/theme/tokens';
@@ -26,7 +26,7 @@ export default function OrderScreen() {
     if (order?.status === 'pending') router.replace({ pathname: '/checkout/[code]', params: t ? { code, t } : { code } });
   }, [order, code, t]);
 
-  if (isLoading || t === undefined) return <Screen back title="Your order"><Skeleton style={{ height: 80 }} /><Skeleton style={{ height: 320, marginTop: 14 }} /></Screen>;
+  if (isLoading || t === undefined) return <Screen back title="Your order" scroll={false}><ScreenLoader label="Loading your tickets…" /></Screen>;
   if (isError || !order) return <Screen back title="Your order"><ErrorState message={(error as Error)?.message ?? 'Order not found.'} onRetry={() => refetch()} /></Screen>;
   const tot = order.totals;
 

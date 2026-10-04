@@ -4,7 +4,7 @@ import { Building2, Shield } from 'lucide-react-native';
 import { useManageOverview } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthProvider';
 import { NavRow, StatGrid } from '@/components/manage/Stats';
-import { Button, EmptyState, ErrorState, Screen, Skeleton, StatusBadge, Txt } from '@/components/ui';
+import { Button, EmptyState, ErrorState, Screen, SectionLoader, StatusBadge, Txt } from '@/components/ui';
 import { formatCents } from '@/lib/format';
 import { openWeb } from '@/lib/web';
 import { colors } from '@/theme/tokens';
@@ -31,7 +31,7 @@ export default function ManageScreen() {
       ) : null}
 
       <Txt variant="eyebrow" style={{ marginBottom: 10 }}>Your organizations</Txt>
-      {isLoading ? <View style={{ gap: 10 }}><Skeleton style={{ height: 150 }} /><Skeleton style={{ height: 150 }} /></View>
+      {isLoading ? <SectionLoader label="Loading your organizations…" />
         : isError ? <ErrorState message={(error as Error).message} onRetry={() => refetch()} />
         : !data?.orgs.length ? (
           <EmptyState title={roles.length ? 'You are not a member of any organization' : 'No organizations yet'} description="Organizers sell tickets through an organization. Apply on the website to start hosting." action={<Button title="Apply to sell tickets" variant="outline" onPress={() => openWeb('/sell', 'Sell tickets')} />} />

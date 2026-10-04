@@ -5,7 +5,7 @@ import { Building2, Search, UserRound } from 'lucide-react-native';
 import { useAdminOrgs, useAdminOverview, useAdminUsers } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthProvider';
 import { Chips, NavRow, StatGrid } from '@/components/manage/Stats';
-import { Button, Card, EmptyState, ErrorState, Notice, Screen, Skeleton, StatusBadge, Txt } from '@/components/ui';
+import { Button, Card, EmptyState, ErrorState, Notice, Screen, SectionLoader, StatusBadge, Txt } from '@/components/ui';
 import { formatCents } from '@/lib/format';
 import { ADMIN_WEB_SECTIONS, openWeb } from '@/lib/web';
 import { colors, fonts, red } from '@/theme/tokens';
@@ -43,7 +43,7 @@ export default function AdminScreen() {
       <Chips value={tab} onChange={setTab} options={tabs} />
 
       {tab === 'overview' ? (
-        isLoading ? <View style={{ gap: 10, marginTop: 16 }}><Skeleton style={{ height: 160 }} /><Skeleton style={{ height: 200 }} /></View>
+        isLoading ? <SectionLoader label="Loading overview…" />
         : isError || !data ? <View style={{ marginTop: 16 }}><ErrorState message={(error as Error)?.message ?? 'Could not load.'} onRetry={() => refetch()} /></View>
         : (
           <View style={{ marginTop: 16, gap: 16 }}>
@@ -82,12 +82,12 @@ export default function AdminScreen() {
         <View style={{ marginTop: 16, gap: 10 }}>
           <View style={styles.search}><Search size={16} color={red(0.6)} /><TextInput value={q} onChangeText={onSearch} placeholder={tab === 'orgs' ? 'Search organizations' : 'Search users by name or email'} placeholderTextColor={red(0.5)} autoCorrect={false} autoCapitalize="none" style={styles.input} /></View>
           {tab === 'orgs' ? (
-            orgs.isLoading ? <Skeleton style={{ height: 160 }} /> : orgs.isError ? <ErrorState message={(orgs.error as Error).message} onRetry={() => orgs.refetch()} /> : (orgs.data?.organizations ?? []).map((o) => (
+            orgs.isLoading ? <SectionLoader height={200} /> : orgs.isError ? <ErrorState message={(orgs.error as Error).message} onRetry={() => orgs.refetch()} /> : (orgs.data?.organizations ?? []).map((o) => (
               <NavRow key={o.slug} icon={<Building2 size={18} color={colors.red} />} title={o.name} badge={o.status !== 'active' ? <StatusBadge status={o.status} /> : undefined}
                 sub={`${o.members} members · ${o.events} events · ${o.orders} orders · ${formatCents(o.grossCents)}\n${o.contactEmail}`} onPress={() => openWeb(`/admin/organizations/${o.slug}`, o.name)} />
             ))
           ) : (
-            users.isLoading ? <Skeleton style={{ height: 160 }} /> : users.isError ? <ErrorState message={(users.error as Error).message} onRetry={() => users.refetch()} /> : (users.data?.users ?? []).map((u) => (
+            users.isLoading ? <SectionLoader height={200} /> : users.isError ? <ErrorState message={(users.error as Error).message} onRetry={() => users.refetch()} /> : (users.data?.users ?? []).map((u) => (
               <NavRow key={u.email} icon={<UserRound size={18} color={colors.red} />} title={u.name} badge={u.status !== 'active' ? <StatusBadge status={u.status} /> : undefined}
                 sub={`${u.email}${u.roles.length ? ` · ${u.roles.join(', ').replace(/_/g, ' ')}` : ''}\n${u.orgCount} orgs · ${u.orderCount} orders · ${u.lastLoginAt ? `last login ${new Date(u.lastLoginAt).toLocaleDateString()}` : 'never signed in'}`}
                 onPress={() => openWeb(`/admin/users?q=${encodeURIComponent(u.email)}`, 'Users')} />

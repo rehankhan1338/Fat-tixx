@@ -5,7 +5,7 @@ import { ChevronRight } from 'lucide-react-native';
 import { useMyOrders } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthProvider';
 import { listRememberedOrders, type RememberedOrder } from '@/auth/secure';
-import { Button, Card, EmptyState, ErrorState, Notice, Screen, Skeleton, StatusBadge, Txt } from '@/components/ui';
+import { Button, Card, EmptyState, ErrorState, Notice, Screen, SectionLoader, StatusBadge, Txt } from '@/components/ui';
 import { formatCents } from '@/lib/format';
 import { colors, red } from '@/theme/tokens';
 
@@ -32,7 +32,7 @@ export default function TicketsScreen() {
 
       {signedIn ? (
         <View style={{ gap: 10, marginTop: 12 }}>
-          {isLoading ? <><Skeleton style={{ height: 84 }} /><Skeleton style={{ height: 84 }} /></>
+          {isLoading ? <SectionLoader label="Loading your tickets…" />
             : isError ? <ErrorState message={(error as Error).message} onRetry={() => refetch()} />
             : data && data.orders.length ? data.orders.map((o) => (
               <Row key={o.code} onPress={() => open(o.code)} title={o.eventTitle} sub={`Order ${o.code} · ${o.ticketCount} ticket${o.ticketCount === 1 ? '' : 's'} · ${formatCents(o.totalCents, o.currency)}`} status={o.status} />

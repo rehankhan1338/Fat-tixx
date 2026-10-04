@@ -10,7 +10,7 @@ import type { EventDetail, QueueStatus } from '@/api/types';
 import { useEvent } from '@/api/hooks';
 import { getQueueToken, setQueueToken } from '@/auth/secure';
 import { TicketSelector } from '@/components/TicketSelector';
-import { Button, Card, ErrorState, Field, Notice, Screen, Skeleton, Tag, Txt } from '@/components/ui';
+import { Button, Card, ErrorState, Field, Notice, Screen, ScreenLoader, Tag, Txt } from '@/components/ui';
 import { API_URL } from '@/lib/config';
 import { colors, radius, red } from '@/theme/tokens';
 
@@ -25,11 +25,8 @@ export default function EventScreen() {
 
   if (isLoading) {
     return (
-      <Screen back title="Event">
-        <Skeleton style={{ aspectRatio: 16 / 9, borderRadius: radius.xl }} />
-        <Skeleton style={{ height: 34, width: '80%', marginTop: 18 }} />
-        <Skeleton style={{ height: 20, width: '60%', marginTop: 10 }} />
-        <Skeleton style={{ height: 120, marginTop: 24 }} />
+      <Screen back title="Event" scroll={false}>
+        <ScreenLoader label="Loading event…" />
       </Screen>
     );
   }

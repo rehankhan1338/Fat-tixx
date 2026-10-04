@@ -10,6 +10,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider } from '@/auth/AuthProvider';
+import { TopProgress } from '@/components/TopProgress';
 import { useConfig } from '@/api/hooks';
 import { colors } from '@/theme/tokens';
 
@@ -60,6 +61,7 @@ function Providers() {
           <Stack.Screen name="web" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="ticket/[code]" options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
         </Stack>
+        <TopProgress />
       </ThemeProvider>
     </StripeProvider>
   );

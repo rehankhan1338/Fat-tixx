@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { ArrowLeft, ArrowRight, ExternalLink, RotateCw, X } from 'lucide-react-native';
@@ -7,7 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView, type WebViewNavigation } from 'react-native-webview';
 import { describeDevice } from '@/api/client';
 import { useAuth } from '@/auth/AuthProvider';
-import { Button, EmptyState, Txt } from '@/components/ui';
+import { Button, EmptyState, Spinner, Txt } from '@/components/ui';
+import { setBusy } from '@/lib/loading';
 import { API_URL } from '@/lib/config';
 import { colors, fonts, red } from '@/theme/tokens';
 
@@ -23,6 +24,8 @@ export default function WebScreen() {
   const [nav, setNav] = useState<WebViewNavigation | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Drive the app-wide top progress bar while the page loads.
+  useEffect(() => { setBusy('webview', loading && !error); return () => setBusy('webview', false); }, [loading, error]);
 
   const safePath = /^\/(?!\/)[\w\-./?=&%#]*$/.test(path ?? '') ? path! : '/dashboard';
   const token = getToken();
@@ -74,7 +77,7 @@ export default function WebScreen() {
           }}
         />
       )}
-      {loading && !error ? <View style={styles.loading}><ActivityIndicator color={colors.red} /></View> : null}
+      {loading && !error ? <View style={styles.loading}><Spinner size={22} /></View> : null}
     </SafeAreaView>
   );
 }

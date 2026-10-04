@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Search } from 'lucide-react-native';
 import { useManageOrders } from '@/api/hooks';
 import { NavRow } from '@/components/manage/Stats';
-import { ErrorState, Screen, Skeleton, StatusBadge, Txt } from '@/components/ui';
+import { ErrorState, Screen, ScreenLoader, StatusBadge, Txt } from '@/components/ui';
 import { formatCents } from '@/lib/format';
 import { colors, fonts, red } from '@/theme/tokens';
 
@@ -31,7 +31,7 @@ export default function OrgOrdersScreen() {
         </View>
         <Txt variant="caption" style={{ marginTop: 6 }}>{data ? `${data.orders.length} orders${eventId ? ' for this event' : ''}` : ' '}</Txt>
       </View>
-      {isLoading ? <View style={{ padding: 20, gap: 10 }}><Skeleton style={{ height: 74 }} /><Skeleton style={{ height: 74 }} /></View>
+      {isLoading ? <ScreenLoader label="Loading orders…" />
         : isError ? <View style={{ padding: 20 }}><ErrorState message={(error as Error).message} onRetry={() => refetch()} /></View>
         : (
           <FlatList

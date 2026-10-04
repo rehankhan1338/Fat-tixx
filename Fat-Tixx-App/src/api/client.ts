@@ -45,7 +45,9 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`, { method: opts.method ?? 'GET', headers, body: opts.body === undefined ? undefined : JSON.stringify(opts.body), signal: controller.signal });
+    // `credentials: 'omit'`: the in-app WebView shares the device cookie jar with fetch, and its website
+    // session cookie must not ride along on API calls. The Bearer header is the only credential here.
+    res = await fetch(`${API_BASE}${path}`, { method: opts.method ?? 'GET', headers, body: opts.body === undefined ? undefined : JSON.stringify(opts.body), signal: controller.signal, credentials: 'omit' });
   } catch (e) {
     clearTimeout(timer);
     const aborted = (e as Error)?.name === 'AbortError';

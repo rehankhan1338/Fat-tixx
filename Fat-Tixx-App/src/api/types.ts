@@ -125,3 +125,17 @@ export interface AdminOverview {
 }
 export interface AdminUser { email: string; name: string; status: string; hasPassword: boolean; roles: string[]; orgCount: number; orderCount: number; lastLoginAt: string | null; createdAt: string }
 export interface AdminOrg { slug: string; name: string; contactEmail: string; status: string; createdAt: string; members: number; events: number; orders: number; grossCents: number }
+
+// ---------------------------------------------------------------------------
+// Offline scanning (plan 8.2). Mirrors ScannerSnapshot / OfflineScan / SyncResult in src/lib/checkin/actions.ts.
+// ---------------------------------------------------------------------------
+export interface OfflineTicket {
+  id: number; code: string;
+  /** sha256 of the full signed QR payload (first 32 hex chars). The device never holds the secret or signature. */
+  h: string;
+  attendeeName: string | null; seatLabel: string | null; dayLabel: string | null; dateId: number | null; lastDateId: number | null;
+  status: string; ticketType: string; orderCode: string; buyerEmail: string; buyerName: string | null; addons: string | null;
+}
+export interface ScannerSnapshot { eventId: number; generatedAt: string; expiresAt: string; activeDateId: number | null; ageRestriction: number | null; tickets: OfflineTicket[] }
+export interface OfflineScan { ref: string; ticketId: number; kind: 'valid' | 'manual'; at: string }
+export interface SyncResult { synced: number; conflicts: { ref: string; code: string; name: string | null; reason: string }[]; counts: { total: number; used: number } }

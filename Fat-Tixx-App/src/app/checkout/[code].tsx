@@ -7,7 +7,7 @@ import { api } from '@/api/client';
 import { useConfig, useOrder } from '@/api/hooks';
 import type { PaymentIntentResponse } from '@/api/types';
 import { HoldCountdown } from '@/components/HoldCountdown';
-import { Button, Card, ErrorState, Notice, Screen, Skeleton, Txt } from '@/components/ui';
+import { Button, Card, ErrorState, Notice, Screen, ScreenLoader, Txt } from '@/components/ui';
 import { formatCents } from '@/lib/format';
 import { colors, red } from '@/theme/tokens';
 
@@ -66,7 +66,7 @@ export default function CheckoutScreen() {
     try { await finish(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   }
 
-  if (isLoading) return <Screen back title="Checkout"><Skeleton style={{ height: 180 }} /><Skeleton style={{ height: 240, marginTop: 14 }} /></Screen>;
+  if (isLoading) return <Screen back title="Checkout" scroll={false}><ScreenLoader label="Preparing your checkout…" /></Screen>;
   if (isError || !order) return <Screen back title="Checkout"><ErrorState message={(error as Error)?.message ?? 'Order not found.'} onRetry={() => refetch()} /></Screen>;
 
   const tot = order.totals;

@@ -4,7 +4,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { Mail, Phone, RefreshCw, Undo2 } from 'lucide-react-native';
 import { api } from '@/api/client';
 import { useManageOrder } from '@/api/hooks';
-import { Button, Card, ErrorState, Notice, Screen, Skeleton, StatusBadge, Txt } from '@/components/ui';
+import { Button, Card, ErrorState, Notice, Screen, ScreenLoader, StatusBadge, Txt } from '@/components/ui';
 import { formatCents } from '@/lib/format';
 import { openWeb, orgWebPaths } from '@/lib/web';
 import { colors, red } from '@/theme/tokens';
@@ -22,7 +22,7 @@ export default function ManageOrderScreen() {
     catch (e) { setMsg({ tone: 'error', text: (e as Error).message }); } finally { setBusy(false); }
   }
 
-  if (isLoading) return <Screen back title="Order"><Skeleton style={{ height: 120 }} /><Skeleton style={{ height: 240, marginTop: 14 }} /></Screen>;
+  if (isLoading) return <Screen back title="Order" scroll={false}><ScreenLoader label="Loading order…" /></Screen>;
   if (isError || !o) return <Screen back title="Order"><ErrorState message={(error as Error)?.message ?? 'Order not found.'} onRetry={() => refetch()} /></Screen>;
   const t = o.totals;
 

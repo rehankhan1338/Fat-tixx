@@ -13,7 +13,7 @@ Next.js server, which reuses the same database, checkout, payment, ticket and ch
 | Checkout | 10-minute hold countdown, Stripe PaymentSheet (card, Apple Pay, Google Pay), free orders |
 | Tickets | Orders on the account plus guest purchases made on the device, QR codes drawn locally, full-screen door ticket with brightness boost, attendee name edit |
 | Account | Sign in, create account, password reset, email confirmation, active sessions with remote sign-out, legal links |
-| Scan | Organisers and staff: pick an event, scan QR codes with the camera or type a code, live counts, haptic + colour verdicts |
+| Scan | Organisers and staff: pick an event, scan QR codes with the camera or type a code, live counts, haptic + colour verdicts; keeps working with no signal (see below) |
 | Manage | Organisers, their team and platform staff: per-organisation sales and check-in totals, event list with filters, event dashboard (counts, sales, ticket types, recent scans, publish / unpublish / complete), searchable door list with check-in by name, undo and override, order search with resend; platform admins get the admin dashboard, health signals, organisation and user directories |
 | Web (in-app) | Every other organiser and admin page of the website (event editor, ticket types, team, venues, analytics, marketing, payouts, disputes, settings, emails, audit, ...) opens inside the app, signed in automatically through `/app-login` |
 
@@ -23,6 +23,30 @@ The web screen loads `/app-login?next=<page>` with the app's session token in th
 first request only. The server creates an ordinary browser session cookie for the same user, labelled as coming
 from the app, and redirects. No token ever appears in a URL, and signing out of the app revokes those browser
 sessions too. Links that leave the Fat Tixx site open in the system browser.
+
+### Offline scanning
+
+Venues often have no signal at the door, so the scanner does not depend on one (`src/scanner/`):
+
+- **Ticket list on the phone.** Opening an event's scanner while online downloads its ticket list
+  (`GET /scan/:org/:event/snapshot`) into SQLite (`expo-sqlite`) and refreshes it every minute and whenever
+  the app returns to the foreground. The Scan tab marks such events **Offline ready**, and the tab itself
+  remembers the last event list so it still opens after a restart with no connection.
+- **Validation without the server.** When the phone is offline, or a scan cannot reach the server, the
+  QR is checked locally: the code must be on the list and the SHA-256 of the full signed payload must match
+  the stored hash (so a forged QR with a real code fails), the ticket must not be refunded, cancelled or
+  transferred, it must be for today on multi-day events, and it must not already be checked in. The verdict
+  colours and haptics are the same as online, with "(offline)" in the message.
+- **Queued check-ins.** Offline admissions are stored in a queue and uploaded (`POST /scan/:org/:event/sync`)
+  as soon as a connection is back, or when staff tap the "to upload" strip. Each has a unique reference, so a
+  retried upload never double-counts. If the same ticket was meanwhile admitted on another device or refunded,
+  the server records an **offline conflict** that organisers review on the event page of the website; the
+  person is already inside, nothing is undone automatically.
+- **What is stored.** Only hashes of the QR payloads, never the ticket secret or signature, so a lost phone
+  cannot be used to make valid tickets. Lists expire 24 h after the event ends and are deleted on sign-out.
+  Queued check-ins survive sign-out so none is lost.
+
+Works the same on Android and iOS; both `expo-sqlite` and `expo-crypto` are included in Expo Go.
 
 ## Running it on Windows (Android)
 
