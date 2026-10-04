@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     "tests/e2e/.artifacts/**",
     "tests/e2e/.report/**",
     "uploads/**",
+    // the Expo mobile app has its own toolchain (Fat-Tixx-App/package.json)
+    "Fat-Tixx-App/**",
   ]),
 ]);
 

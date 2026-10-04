@@ -75,8 +75,7 @@ export function startOfToday(): Date {
  */
 export function listUpcoming(events: EventItem[], today: Date | null): ListedEvent[] {
   const all = events.map((e) => ({ ...e, dt: parseStart(e), v: 0 }));
-  let list = today ? all.filter((e) => e.dt >= today) : all;
-  if (!list.length) list = all; // keeps the preview populated if every sample date has passed
+  const list = today ? all.filter((e) => e.dt >= today) : all;
   list.sort((a, b) => a.dt.getTime() - b.dt.getTime());
   list.forEach((e, i) => (e.v = i % 6)); // rotate poster styles so neighbours differ
   return list;

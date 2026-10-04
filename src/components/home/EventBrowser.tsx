@@ -227,10 +227,16 @@ export default function EventBrowser() {
             shown.map((e) => <EventCard key={e.id} e={e} saved={!!saved[e.id]} onSave={() => toggleSave(e.id)} />)
           ) : (
             <div className="col-span-full rounded-[20px] border border-fx-red/14 p-12 text-center text-[16px] text-fx-red/78">
-              {filters.near ? `No events near ${filters.near.label} match yet.` : "No events match those filters yet."}{" "}
-              <button type="button" className={cx(pill, "ml-2")} onClick={clearAll}>
-                Clear filters
-              </button>
+              {upcoming.length === 0 ? (
+                "No events found. Check back soon."
+              ) : (
+                <>
+                  {filters.near ? `No events near ${filters.near.label} match yet.` : "No events match those filters yet."}{" "}
+                  <button type="button" className={cx(pill, "ml-2")} onClick={clearAll}>
+                    Clear filters
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>

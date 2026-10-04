@@ -1,41 +1,31 @@
 'use server';
 
-import { randomUUID } from 'node:crypto';
 import { redirect } from 'next/navigation';
 import { execute, queryOne, type Row } from '../db';
 import { audit } from '../audit';
 import { homeFor } from '../authz';
-import { clientIp, userAgent } from '../request';
-import { hashPassword, needsRehash, passwordPolicyErrors, pwnedPasswordCount, verifyAgainstDummy, verifyPassword } from '../security/password';
-import { clearAccountFailures, ipIsThrottled, recordAttempt, registerAccountFailure } from '../security/rate-limit';
-import { consumeOneTimeToken, createOneTimeToken, peekOneTimeToken } from '../tokens';
+import { clientIp } from '../request';
+import { hashPassword, passwordPolicyErrors, pwnedPasswordCount } from '../security/password';
+import { ipIsThrottled } from '../security/rate-limit';
+import { consumeOneTimeToken, peekOneTimeToken } from '../tokens';
 import { BOT_MESSAGE, botCheck, rateLimited } from '../security/bot';
-import { sendEmail } from '../email';
-import { renderEmail } from '../email-templates';
-import { env } from '../env';
 import { findUserByEmail, isEmail, normalizeEmail, sendSetPasswordLink } from '../users';
+import { authenticateWithPassword, registerAttendeeAccount, sendVerificationEmail } from './credentials';
 import { authIsFresh, clearSessionCookie, createSession, getSession, revokeAllUserSessions, revokeSession } from './session';
 
 /**
  * Server Actions for authentication. Every export here is a public POST endpoint, so each
  * one validates its own input and authorization and returns only what the UI needs.
+ * The credential checks themselves live in ./credentials.ts, shared with the mobile API.
  */
 
 export type ActionState = { error?: string; ok?: boolean; message?: string; field?: string } | undefined;
-
-/** One generic message for every credential failure: never reveal which part was wrong. */
-const GENERIC_LOGIN_ERROR = 'Incorrect email or password.';
 
 /** Only allow same-site relative redirects after login. */
 function safeNext(raw: unknown): string | null {
   const s = typeof raw === 'string' ? raw : '';
   return /^\/(?!\/)[\w\-./?=&%]*$/.test(s) ? s : null;
 }
-
-type UserRow = Row & {
-  id: number; email: string; name: string; password_hash: string | null; status: string;
-  failed_login_count: number; locked_until: Date | null;
-};
 
 // ---------------------------------------------------------------------------
 // Sign in
@@ -44,59 +34,10 @@ export async function loginWithPassword(_prev: ActionState, formData: FormData):
   const email = String(formData.get('email') ?? '');
   const password = String(formData.get('password') ?? '');
   const next = safeNext(formData.get('next'));
-  if (!email || !password || email.length > 254 || password.length > 128) return { error: GENERIC_LOGIN_ERROR };
 
-  const emailNorm = normalizeEmail(email);
-  const [ip, ua] = await Promise.all([clientIp(), userAgent()]);
-
-  if (await ipIsThrottled(ip)) {
-    await recordAttempt({ emailNormalized: emailNorm, userId: null, ip, success: false, reason: 'ip_throttled', userAgent: ua });
-    await audit('auth.login.throttled_ip', { metadata: { email: emailNorm } });
-    return { error: 'Too many attempts from this network. Try again later.' };
-  }
-
-  const user = await queryOne<UserRow>(
-    `SELECT id, email, name, password_hash, status, failed_login_count, locked_until FROM users WHERE email_normalized = ?`,
-    [emailNorm],
-  );
-
-  // Unknown account (or one that never set a password): burn the same Argon2 cost, then fail.
-  if (!user || !user.password_hash) {
-    await verifyAgainstDummy(password);
-    await recordAttempt({ emailNormalized: emailNorm, userId: user?.id ?? null, ip, success: false, reason: user ? 'no_password' : 'unknown_account', userAgent: ua });
-    return { error: GENERIC_LOGIN_ERROR };
-  }
-
-  if (user.locked_until && new Date(user.locked_until).getTime() > Date.now()) {
-    await verifyAgainstDummy(password);
-    await recordAttempt({ emailNormalized: emailNorm, userId: user.id, ip, success: false, reason: 'locked', userAgent: ua });
-    await audit('auth.login.locked', { actorUserId: user.id });
-    return { error: GENERIC_LOGIN_ERROR };
-  }
-
-  if (user.status !== 'active') {
-    await verifyAgainstDummy(password);
-    await recordAttempt({ emailNormalized: emailNorm, userId: user.id, ip, success: false, reason: 'inactive', userAgent: ua });
-    return { error: GENERIC_LOGIN_ERROR };
-  }
-
-  const ok = await verifyPassword(user.password_hash, password);
-  if (!ok) {
-    const { lockedMinutes } = await registerAccountFailure(user.id);
-    await recordAttempt({ emailNormalized: emailNorm, userId: user.id, ip, success: false, reason: 'bad_password', userAgent: ua });
-    await audit('auth.login.failed', { actorUserId: user.id, metadata: lockedMinutes ? { lockedMinutes } : undefined });
-    return { error: GENERIC_LOGIN_ERROR };
-  }
-
-  if (needsRehash(user.password_hash)) {
-    await execute(`UPDATE users SET password_hash = ? WHERE id = ?`, [await hashPassword(password), user.id]);
-    await audit('auth.password.rehashed', { actorUserId: user.id });
-  }
-
-  await clearAccountFailures(user.id);
-  await execute(`UPDATE users SET last_login_at = NOW(), last_login_ip = ? WHERE id = ?`, [ip, user.id]);
-  await recordAttempt({ emailNormalized: emailNorm, userId: user.id, ip, success: true, reason: 'password_ok', userAgent: ua });
-  await audit('auth.login.success', { actorUserId: user.id });
+  const result = await authenticateWithPassword(email, password);
+  if (!result.ok) return { error: result.error };
+  const { user } = result;
 
   await createSession(user.id);
   await audit('auth.session.created', { actorUserId: user.id });
@@ -155,53 +96,19 @@ export async function setPasswordWithToken(_prev: ActionState, formData: FormDat
 // Attendee self-registration (optional accounts; guest checkout stays available)
 // ---------------------------------------------------------------------------
 export async function registerAttendee(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const email = String(formData.get('email') ?? '').trim();
-  const name = String(formData.get('name') ?? '').trim();
-  const password = String(formData.get('password') ?? '');
-  const ip = await clientIp();
-  if (await ipIsThrottled(ip) || rateLimited(`register:${ip}`, 10, 60 * 60_000)) return { error: 'Too many attempts from this network. Try again later.' };
   if (botCheck(formData)) return { error: BOT_MESSAGE };
-  if (!isEmail(email)) return { error: 'Enter a valid email address.', field: 'email' };
-  if (name.length < 2 || name.length > 120) return { error: 'Enter your name.', field: 'name' };
-  const errs = passwordPolicyErrors(password, email);
-  if (errs.length) return { error: errs.join(' '), field: 'password' };
-  const pwned = await pwnedPasswordCount(password);
-  if (pwned && pwned > 0) return { error: `That password has appeared in ${pwned.toLocaleString()} data breaches. Choose a different one.`, field: 'password' };
-
-  const existing = await findUserByEmail(email);
-  if (existing?.password_hash) {
-    // Do not reveal that the account exists: behave as if registration succeeded and send a reset link.
-    await sendSetPasswordLink(existing, { invitedBy: null, context: 'Fat Tixx', purpose: 'reset_password' });
-    return { ok: true, message: 'Check your email to finish setting up your account.' };
-  }
-  const hash = await hashPassword(password);
-  let userId: number;
-  if (existing) {
-    await execute(`UPDATE users SET name = ?, password_hash = ?, password_changed_at = NOW() WHERE id = ?`, [name, hash, existing.id]);
-    userId = existing.id;
-  } else {
-    const r = await execute(
-      `INSERT INTO users (public_id, email, email_normalized, name, password_hash, password_changed_at) VALUES (?, ?, ?, ?, ?, NOW())`,
-      [randomUUID(), email, normalizeEmail(email), name, hash],
-    );
-    userId = r.insertId;
-  }
-  // Guest orders with this email are claimed only after the address is verified (verifyEmail below);
-  // otherwise anyone could register someone else's email and see their tickets.
-  await audit('auth.register', { actorUserId: userId });
-  await sendVerificationEmail({ id: userId, email, name });
-  await createSession(userId);
+  const result = await registerAttendeeAccount({
+    email: String(formData.get('email') ?? ''), name: String(formData.get('name') ?? ''), password: String(formData.get('password') ?? ''),
+  });
+  if (result.kind === 'error') return { error: result.error, field: result.field };
+  if (result.kind === 'existing') return { ok: true, message: result.message };
+  await createSession(result.userId);
   redirect('/account?verify=sent');
 }
 
 // ---------------------------------------------------------------------------
 // Email verification
 // ---------------------------------------------------------------------------
-async function sendVerificationEmail(user: { id: number; email: string; name: string }): Promise<void> {
-  const token = await createOneTimeToken('verify_email', user.email, user.id, null);
-  const mail = await renderEmail('verify_email', { name: user.name, url: `${env.APP_URL}/verify-email/${token}` });
-  await sendEmail({ to: user.email, toName: user.name, subject: mail.subject, text: mail.text, html: mail.html, related: { type: 'user', id: user.id } });
-}
 
 export async function resendVerificationEmail(): Promise<ActionState> {
   const session = await getSession();

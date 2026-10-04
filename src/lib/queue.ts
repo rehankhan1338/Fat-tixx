@@ -1,5 +1,5 @@
 import 'server-only';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { db, execute, queryOne, type Row } from './db';
 import { env } from './env';
 import { randomToken, sha256 } from './security/crypto';
@@ -9,16 +9,29 @@ import { randomToken, sha256 } from './security/crypto';
  * get a place in line (first come, first served) and at most `queue_rate_per_min` people are let through
  * per minute. Admission lasts ADMIT_MINUTES, enough to finish a checkout with its 10-minute hold.
  * The ticket form is hidden until admitted, and `startCheckout` re-checks admission on the server.
+ *
+ * The browser keeps its place in an HttpOnly cookie. The mobile app has no cookie jar, so it receives the
+ * token once (from `queueStatus(..., { viaHeader: true })`) and sends it back in the `X-Fx-Queue-Token` header.
  */
 const ADMIT_MINUTES = 20;
 const cookieName = (eventId: number) => `fx_q_${eventId}`;
+export const QUEUE_HEADER = 'x-fx-queue-token';
 
-export type QueueStatus = { admitted: boolean; position: number; ahead: number; etaMinutes: number; expiresAt: string | null };
+export type QueueStatus = { admitted: boolean; position: number; ahead: number; etaMinutes: number; expiresAt: string | null; token?: string };
 
-async function entryFor(eventId: number): Promise<(Row & { id: number; admitted_at: Date | null; expires_at: Date | null }) | null> {
-  const token = (await cookies()).get(cookieName(eventId))?.value;
-  if (!token || token.length > 64) return null;
-  return queryOne(`SELECT id, admitted_at, expires_at FROM queue_entries WHERE event_id = ? AND token_hash = ?`, [eventId, sha256(token)]);
+type Entry = Row & { id: number; admitted_at: Date | null; expires_at: Date | null };
+
+async function tokenFor(eventId: number): Promise<string | null> {
+  const fromCookie = (await cookies()).get(cookieName(eventId))?.value;
+  const token = fromCookie || (await headers()).get(QUEUE_HEADER);
+  if (!token || token.length > 64 || !/^[A-Za-z0-9_-]+$/.test(token)) return null;
+  return token;
+}
+
+async function entryFor(eventId: number): Promise<Entry | null> {
+  const token = await tokenFor(eventId);
+  if (!token) return null;
+  return queryOne<Entry>(`SELECT id, admitted_at, expires_at FROM queue_entries WHERE event_id = ? AND token_hash = ?`, [eventId, sha256(token)]);
 }
 
 /** Let the next people in line through, at the event's rate. Serialized per event with a named lock. */
@@ -44,30 +57,36 @@ async function admitNext(eventId: number, ratePerMin: number): Promise<void> {
   }
 }
 
-/** Join the line (once per browser) and report where the visitor stands. */
-export async function queueStatus(event: { id: number; queue_rate_per_min: number }): Promise<QueueStatus> {
+/**
+ * Join the line (once per browser / app install) and report where the visitor stands.
+ * With `viaHeader`, no cookie is set and the freshly minted token is returned once for the app to keep.
+ */
+export async function queueStatus(event: { id: number; queue_rate_per_min: number }, opts: { viaHeader?: boolean } = {}): Promise<QueueStatus> {
   let entry = await entryFor(event.id);
+  let minted: string | undefined;
   if (!entry) {
     const token = randomToken(24);
     const r = await execute(`INSERT INTO queue_entries (event_id, token_hash) VALUES (?, ?)`, [event.id, sha256(token)]);
-    (await cookies()).set(cookieName(event.id), token, { httpOnly: true, sameSite: 'lax', secure: env.IS_PROD, path: '/', maxAge: 6 * 3600 });
-    entry = { id: r.insertId, admitted_at: null, expires_at: null } as NonNullable<typeof entry>;
+    if (opts.viaHeader) minted = token;
+    else (await cookies()).set(cookieName(event.id), token, { httpOnly: true, sameSite: 'lax', secure: env.IS_PROD, path: '/', maxAge: 6 * 3600 });
+    entry = { id: r.insertId, admitted_at: null, expires_at: null } as Entry;
   }
   const rate = Math.max(1, Number(event.queue_rate_per_min) || 100);
   if (!entry.admitted_at) {
     await admitNext(event.id, rate);
-    entry = (await queryOne<Row & { id: number; admitted_at: Date | null; expires_at: Date | null }>(`SELECT id, admitted_at, expires_at FROM queue_entries WHERE id = ?`, [entry.id]))!;
+    entry = (await queryOne<Entry>(`SELECT id, admitted_at, expires_at FROM queue_entries WHERE id = ?`, [entry.id]))!;
   }
+  const withToken = (s: QueueStatus): QueueStatus => (minted ? { ...s, token: minted } : s);
   if (entry.admitted_at) {
     const live = entry.expires_at && new Date(entry.expires_at).getTime() > Date.now();
-    return { admitted: !!live, position: 0, ahead: 0, etaMinutes: 0, expiresAt: entry.expires_at ? new Date(entry.expires_at).toISOString() : null };
+    return withToken({ admitted: !!live, position: 0, ahead: 0, etaMinutes: 0, expiresAt: entry.expires_at ? new Date(entry.expires_at).toISOString() : null });
   }
   const ahead = await queryOne<Row & { n: number }>(`SELECT COUNT(*) AS n FROM queue_entries WHERE event_id = ? AND admitted_at IS NULL AND id < ?`, [event.id, entry.id]);
   const n = Number(ahead?.n ?? 0);
-  return { admitted: false, position: n + 1, ahead: n, etaMinutes: Math.max(1, Math.ceil((n + 1) / rate)), expiresAt: null };
+  return withToken({ admitted: false, position: n + 1, ahead: n, etaMinutes: Math.max(1, Math.ceil((n + 1) / rate)), expiresAt: null });
 }
 
-/** True when this browser holds a live admission for the event. Does not join the line. */
+/** True when this browser / app holds a live admission for the event. Does not join the line. */
 export async function isAdmitted(eventId: number): Promise<boolean> {
   const e = await entryFor(eventId);
   return !!(e?.admitted_at && e.expires_at && new Date(e.expires_at).getTime() > Date.now());

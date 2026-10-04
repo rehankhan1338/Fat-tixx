@@ -1,5 +1,5 @@
 import 'server-only';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { cache } from 'react';
 import { execute, queryOne, type Row } from '../db';
 import { env } from '../env';
@@ -9,16 +9,22 @@ import { clientIp, userAgent } from '../request';
 /**
  * Server-side sessions.
  *
- *  - The browser holds a random 256-bit token; the DB stores only its SHA-256, so a database
+ *  - The client holds a random 256-bit token; the DB stores only its SHA-256, so a database
  *    dump cannot be replayed as a live session.
- *  - Absolute lifetime SESSION_ABSOLUTE_HOURS; idle timeout SESSION_IDLE_MINUTES (sliding).
- *  - Cookie: HttpOnly, SameSite=Strict, Secure in production, `__Host-` prefix in production
- *    (browser refuses to accept it from a subdomain or with a Domain/Path attribute).
+ *  - Browser sessions: HttpOnly cookie, absolute lifetime SESSION_ABSOLUTE_HOURS, idle timeout
+ *    SESSION_IDLE_MINUTES (sliding). Cookie is SameSite=Strict, Secure in production, `__Host-`
+ *    prefix in production (browser refuses to accept it from a subdomain or with a Domain/Path attribute).
+ *  - Mobile app sessions: the same table, but the token travels in `Authorization: Bearer <token>`
+ *    (never sent automatically by a browser, so no CSRF surface) and is kept in the device keychain.
+ *    They live MOBILE_SESSION_DAYS with no idle timeout; signing out or changing the password revokes them.
  */
 export const SESSION_ABSOLUTE_HOURS = 12;
 export const SESSION_IDLE_MINUTES = 30;
+export const MOBILE_SESSION_DAYS = 30;
 /** How recent the sign-in must be for step-up protected actions (e.g. revoking every session). */
 export const FRESH_AUTH_MINUTES = 10;
+/** Stored in sessions.user_agent so the account page can tell app sessions from browser sessions. */
+export const MOBILE_UA_PREFIX = 'FatTixxApp/';
 
 export const SESSION_COOKIE = env.IS_PROD ? '__Host-fx_session' : 'fx_session';
 
@@ -39,6 +45,8 @@ export interface CurrentSession {
   createdAt: Date;
   lastSeenAt: Date;
   expiresAt: Date;
+  /** 'cookie' for the website, 'bearer' for the mobile app. */
+  via: 'cookie' | 'bearer';
 }
 
 export function sessionCookieOptions(maxAgeSeconds: number) {
@@ -52,17 +60,38 @@ export function sessionCookieOptions(maxAgeSeconds: number) {
   };
 }
 
-export async function createSession(userId: number): Promise<void> {
+/** Browser sessions opened from inside the mobile app's web view carry this label so signing out of the app revokes them too. */
+export const APP_WEB_UA_PREFIX = 'FatTixxAppWeb/';
+
+export async function createSession(userId: number, opts: { label?: string } = {}): Promise<void> {
   const token = randomToken(32);
   const id = sha256(token);
   const [ip, ua] = await Promise.all([clientIp(), userAgent()]);
   await execute(
     `INSERT INTO sessions (id, user_id, expires_at, ip, user_agent)
      VALUES (?, ?, NOW() + INTERVAL ? HOUR, ?, ?)`,
-    [id, userId, SESSION_ABSOLUTE_HOURS, ip, ua],
+    [id, userId, SESSION_ABSOLUTE_HOURS, ip, opts.label ? opts.label.slice(0, 512) : ua],
   );
   const store = await cookies();
   store.set(SESSION_COOKIE, token, sessionCookieOptions(SESSION_ABSOLUTE_HOURS * 3600));
+}
+
+/**
+ * Mobile sign-in: create a long-lived session and return the plaintext token once. The app stores it
+ * in the OS keychain / keystore and sends it as a Bearer header. `device` is a short label
+ * ("iPhone 15 / iOS 18") shown in the account page's session list.
+ */
+export async function createBearerSession(userId: number, device: string | null): Promise<{ token: string; expiresAt: Date }> {
+  const token = randomToken(32);
+  const id = sha256(token);
+  const ip = await clientIp();
+  const label = `${MOBILE_UA_PREFIX}${(device ?? 'unknown device').replace(/[\r\n]/g, ' ').slice(0, 200)}`;
+  await execute(
+    `INSERT INTO sessions (id, user_id, expires_at, ip, user_agent)
+     VALUES (?, ?, NOW() + INTERVAL ? DAY, ?, ?)`,
+    [id, userId, MOBILE_SESSION_DAYS, ip, label],
+  );
+  return { token, expiresAt: new Date(Date.now() + MOBILE_SESSION_DAYS * 86_400_000) };
 }
 
 type SessionRow = Row & {
@@ -70,16 +99,16 @@ type SessionRow = Row & {
   public_id: string; email: string; name: string; status: string; roles: string | null; email_verified_at: Date | null;
 };
 
-/**
- * Resolve the current session from the cookie. Cached per request so layouts, pages and
- * actions share one lookup. Returns null for missing, expired, idle, revoked, or suspended.
- */
-export const getSession = cache(async (): Promise<CurrentSession | null> => {
-  const store = await cookies();
-  const token = store.get(SESSION_COOKIE)?.value;
-  if (!token || token.length < 32 || token.length > 128) return null;
-  const id = sha256(token);
+/** Token syntax check before touching the database. */
+function plausibleToken(token: string | undefined | null): token is string {
+  return !!token && token.length >= 32 && token.length <= 128 && /^[A-Za-z0-9_-]+$/.test(token);
+}
 
+async function resolveSession(token: string, via: CurrentSession['via']): Promise<CurrentSession | null> {
+  const id = sha256(token);
+  // Browser sessions expire after SESSION_IDLE_MINUTES without activity; app sessions only at expires_at.
+  const idleClause = via === 'cookie' ? 'AND s.last_seen_at > (NOW() - INTERVAL ? MINUTE)' : '';
+  const params: (string | number)[] = via === 'cookie' ? [id, SESSION_IDLE_MINUTES] : [id];
   const row = await queryOne<SessionRow>(
     `SELECT s.id, s.user_id, s.created_at, s.last_seen_at, s.expires_at,
             u.public_id, u.email, u.name, u.status, u.email_verified_at,
@@ -89,8 +118,8 @@ export const getSession = cache(async (): Promise<CurrentSession | null> => {
       WHERE s.id = ?
         AND s.revoked_at IS NULL
         AND s.expires_at > NOW()
-        AND s.last_seen_at > (NOW() - INTERVAL ? MINUTE)`,
-    [id, SESSION_IDLE_MINUTES],
+        ${idleClause}`,
+    params,
   );
   if (!row || row.status !== 'active') return null;
 
@@ -112,7 +141,24 @@ export const getSession = cache(async (): Promise<CurrentSession | null> => {
     createdAt: new Date(row.created_at),
     lastSeenAt: new Date(row.last_seen_at),
     expiresAt: new Date(row.expires_at),
+    via,
   };
+}
+
+/**
+ * Resolve the current session: the cookie for the website, else `Authorization: Bearer` for the app.
+ * Cached per request so layouts, pages, actions and route handlers share one lookup.
+ * Returns null for missing, expired, idle, revoked, or suspended.
+ */
+export const getSession = cache(async (): Promise<CurrentSession | null> => {
+  const store = await cookies();
+  const cookieToken = store.get(SESSION_COOKIE)?.value;
+  if (plausibleToken(cookieToken)) return resolveSession(cookieToken, 'cookie');
+
+  const auth = (await headers()).get('authorization');
+  const m = auth?.match(/^Bearer\s+([A-Za-z0-9_-]{32,128})$/i);
+  if (m && plausibleToken(m[1])) return resolveSession(m[1], 'bearer');
+  return null;
 });
 
 export async function revokeSession(sessionId: string, reason: string): Promise<void> {
