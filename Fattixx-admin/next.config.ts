@@ -28,13 +28,16 @@ for (const file of [".env.local", ".env"]) {
 }
 
 // Tells the shared code it is running inside the console: separate session cookie, staff sessions accepted.
-process.env.FX_APP = "admin";
 // Background jobs (reminders, payouts, Stripe reconciliation) run inside the public site's server only.
+// Set here for this config file and the dev server, and inlined into the bundles through `env` below, because a
+// deployed server (Vercel functions) never executes this file.
+process.env.FX_APP = "admin";
 process.env.JOBS_DISABLED = "true";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
+  env: { FX_APP: "admin", JOBS_DISABLED: "true" },
   // The repo root's CLAUDE.md already points at the public site's AGENTS.md, which covers this folder.
   agentRules: false,
   // The shared code is outside this folder, so the bundler's root is the repo root.

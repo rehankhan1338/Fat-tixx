@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "installCommand": "cd ../Fattixx-web && npm ci",
-  "buildCommand": "npm run build"
+  "installCommand": "cd ../Fattixx-web && npm ci && rm -rf ../node_modules && mv node_modules ../node_modules",
+  "buildCommand": "node ../node_modules/next/dist/bin/next build"
 }
