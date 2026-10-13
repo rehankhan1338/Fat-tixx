@@ -44,5 +44,8 @@ if (existing) {
   }
 }
 
-fs.symlinkSync(target, link, 'junction');
+// The link target is relative (Fattixx-web/node_modules) so it still resolves when the tree is copied somewhere else:
+// Vercel packages a deployment's traced files under /var/task, where an absolute /vercel/path0/... link would dangle and
+// every require("next/...") in the admin functions would fail. Node turns it into an absolute path for Windows junctions.
+fs.symlinkSync(path.relative(path.dirname(link), target), link, 'junction');
 console.log(`[link-admin-node-modules] ${link} -> ${target}`);
