@@ -119,3 +119,37 @@ export async function resendEmail(fd: FormData): Promise<ActionState> {
   revalidatePath('/admin/emails');
   return ok ? { ok: true } : { error: 'Could not send. Is SMTP_URL configured in .env.local?' };
 }
+
+// ---------------------------------------------------------------------------
+// Log maintenance (Super Admin only)
+// ---------------------------------------------------------------------------
+
+/** Wipes the audit log, then records who did it so the wipe itself stays on the record. */
+export async function clearAuditLog(): Promise<ActionState> {
+  const session = await assertSuperAdmin();
+  const r = await execute(`DELETE FROM audit_log`);
+  await audit('audit.cleared', { actorUserId: session.user.id, metadata: { removed: r.affectedRows } });
+  revalidatePath('/admin/audit');
+  revalidatePath('/admin');
+  return { ok: true, message: `${r.affectedRows} audit entries removed.` };
+}
+
+/** Clears every recorded sign-in attempt. This also resets active lockouts, since they are derived from this table. */
+export async function clearLoginAttempts(): Promise<ActionState> {
+  const session = await assertSuperAdmin();
+  const r = await execute(`DELETE FROM login_attempts`);
+  await audit('auth.attempts.cleared', { actorUserId: session.user.id, metadata: { removed: r.affectedRows } });
+  revalidatePath('/admin/security');
+  return { ok: true, message: `${r.affectedRows} sign-in attempts removed.` };
+}
+
+export async function deleteLoginAttempt(fd: FormData): Promise<ActionState> {
+  const session = await assertSuperAdmin();
+  const id = Number(str(fd, 'id', 20));
+  if (!Number.isInteger(id) || id <= 0) return { error: 'Invalid attempt.' };
+  const r = await execute(`DELETE FROM login_attempts WHERE id = ?`, [id]);
+  if (!r.affectedRows) return { error: 'That attempt was already removed.' };
+  await audit('auth.attempt.deleted', { actorUserId: session.user.id, targetType: 'login_attempt', targetId: id });
+  revalidatePath('/admin/security');
+  return { ok: true };
+}

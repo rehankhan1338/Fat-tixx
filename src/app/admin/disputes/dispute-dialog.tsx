@@ -19,7 +19,7 @@ export function DisputeDialog({ dispute }: { dispute: { id: number; code: string
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button size="sm" variant="outline" />}>Manage</DialogTrigger>
       <DialogContent>
-        <DialogHeader><DialogTitle>Dispute on {dispute.code}</DialogTitle><DialogDescription>Stripe id <code className="font-mono text-xs">{dispute.stripeId}</code>. Submit evidence in the Stripe Dashboard; keep your notes and the outcome here.</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>Dispute on {dispute.code}</DialogTitle><DialogDescription>Stripe id <code className="font-mono text-xs wrap-anywhere">{dispute.stripeId}</code>. Submit evidence in the Stripe Dashboard; keep your notes and the outcome here.</DialogDescription></DialogHeader>
         <form action={action} className="space-y-4">
           <FormStatus state={state} />
           <input type="hidden" name="dispute_id" value={dispute.id} />

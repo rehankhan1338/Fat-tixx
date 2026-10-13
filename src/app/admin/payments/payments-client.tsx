@@ -1,14 +1,15 @@
 "use client";
 
-import { useActionState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { CheckCircle2Icon, Loader2Icon, PlugZapIcon } from "lucide-react";
-import { runReconciliation, saveStripeKeys, switchStripeMode, testStripeConnection, type ActionState } from "@/lib/admin/finance-actions";
+import { CheckCircle2Icon, EyeIcon, EyeOffIcon, Loader2Icon, PlugZapIcon } from "lucide-react";
+import { revealStripeKey, runReconciliation, saveStripeKeys, switchStripeMode, testStripeConnection, type ActionState } from "@/lib/admin/finance-actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { FormStatus, SelectField, TextField } from "@/components/form-fields";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
+import { FieldWrap, FormStatus, SelectField, TextField } from "@/components/form-fields";
 import { SubmitButton } from "@/components/submit-button";
 import { CopyButton } from "@/components/copy-button";
 
@@ -39,7 +40,7 @@ export function StripeSettingsPanel({ canEdit, mode, webhookUrl, test, live }: {
         <PlugZapIcon />
         <AlertTitle>Webhook endpoint</AlertTitle>
         <AlertDescription className="space-y-2">
-          <p>In the Stripe Dashboard add a webhook pointing at this URL and paste its signing secret below. Events: <code className="text-xs">payment_intent.succeeded</code>, <code className="text-xs">charge.refunded</code>, <code className="text-xs">charge.dispute.*</code>. For local testing run <code className="text-xs">stripe listen --forward-to localhost:3000/api/stripe/webhook</code> and use the <code className="text-xs">whsec_</code> it prints.</p>
+          <p>In the Stripe Dashboard add a webhook pointing at this URL and paste its signing secret below. Events: <code className="text-xs">payment_intent.succeeded</code>, <code className="text-xs">charge.refunded</code>, <code className="text-xs">charge.dispute.*</code>. For local testing run <code className="text-xs wrap-anywhere">stripe listen --forward-to localhost:3000/api/stripe/webhook</code> and use the <code className="text-xs">whsec_</code> it prints.</p>
           <div className="flex items-center gap-2"><code className="block flex-1 truncate rounded bg-muted px-2 py-1 font-mono text-xs">{webhookUrl}</code><CopyButton value={webhookUrl} /></div>
         </AlertDescription>
       </Alert>
@@ -66,9 +67,9 @@ function KeySetForm({ mode, current, canEdit, onTest, pending }: { mode: "test" 
         <form action={action} className="space-y-3">
           <FormStatus state={state} successText={state?.message} />
           <input type="hidden" name="mode" value={mode} />
-          <TextField label={`Secret key (sk_${prefix}_…)`} id={`${mode}-secret`} name="secret_key" type="password" autoComplete="off" placeholder={current.secret ?? `sk_${prefix}_…`} disabled={!canEdit} hint={current.secret ? `Saved: ${current.secret}` : undefined} />
-          <TextField label={`Publishable key (pk_${prefix}_…)`} id={`${mode}-pk`} name="publishable_key" autoComplete="off" placeholder={current.publishable ?? `pk_${prefix}_…`} disabled={!canEdit} hint={current.publishable ? `Saved: ${current.publishable}` : undefined} />
-          <TextField label="Webhook signing secret (whsec_…)" id={`${mode}-whsec`} name="webhook_secret" type="password" autoComplete="off" placeholder={current.webhook ?? "whsec_…"} disabled={!canEdit} hint={current.webhook ? `Saved: ${current.webhook}` : "Optional until you connect the webhook."} />
+          <SecretKeyField label={`Secret key (sk_${prefix}_…)`} id={`${mode}-secret`} name="secret_key" mode={mode} field="secret" masked={current.secret} placeholder={`sk_${prefix}_…`} canEdit={canEdit} />
+          <TextField label={`Publishable key (pk_${prefix}_…)`} id={`${mode}-pk`} name="publishable_key" autoComplete="off" placeholder={current.publishable ?? `pk_${prefix}_…`} disabled={!canEdit} hint={current.publishable ? <SavedValue value={current.publishable} /> : undefined} />
+          <SecretKeyField label="Webhook signing secret (whsec_…)" id={`${mode}-whsec`} name="webhook_secret" mode={mode} field="webhook" masked={current.webhook} placeholder="whsec_…" canEdit={canEdit} emptyHint="Optional until you connect the webhook." />
           <div className="flex flex-wrap gap-2">
             <SubmitButton disabled={!canEdit} pendingText="Verifying with Stripe…">Save {mode} keys</SubmitButton>
             <Button type="button" variant="outline" disabled={!canEdit || !current.secret || pending} onClick={onTest}>{pending ? <Loader2Icon className="animate-spin" /> : null} Test connection</Button>
@@ -76,6 +77,56 @@ function KeySetForm({ mode, current, canEdit, onTest, pending }: { mode: "test" 
         </form>
       </CardContent>
     </Card>
+  );
+}
+
+/** "Saved: …" hint; the value wraps so long keys never widen the card. Copy appears only for an unmasked value. */
+function SavedValue({ value }: { value: string }) {
+  return (
+    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <span className="min-w-0 font-mono wrap-anywhere">Saved: {value}</span>
+      {value.includes("•") ? null : <CopyButton value={value} />}
+    </span>
+  );
+}
+
+/**
+ * Password-style input for a Stripe secret. The eye button reveals the *saved* key in full (fetched on demand
+ * from the server, audited) and also shows whatever is being typed; clicking again hides both.
+ */
+function SecretKeyField({ label, id, name, mode, field, masked, placeholder, canEdit, emptyHint }: {
+  label: string; id: string; name: string; mode: "test" | "live"; field: "secret" | "webhook"; masked: string | null; placeholder: string; canEdit: boolean; emptyHint?: string;
+}) {
+  const [visible, setVisible] = useState(false);
+  const [full, setFull] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const toggle = async () => {
+    if (visible) { setVisible(false); return; }
+    if (masked && !full && canEdit) {
+      setLoading(true);
+      try {
+        const fd = new FormData(); fd.set("mode", mode); fd.set("field", field);
+        const r = await revealStripeKey(fd);
+        if (r.error || !r.value) { toast.error(r.error ?? "Could not reveal the key."); return; }
+        setFull(r.value);
+      } finally { setLoading(false); }
+    }
+    setVisible(true);
+  };
+  const shown = visible && full ? full : masked;
+  const title = visible ? "Hide key" : "Show full key";
+  const hint = masked ? <SavedValue value={shown ?? ""} /> : emptyHint;
+  return (
+    <FieldWrap label={label} htmlFor={id} hint={hint}>
+      <InputGroup>
+        <InputGroupInput id={id} name={name} type={visible ? "text" : "password"} autoComplete="off" placeholder={shown ?? placeholder} disabled={!canEdit} />
+        <InputGroupAddon align="inline-end">
+          <InputGroupButton size="icon-xs" aria-label={title} aria-pressed={visible} title={title} disabled={!canEdit || loading} onClick={toggle}>
+            {loading ? <Loader2Icon className="animate-spin" /> : visible ? <EyeOffIcon /> : <EyeIcon />}
+          </InputGroupButton>
+        </InputGroupAddon>
+      </InputGroup>
+    </FieldWrap>
   );
 }
 

@@ -30,7 +30,8 @@ export type AuditAction =
   | 'sponsor.created' | 'sponsor.updated' | 'sponsor.deleted'
   | 'ad.created' | 'ad.updated' | 'ad.deleted' | 'ad.status.changed'
   | 'application.submitted' | 'application.approved' | 'application.rejected'
-  | 'export.downloaded';
+  | 'export.downloaded'
+  | 'audit.cleared' | 'auth.attempts.cleared' | 'auth.attempt.deleted';
 
 export async function audit(
   action: AuditAction,

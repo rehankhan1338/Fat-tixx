@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
+import { Trash2Icon } from "lucide-react";
 import { requireSuperAdmin } from "@/lib/auth/guard";
-import { listAudit } from "@/lib/admin/queries";
+import { countAudit, listAudit } from "@/lib/admin/queries";
+import { clearAuditLog } from "@/lib/admin/actions";
+import { DEFAULT_PER_PAGE, parsePagination } from "@/lib/pagination";
 import { PageHeader, formatDate, EmptyState } from "@/components/shared";
+import { ConfirmButton } from "@/components/confirm-button";
+import { TablePagination } from "@/components/table-pagination";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -13,16 +18,30 @@ export default async function AuditPage({ searchParams }: PageProps<"/admin/audi
   await requireSuperAdmin();
   const sp = await searchParams;
   const q = typeof sp.q === "string" ? sp.q.replace(/[^a-z_.]/gi, "") : "";
-  const rows = await listAudit(300, q);
+  const { page, perPage, offset } = parsePagination(sp);
+  const [rows, total] = await Promise.all([listAudit(perPage, q, offset), countAudit(q)]);
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <PageHeader title="Audit log" description="Immutable record of sign-ins, administrative actions, refunds and check-in overrides." />
-      <Card><CardContent className="pt-6">
-        <form className="mb-4 flex gap-2" action="/admin/audit">
+      <PageHeader
+        title="Audit log"
+        description="Record of sign-ins, administrative actions, refunds and check-in overrides."
+        actions={total > 0 ? (
+          <ConfirmButton
+            action={clearAuditLog}
+            title="Clear the entire audit log?"
+            description={`All ${total.toLocaleString()} entries will be permanently deleted. A single "audit.cleared" entry is written afterwards so the wipe itself stays on record.`}
+            confirmText="Clear audit log"
+            successText="Audit log cleared"
+          ><Trash2Icon /> Clear logs</ConfirmButton>
+        ) : null}
+      />
+      <Card><CardContent className="space-y-4 pt-6">
+        <form className="flex gap-2" action="/admin/audit">
           <Input name="q" defaultValue={q} placeholder="Filter by action prefix, e.g. order. or checkin.override" className="max-w-sm font-mono text-xs" />
+          {perPage !== DEFAULT_PER_PAGE ? <input type="hidden" name="per" value={perPage} /> : null}
           <Button type="submit" variant="secondary">Filter</Button>
         </form>
-        {rows.length === 0 ? <EmptyState title="Nothing recorded yet" /> : (
+        {rows.length === 0 ? <EmptyState title={q ? "No entries match this filter" : "Nothing recorded yet"} /> : (
           <Table>
             <TableHeader><TableRow><TableHead>When</TableHead><TableHead>Action</TableHead><TableHead>Actor</TableHead><TableHead>Target</TableHead><TableHead>Details</TableHead><TableHead>IP</TableHead></TableRow></TableHeader>
             <TableBody>
@@ -39,6 +58,7 @@ export default async function AuditPage({ searchParams }: PageProps<"/admin/audi
             </TableBody>
           </Table>
         )}
+        <TablePagination page={page} perPage={perPage} total={total} params={{ q }} />
       </CardContent></Card>
     </div>
   );

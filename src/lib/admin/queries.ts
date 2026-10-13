@@ -68,14 +68,22 @@ export async function getEmail(id: number) {
 
 export type AuditListRow = Row & { id: number; action: string; actor_email: string | null; target_type: string | null; target_id: string | null; ip: string | null; metadata: string | null; created_at: Date };
 
-export async function listAudit(limit = 200, actionPrefix = ''): Promise<AuditListRow[]> {
+export async function listAudit(limit = 200, actionPrefix = '', offset = 0): Promise<AuditListRow[]> {
   return query<AuditListRow>(
     `SELECT a.id, a.action, u.email AS actor_email, a.target_type, a.target_id, a.ip, a.metadata, a.created_at
        FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
       WHERE (? = '' OR a.action LIKE ?)
-      ORDER BY a.id DESC LIMIT ?`,
-    [actionPrefix, `${actionPrefix}%`, limit],
+      ORDER BY a.id DESC LIMIT ? OFFSET ?`,
+    [actionPrefix, `${actionPrefix}%`, limit, offset],
   );
+}
+
+export async function countAudit(actionPrefix = ''): Promise<number> {
+  const r = await queryOne<Row & { n: number }>(
+    `SELECT COUNT(*) AS n FROM audit_log WHERE (? = '' OR action LIKE ?)`,
+    [actionPrefix, `${actionPrefix}%`],
+  );
+  return Number(r?.n ?? 0);
 }
 
 export async function platformOverview() {

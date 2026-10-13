@@ -141,6 +141,19 @@ export async function saveStripeKeys(_prev: ActionState, fd: FormData): Promise<
   return { ok: true, message: `${mode === 'live' ? 'Live' : 'Test'} keys saved${secret ? ' and verified with Stripe' : ''}.` };
 }
 
+/** Returns a saved Stripe secret in full so a Super Admin can read it after clicking the eye button. Audited. */
+export async function revealStripeKey(fd: FormData): Promise<{ error?: string; value?: string }> {
+  const session = await assertSuperAdmin();
+  const mode: StripeMode = str(fd, 'mode', 4) === 'live' ? 'live' : 'test';
+  const field = str(fd, 'field', 12);
+  if (field !== 'secret' && field !== 'webhook') return { error: 'Unknown field.' };
+  const set = (await getStripeSettings())[mode];
+  const value = field === 'secret' ? set.secretKey : set.webhookSecret;
+  if (!value) return { error: `No ${mode} ${field === 'secret' ? 'secret key' : 'webhook secret'} saved.` };
+  await audit('settings.stripe', { actorUserId: session.user.id, metadata: { mode, revealed: field } });
+  return { value };
+}
+
 export async function switchStripeMode(fd: FormData): Promise<ActionState> {
   const session = await assertSuperAdmin();
   const mode: StripeMode = str(fd, 'mode', 4) === 'live' ? 'live' : 'test';

@@ -30,11 +30,16 @@ export async function recentAudit(limit = 25): Promise<AuditRow[]> {
 
 export type AttemptRow = Row & { id: number; email_normalized: string | null; ip: string; success: number; reason: string; created_at: Date };
 
-export async function recentLoginAttempts(limit = 25): Promise<AttemptRow[]> {
+export async function recentLoginAttempts(limit = 25, offset = 0): Promise<AttemptRow[]> {
   return query<AttemptRow>(
-    `SELECT id, email_normalized, ip, success, reason, created_at FROM login_attempts ORDER BY id DESC LIMIT ?`,
-    [limit],
+    `SELECT id, email_normalized, ip, success, reason, created_at FROM login_attempts ORDER BY id DESC LIMIT ? OFFSET ?`,
+    [limit, offset],
   );
+}
+
+export async function countLoginAttempts(): Promise<number> {
+  const r = await queryOne<Row & { n: number }>(`SELECT COUNT(*) AS n FROM login_attempts`);
+  return Number(r?.n ?? 0);
 }
 
 export async function platformStats() {

@@ -18,10 +18,10 @@ export function PageHeader({ title, description, actions }: { title: ReactNode; 
 
 export function Stat({ label, value, hint }: { label: string; value: ReactNode; hint?: ReactNode }) {
   return (
-    <div className="rounded-[24px] border border-fx-red/10 bg-white px-6 py-5 shadow-[0_18px_40px_-30px_rgba(168,18,26,.45)]">
+    <div className="min-w-0 rounded-[24px] border border-fx-red/10 bg-white px-6 py-5 shadow-[0_18px_40px_-30px_rgba(168,18,26,.45)]">
       <p className="text-[12px] font-semibold tracking-[.12em] text-fx-red/78 uppercase">{label}</p>
       <p className="mt-3 font-display text-[clamp(28px,2.6vw,36px)] leading-none font-semibold tracking-[-0.03em] text-fx-red tabular-nums">{value}</p>
-      {hint ? <p className="mt-2 text-[13px] leading-[1.45] text-fx-red/78">{hint}</p> : null}
+      {hint ? <p className="mt-2 text-[13px] leading-[1.45] wrap-anywhere text-fx-red/78">{hint}</p> : null}
     </div>
   );
 }

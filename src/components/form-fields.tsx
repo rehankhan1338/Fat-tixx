@@ -19,10 +19,10 @@ export function FormStatus({ state, successText }: { state: { error?: string; ok
 
 export function FieldWrap({ label, htmlFor, hint, children, className = "" }: { label: ReactNode; htmlFor: string; hint?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <div data-fx-field="" className={`grid gap-1.5 ${className}`}>
-      <Label htmlFor={htmlFor}>{label}</Label>
+    <div data-fx-field="" className={`grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5 ${className}`}>
+      <Label htmlFor={htmlFor} className="min-w-0 wrap-anywhere">{label}</Label>
       {children}
-      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+      {hint ? <p className="min-w-0 text-xs wrap-anywhere text-muted-foreground">{hint}</p> : null}
     </div>
   );
 }

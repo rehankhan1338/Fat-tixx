@@ -24,7 +24,7 @@ export function CategoriesForm({ categories }: { categories: Category[] }) {
         blank={{ name: "", icon: "tag" }}
         label="category"
         render={(c, i) => (
-          <div className="grid gap-3 sm:grid-cols-[1fr_220px]">
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
             <TextField label="Name" id={`cat_name_${i}`} name="cat_name" defaultValue={c.name} maxLength={40} />
             <SelectField label="Icon" id={`cat_icon_${i}`} name="cat_icon" defaultValue={c.icon} options={ICON_OPTIONS} />
           </div>

@@ -63,7 +63,7 @@ export function TokenHelp() {
   return (
     <details className="rounded-lg border bg-muted/40 p-3 text-xs">
       <summary className="cursor-pointer font-medium">Placeholders you can type into any text</summary>
-      <dl className="mt-2 grid gap-1 sm:grid-cols-[auto_1fr] sm:gap-x-4">
+      <dl className="mt-2 grid gap-1 sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-x-4">
         {TOKENS.map((t) => (
           <div key={t.token} className="contents">
             <dt><code>{t.token}</code></dt>

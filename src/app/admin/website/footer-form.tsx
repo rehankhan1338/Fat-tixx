@@ -26,7 +26,7 @@ export function FooterForm({ c }: { c: FooterContent }) {
         blank={{ network: "instagram", href: "" }}
         label="network"
         render={(s, i) => (
-          <div className="grid gap-3 sm:grid-cols-[180px_1fr]">
+          <div className="grid gap-3 sm:grid-cols-[180px_minmax(0,1fr)]">
             <SelectField label="Network" id={`social_network_${i}`} name="social_network" defaultValue={s.network} options={SOCIAL_OPTIONS.map((n) => ({ value: n, label: SOCIAL_NETWORKS[n].label }))} />
             <TextField label="Profile link" id={`social_href_${i}`} name="social_href" defaultValue={s.href} placeholder="https://" />
           </div>

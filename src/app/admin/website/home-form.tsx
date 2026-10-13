@@ -73,7 +73,7 @@ export function HomeForm({ c, images }: { c: HomeContent; images: { go: string |
         {c.how.steps.slice(0, 4).map((s, i) => (
           <div key={i} className="space-y-3 rounded-lg border p-3">
             <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Step {i + 1}</p>
-            <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_120px]">
               <TextField label="Title" id={`step_title_${i}`} name="step_title" defaultValue={s.title} />
               <TextField label="Dot label" id={`step_dot_${i}`} name="step_dot" defaultValue={s.dot} maxLength={30} />
             </div>
@@ -109,7 +109,7 @@ export function HomeForm({ c, images }: { c: HomeContent; images: { go: string |
           blank={{ big: "", text: "" }}
           label="fee point"
           render={(s, i) => (
-            <div className="grid gap-3 sm:grid-cols-[160px_1fr]">
+            <div className="grid gap-3 sm:grid-cols-[160px_minmax(0,1fr)]">
               <TextField label="Figure" id={`stat_big_${i}`} name="stat_big" defaultValue={s.big} maxLength={40} />
               <TextField label="Text" id={`stat_text_${i}`} name="stat_text" defaultValue={s.text} />
             </div>
