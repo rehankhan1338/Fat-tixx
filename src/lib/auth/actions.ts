@@ -103,7 +103,8 @@ export async function registerAttendee(_prev: ActionState, formData: FormData): 
   if (result.kind === 'error') return { error: result.error, field: result.field };
   if (result.kind === 'existing') return { ok: true, message: result.message };
   await createSession(result.userId);
-  redirect('/account?verify=sent');
+  const next = safeNext(formData.get('next'));
+  redirect(next ? `${next}${next.includes('?') ? '&' : '?'}verify=sent` : '/account?verify=sent');
 }
 
 // ---------------------------------------------------------------------------

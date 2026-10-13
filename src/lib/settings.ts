@@ -29,6 +29,12 @@ export async function getSettings(): Promise<Settings> {
   return out;
 }
 
+/** One raw settings row (any key), or null when it has never been saved. Used for JSON documents such as the website content. */
+export async function getSettingValue(key: string): Promise<string | null> {
+  const rows = await query<Row & { value: string }>('SELECT `value` FROM platform_settings WHERE `key` = ?', [key]);
+  return rows[0]?.value ?? null;
+}
+
 export async function setSetting(key: string, value: string, userId: number | null): Promise<void> {
   await execute(
     'INSERT INTO platform_settings (`key`, `value`, updated_by) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_by = VALUES(updated_by)',

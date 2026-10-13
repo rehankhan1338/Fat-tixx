@@ -25,7 +25,7 @@ export async function AdminShell({ session, extraGroups = [], headerRight, child
     ] : []),
     { href: "/admin/orders", label: "Orders & Tickets", icon: "receipt" },
     ...(isSupport ? [{ href: "/admin/users", label: "Users", icon: "users" as const }] : []),
-    ...(isSuper ? [{ href: "/admin/ads", label: "Ads & sponsors", icon: "megaphone" as const }] : []),
+    ...(isSuper ? [{ href: "/admin/ads", label: "Ads & sponsors", icon: "megaphone" as const }, { href: "/admin/website", label: "Website", icon: "globe" as const }] : []),
   ];
   const money: NavItem[] = isFinance ? [
     { href: "/admin/payments", label: "Payments & Stripe", icon: "receipt" },

@@ -41,7 +41,7 @@ function PromoDialog({ ctx, promo, ticketTypes, currency }: { ctx: Ctx; promo?: 
           <input type="hidden" name="org" value={ctx.orgSlug} /><input type="hidden" name="event_id" value={ctx.eventId} />
           {promo ? <input type="hidden" name="promo_id" value={promo.id} /> : null}
           <div className="grid gap-4 sm:grid-cols-2">
-            <TextField label="Code" id="pc-code" name="code" required maxLength={40} defaultValue={promo?.code} className="font-mono uppercase" hint="What buyers type, e.g. EARLYBIRD" />
+            <TextField label="Code" id="pc-code" name="code" required maxLength={40} defaultValue={promo?.code} className="[&_input]:font-mono [&_input]:uppercase" hint="What buyers type, e.g. EARLYBIRD" />
             <SelectField label="Discount type" id="pc-kind" name="kind" value={kind} onChange={(e) => setKind(e.target.value as "percent" | "amount")} options={[{ value: "percent", label: "Percent off" }, { value: "amount", label: `Amount off per ticket (${currency})` }]} />
             <TextField label={kind === "percent" ? "Percent off" : "Amount off per ticket"} id="pc-value" name="value" required inputMode="decimal" defaultValue={promo?.valueInput} placeholder={kind === "percent" ? "10" : "5.00"} />
             <TextField label="Max uses (tickets)" id="pc-max" name="max_uses" type="number" min={1} defaultValue={promo?.maxUses ?? ""} hint="Blank = unlimited" />

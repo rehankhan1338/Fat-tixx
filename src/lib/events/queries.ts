@@ -56,6 +56,27 @@ export async function listPublicEvents(): Promise<PublicEventRow[]> {
   );
 }
 
+/** An organization's public events, newest first (upcoming and past), for its organizer page. */
+export async function listOrgPublicEvents(orgId: number): Promise<PublicEventRow[]> {
+  return query<PublicEventRow>(
+    `${PUBLIC_SELECT} WHERE e.organization_id = ? AND e.status IN ('published','postponed','completed') AND e.visibility = 'public' AND g.status = 'active'
+       ORDER BY e.starts_at DESC LIMIT 80`, [orgId],
+  );
+}
+
+export async function countOrgPublicEvents(orgId: number): Promise<number> {
+  const r = await queryOne<Row & { n: number }>(`SELECT COUNT(*) AS n FROM events WHERE organization_id = ? AND status IN ('published','postponed','completed') AND visibility = 'public'`, [orgId]);
+  return Number(r?.n ?? 0);
+}
+
+export type PublicOrgRow = Row & { id: number; slug: string; name: string; description: string | null; website: string | null; logo_path: string | null };
+
+/** An active organization by slug, the fields its public page shows. */
+export async function getPublicOrganization(slug: string): Promise<PublicOrgRow | null> {
+  if (!/^[a-z0-9-]{1,64}$/.test(slug)) return null;
+  return queryOne<PublicOrgRow>(`SELECT id, slug, name, description, website, logo_path FROM organizations WHERE slug = ? AND status = 'active'`, [slug]);
+}
+
 export async function getPublicEventBySlug(slug: string): Promise<PublicEventRow | null> {
   if (!/^[a-z0-9-]{1,120}$/.test(slug)) return null;
   return queryOne<PublicEventRow>(`${PUBLIC_SELECT} WHERE e.slug = ? AND g.status = 'active'`, [slug]);

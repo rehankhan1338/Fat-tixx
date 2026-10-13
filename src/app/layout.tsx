@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { brandingForLayout } from "@/lib/branding";
 import { FormValidation } from "@/components/form-validation";
+import { display, sans } from "./fonts";
 import "./globals.css";
 
 /**
@@ -27,7 +28,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   // The accent colour chosen under Admin → Settings → Branding overrides the theme's primary token.
   const brandVars = { "--primary": b.color, "--primary-foreground": b.foreground, "--ring": b.color, "--sidebar-primary": b.color, "--sidebar-primary-foreground": b.foreground } as CSSProperties;
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`} style={brandVars}>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${display.variable} ${sans.variable} h-full antialiased`} style={brandVars}>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <TooltipProvider>{children}</TooltipProvider>
         <Toaster richColors position="top-right" />

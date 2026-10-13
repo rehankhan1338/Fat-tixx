@@ -1,19 +1,14 @@
 "use client";
 
-/*
- * Shared state for the homepage: the event list, the filters and the visitor's place.
- * The nav search, category pills, featured strip and event grid all read/write this.
- *
- * In production, replace `events` (passed in from page.tsx) with data from the API and move
- * filtering to the server once the event count grows (see README "Wiring the data").
- */
+/* Shared event filters, location and navigation state for public pages. */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
-import { imageUrl, isNear, listUpcoming, PAGE_SIZE, startOfToday } from "@/lib/home/events";
+import { isNear, listUpcoming, PAGE_SIZE, startOfToday } from "@/lib/home/events";
 import type { ListedEvent } from "@/lib/home/events";
 import { savePlace } from "@/lib/home/location";
-import type { EventItem, Filters, Place } from "@/lib/home/types";
+import { DEFAULT_DISTANCE } from "@/lib/home/places";
+import type { Category, EventItem, Filters, Place, PriceFilter, WhenFilter } from "@/lib/home/types";
 
 type PlaceOpts = { auto?: boolean; remember?: boolean; scroll?: boolean };
 
@@ -33,6 +28,8 @@ type HomeCtx = {
   locInputRef: RefObject<HTMLInputElement | null>;
   focusLocation: () => void;
   reduceMotion: boolean;
+  /** the event categories (Super Admin → Website → Categories), for the pills and filters */
+  categories: Category[];
 };
 
 const Ctx = createContext<HomeCtx | null>(null);
@@ -43,7 +40,9 @@ export function useHome(): HomeCtx {
   return c;
 }
 
-const EMPTY: Filters = { q: "", city: "", when: "", free: false, cat: "", org: "", near: null, shown: PAGE_SIZE };
+const EMPTY: Filters = { q: "", city: "", when: "", price: "", cat: "", org: "", near: null, distance: DEFAULT_DISTANCE, shown: PAGE_SIZE };
+const WHENS: WhenFilter[] = ["0", "weekend", "7", "30"];
+const PRICES: PriceFilter[] = ["free", "u25", "25to50", "o50"];
 
 function scrollToEvents(reduce: boolean) {
   requestAnimationFrame(() => {
@@ -51,28 +50,32 @@ function scrollToEvents(reduce: boolean) {
   });
 }
 
-export default function HomeState({ events, children }: { events: EventItem[]; children: ReactNode }) {
+export default function HomeState({ events, categories, children }: { events: EventItem[]; categories: Category[]; children: ReactNode }) {
   const [today, setToday] = useState<Date | null>(null);
   const [filters, setF] = useState<Filters>(EMPTY);
   const [place, setPlace] = useState<Place | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [reduceMotion, setReduce] = useState(false);
   const locInputRef = useRef<HTMLInputElement | null>(null);
+  const manuallyPickedPlace = useRef(false);
 
   // Dates depend on the visitor's clock, so they are applied after hydration.
   useEffect(() => {
-    // Applied after hydration (the server does not know the visitor's clock, settings or URL).
+    // applied after hydration (the server does not know the visitor's clock, settings or URL)
     const id = requestAnimationFrame(() => {
     setToday(startOfToday());
     setReduce(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-    // Deep links from the footer and elsewhere: /?when=weekend, /?free=1, /?cat=Music, /?q=jazz
-    const sp = new URLSearchParams(window.location.search);
-    const when = sp.get("when");
+    // filters can arrive in the link: ?q= (a search sent from another page's nav), ?when=, ?price=, ?cat=
+    // (the footer links to /events?when=weekend and /events?price=free)
+    const u = new URLSearchParams(window.location.search);
     const patch: Partial<Filters> = {};
-    if (when === "weekend" || when === "7" || when === "30") patch.when = when;
-    if (sp.get("free") === "1") patch.free = true;
-    if (sp.get("cat")) patch.cat = sp.get("cat")!.slice(0, 40);
-    if (sp.get("q")) patch.q = sp.get("q")!.slice(0, 100);
+    const q = u.get("q");
+    const when = u.get("when") === "today" ? "0" : (u.get("when") as WhenFilter);
+    const price = u.get("price") as PriceFilter;
+    if (q) patch.q = q;
+    if (WHENS.includes(when)) patch.when = when;
+    if (PRICES.includes(price)) patch.price = price;
+    if (u.get("cat")) patch.cat = u.get("cat") as string;
     if (Object.keys(patch).length) setF((f) => ({ ...f, ...patch }));
     });
     return () => cancelAnimationFrame(id);
@@ -80,10 +83,8 @@ export default function HomeState({ events, children }: { events: EventItem[]; c
 
   const upcoming = useMemo(() => listUpcoming(events, today), [events, today]);
   const featured = useMemo(() => {
-    // Real events need their own photo here (sample events use the design's placeholder photos).
-    const withPhoto = upcoming.filter((e) => !e.href || imageUrl(e));
-    const f = withPhoto.filter((e) => e.featured);
-    return f.length >= 4 ? f : withPhoto.slice(0, 8);
+    const f = upcoming.filter((e) => e.featured);
+    return f.length >= 4 ? f : upcoming.slice(0, 8);
   }, [upcoming]);
 
   const upcomingRef = useRef(upcoming);
@@ -104,6 +105,8 @@ export default function HomeState({ events, children }: { events: EventItem[]; c
   /* Pick a place. auto = found by the page itself: it only filters when there are events nearby. */
   const applyPlace = useCallback(
     (p: Place | null, opts: PlaceOpts = {}) => {
+      if (opts.auto && manuallyPickedPlace.current) return;
+      if (!opts.auto) manuallyPickedPlace.current = true;
       setPlace(p);
       if (opts.remember) savePlace(p);
       if (!p) {
@@ -117,15 +120,17 @@ export default function HomeState({ events, children }: { events: EventItem[]; c
   );
 
   const clearPlace = useCallback(() => {
+    manuallyPickedPlace.current = true;
     setPlace(null);
     savePlace(null);
     setFilters({ near: null });
   }, [setFilters]);
 
   const clearAll = useCallback(() => {
+    manuallyPickedPlace.current = true;
     setPlace(null);
     savePlace(null);
-    setF(EMPTY);
+    setF((f) => ({ ...EMPTY, distance: f.distance }));
   }, []);
 
   const focusLocation = useCallback(() => {
@@ -134,6 +139,7 @@ export default function HomeState({ events, children }: { events: EventItem[]; c
   }, []);
 
   const value: HomeCtx = {
+    categories,
     today,
     upcoming,
     featured,

@@ -41,8 +41,9 @@ export function proxy(request: NextRequest) {
   const isEventPage = pathname.startsWith('/events/');
   // The embeddable checkout widget is the only page other sites may frame.
   const isEmbed = pathname.startsWith('/embed/');
-  // Homepage location box: approximate city from IP (geojs.io) and GPS → city name (bigdatacloud.net). Disclosed in the privacy policy.
-  const geoConnect = pathname === '/' ? ' https://get.geojs.io https://api.bigdatacloud.net' : '';
+  // Public pages' location box: approximate city from IP (geojs.io) and GPS → city name (bigdatacloud.net). Disclosed in the privacy policy.
+  const isPublicPage = !/^\/(admin|org|api|checkout|embed|app-login|t|r)(\/|$)/.test(pathname);
+  const geoConnect = isPublicPage ? ' https://get.geojs.io https://api.bigdatacloud.net' : '';
   const pixelConnect = isEventPage ? ' https://connect.facebook.net https://www.facebook.com https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com' : '';
   const pixelImg = isEventPage ? ' https://www.facebook.com https://www.google-analytics.com https://*.google-analytics.com https://www.googletagmanager.com' : '';
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');

@@ -27,7 +27,7 @@ export default async function CheckoutPage({ params }: PageProps<"/checkout/[cod
   const expired = holdExpired(order);
 
   return (
-    <PublicShell>
+    <PublicShell wide>
       <div className="grid gap-8 lg:grid-cols-5">
         <div className="lg:col-span-3">
           <h1 className="text-2xl font-bold tracking-tight">Checkout</h1>

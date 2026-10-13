@@ -7,6 +7,7 @@ import { addonAvailable, getEvent, listAddons, listEventAssignableMembers, listE
 import { checkinCounts, eventSalesSummary, listEventAttendees } from "@/lib/orders/queries";
 import { listEventTransfers } from "@/lib/orders/transfer";
 import { getSettings } from "@/lib/settings";
+import { categoryNames } from "@/lib/site-content/categories";
 import { env } from "@/lib/env";
 import { formatCents } from "@/lib/money";
 import { formatEventDate, utcToWallClock } from "@/lib/tz";
@@ -47,10 +48,10 @@ export default async function EventPage({ params, searchParams }: PageProps<"/or
   const event = await getEvent(ctx.org.id, Number(eventId));
   if (!event || !(await canAccessEvent(ctx, event))) notFound();
   const canEdit = ctx.role !== "staff";
-  const [ticketTypes, venues, members, attendees, sales, settings, dates, addons, questions, waitlist, counts, transfers, conflicts] = await Promise.all([
+  const [ticketTypes, venues, members, attendees, sales, settings, dates, addons, questions, waitlist, counts, transfers, conflicts, categories] = await Promise.all([
     listTicketTypes(event.id), canEdit ? listVenues(ctx.org.id) : [], canEdit ? listEventAssignableMembers(ctx.org.id, event.id) : [],
     listEventAttendees(event.id), canEdit ? eventSalesSummary(event.id) : null, getSettings(), listEventDates(event.id), listAddons(event.id), listQuestions(event.id), canEdit ? listWaitlist(event.id) : [],
-    checkinCounts(event.id), canEdit ? listEventTransfers(event.id) : [], listOfflineConflicts(slug, event.id),
+    checkinCounts(event.id), canEdit ? listEventTransfers(event.id) : [], listOfflineConflicts(slug, event.id), categoryNames(),
   ]);
   const tab = typeof sp.tab === "string" ? sp.tab : "tickets";
   const [promos, sponsors, campaigns, qStats] = canEdit
@@ -177,7 +178,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/or
         {canEdit ? (
           <TabsContent value="details" className="pt-4">
             <Section title="Event details">
-              <EventForm orgSlug={slug} defaultFeeMode={settings.default_fee_mode} canFeature={ctx.isSuperAdmin} venues={venues.map((v) => ({ id: v.id, name: v.name, timezone: v.timezone, tax_bps: Number(v.tax_bps) }))}
+              <EventForm orgSlug={slug} defaultFeeMode={settings.default_fee_mode} canFeature={ctx.isSuperAdmin} categories={categories} venues={venues.map((v) => ({ id: v.id, name: v.name, timezone: v.timezone, tax_bps: Number(v.tax_bps) }))}
                 values={{
                   id: event.id, title: event.title, slug: event.slug, summary: event.summary ?? "", description: event.description ?? "", imageUrl: uploadUrl(event.image_path),
                   venue_id: event.venue_id ? String(event.venue_id) : "", timezone: event.timezone,

@@ -5,9 +5,9 @@ export function LogoMark() {
     <svg width="34" height="17" viewBox="0 0 120 60" fill="none" aria-hidden="true">
       <path
         d="M10 10h92a6 6 0 0 1 6 6v8a10 10 0 0 0 0 20v8a6 6 0 0 1-6 6H10a6 6 0 0 1-6-6v-8a10 10 0 0 0 0-20v-8a6 6 0 0 1 6-6z"
-        fill="var(--accent)"
+        fill="var(--color-fx-yellow)"
       />
-      <line x1="84" y1="10" x2="84" y2="50" stroke="var(--dark)" strokeWidth="3" strokeDasharray="5 5" />
+      <line x1="84" y1="10" x2="84" y2="50" stroke="var(--color-fx-red)" strokeWidth="3" strokeDasharray="5 5" />
     </svg>
   );
 }

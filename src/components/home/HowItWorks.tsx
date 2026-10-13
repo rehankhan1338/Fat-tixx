@@ -1,29 +1,21 @@
 "use client";
 
-/*
- * "Host your first event in four steps."
- * A tall track (520vh desktop, 560vh phones, see CSS) with a sticky stage. Scroll progress through the
- * track scrubs the phone screens (slide up/down) and the step text (fade/slide). It holds on each step,
- * then glides to the next over the middle 40% of the gap. Only transforms/opacity are animated.
- * The phone is scaled from the box it sits in (not window height, which jumps on iOS).
- */
+/* Scroll progress scrubs phone screens and step text using transforms and opacity.
+   Steps 1–3 show the website in the phone's browser; step 4 shows the Fattixx Scanner app (see PhoneScreens.tsx). */
 
 import { useEffect, useRef } from "react";
-import { cx, eyebrow, sectionTitle } from "@/components/home/styles";
+import { cx, eyebrow, sectionTitle } from "@/components/ui/styles";
+import type { HomeContent } from "@/lib/site-content/schema";
+import { Lines } from "@/lib/site-content/inline";
 import PhoneScreens from "./PhoneScreens";
-
-const STEPS = [
-  { i: 0, side: "l", h: "Create your event.", p: "Add a cover, date, venue and lineup. Save it as a draft and publish when you’re ready." },
-  { i: 1, side: "r", h: "Set your tickets.", p: "Early bird, general, VIP or tables. Set prices, limits and promo codes for your crew." },
-  { i: 2, side: "l", h: "Share one link.", p: "Post it, text it, put it in your bio. Watch page views and sales come in live." },
-  { i: 3, side: "r", h: "Check people in.", p: "Scan tickets at the door with your phone and see who’s arrived in real time." },
-];
-const DOTS = ["Create", "Tickets", "Share", "Check in"];
 
 const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
 const smooth = (x: number) => x * x * (3 - 2 * x);
 
-export default function HowItWorks() {
+/** Copy comes from Super Admin → Website; the four steps map onto the four phone screens. */
+export default function HowItWorks({ content: c }: { content: HomeContent["how"] }) {
+  const STEPS = c.steps.slice(0, 4).map((st, i) => ({ i, side: i % 2 ? "r" : "l", h: st.title, p: st.text }));
+  const DOTS = c.steps.slice(0, 4).map((st) => st.dot);
   const trackRef = useRef<HTMLDivElement>(null);
   const stickyRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -39,7 +31,9 @@ export default function HowItWorks() {
     const steps = Array.from(track.querySelectorAll<HTMLElement>(".how-step"));
     const dots = Array.from(dotsRef.current!.querySelectorAll<HTMLButtonElement>("button"));
     const N = screens.length;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let ticking = false;
+    let frame = 0;
     let lastPos = -1;
     let lastDot = -1;
 
@@ -60,21 +54,23 @@ export default function HowItWorks() {
       ticking = false;
       const t = clamp(progress() * N - 0.5, 0, N - 1);
       const i0 = Math.floor(t);
-      const pos = i0 + smooth(clamp((t - i0 - 0.3) / 0.4, 0, 1));
+      const pos = reducedMotion.matches ? Math.round(t) : i0 + smooth(clamp((t - i0 - 0.3) / 0.4, 0, 1));
       if (Math.abs(pos - lastPos) < 0.0005) return;
       lastPos = pos;
       screens.forEach((el) => {
         const d = Number(el.dataset.i) - pos;
-        el.style.transform =
-          Math.abs(d) >= 1
+        el.style.transform = reducedMotion.matches
+          ? "none"
+          : Math.abs(d) >= 1
             ? `translate3d(0,${d > 0 ? 100 : -100}%,0)`
             : `translate3d(0,${(d * 100).toFixed(2)}%,0) scale(${(1 - Math.abs(d) * 0.06).toFixed(3)})`;
+        el.style.visibility = reducedMotion.matches && d !== 0 ? "hidden" : "visible";
       });
       steps.forEach((el) => {
         const d = Number(el.dataset.i) - pos;
         const o = clamp(1 - Math.abs(d) * 2.2, 0, 1);
         el.style.opacity = o.toFixed(3);
-        el.style.transform = `translate3d(0,${(d * 40).toFixed(1)}px,0)`;
+        el.style.transform = reducedMotion.matches ? "none" : `translate3d(0,${(d * 40).toFixed(1)}px,0)`;
         el.style.visibility = o > 0 ? "visible" : "hidden";
       });
       const di = Math.round(pos);
@@ -87,7 +83,7 @@ export default function HowItWorks() {
     const queue = () => {
       if (!ticking) {
         ticking = true;
-        requestAnimationFrame(render);
+        frame = requestAnimationFrame(render);
       }
     };
     const onResize = () => {
@@ -97,6 +93,7 @@ export default function HowItWorks() {
     };
     window.addEventListener("scroll", queue, { passive: true });
     window.addEventListener("resize", onResize);
+    reducedMotion.addEventListener("change", onResize);
     const ro = new ResizeObserver(sizePhone);
     ro.observe(stage);
     sizePhone();
@@ -104,6 +101,8 @@ export default function HowItWorks() {
     return () => {
       window.removeEventListener("scroll", queue);
       window.removeEventListener("resize", onResize);
+      reducedMotion.removeEventListener("change", onResize);
+      cancelAnimationFrame(frame);
       ro.disconnect();
     };
   }, []);
@@ -130,12 +129,11 @@ export default function HowItWorks() {
   return (
     <section className="how relative bg-fx-ivory" id="how" aria-labelledby="how-h">
       <div className="reveal flex flex-col items-center px-(--pad) pt-[110px] text-center">
-        <div className={eyebrow}>For organizers</div>
+        <div className={eyebrow}>{c.eyebrow}</div>
         <h2 className={cx(sectionTitle, "mt-[14px] text-[clamp(38px,5vw,68px)] leading-none tracking-[-0.04em]")} id="how-h">
-          Host your first event
-          <br />
-          in four steps.
+          <Lines text={c.title} />
         </h2>
+        <p className="mt-5 max-w-[520px] text-[17px] leading-[1.6] text-fx-red/78 max-[641px]:text-[15px]">{c.lead}</p>
       </div>
       <div className="how-track" ref={trackRef}>
         <div className="how-sticky" ref={stickyRef}>
@@ -158,7 +156,7 @@ export default function HowItWorks() {
           >
             {DOTS.map((d, k) => (
               <button
-                key={d}
+                key={k}
                 type="button"
                 aria-current={k === 0 ? "true" : "false"}
                 onClick={() => goTo(k)}

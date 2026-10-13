@@ -14,6 +14,8 @@ export interface PlatformConfig {
   name: string; color: string; logoUrl: string | null; supportEmail: string; appUrl: string;
   stripe: { publishableKey: string; mode: 'test' | 'live' } | null;
   smsEnabled: boolean;
+  /** event categories managed in Super Admin → Website; icon is an SVG path (24×24 viewBox) */
+  categories?: { name: string; icon: string }[];
   legal: { terms: string; privacy: string; refunds: string; ticketing: string };
 }
 

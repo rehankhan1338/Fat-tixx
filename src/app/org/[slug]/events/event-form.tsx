@@ -3,7 +3,6 @@
 import { useActionState, useState } from "react";
 import { createEvent, updateEvent } from "@/lib/events/actions";
 import { COMMON_TIMEZONES } from "@/lib/tz";
-import { CATEGORY_NAMES } from "@/lib/event-categories";
 import { CheckField, FieldWrap, FormStatus, SelectField, TextAreaField, TextField } from "@/components/form-fields";
 import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +15,9 @@ export interface EventFormValues {
 }
 export interface VenueOption { id: number; name: string; timezone: string; tax_bps: number }
 
-export function EventForm({ orgSlug, venues, values, defaultFeeMode, canFeature = false }: { orgSlug: string; venues: VenueOption[]; values?: EventFormValues; defaultFeeMode: string; canFeature?: boolean }) {
+/** `categories`: the names managed in Super Admin → Website → Categories. */
+export function EventForm({ orgSlug, venues, values, defaultFeeMode, canFeature = false, categories }: { orgSlug: string; venues: VenueOption[]; values?: EventFormValues; defaultFeeMode: string; canFeature?: boolean; categories: string[] }) {
+  const categoryOptions = [...new Set([...(values?.category ? [values.category] : []), ...categories])];
   const isEdit = !!values?.id;
   const [state, action] = useActionState(isEdit ? updateEvent : createEvent, undefined);
   const [venueId, setVenueId] = useState(values?.venue_id ?? "");
@@ -32,7 +33,7 @@ export function EventForm({ orgSlug, venues, values, defaultFeeMode, canFeature 
       {isEdit ? <input type="hidden" name="event_id" value={values!.id} /> : null}
 
       <section className="grid gap-4 sm:grid-cols-2">
-        <TextField label="Event title" id="title" name="title" required minLength={3} maxLength={200} defaultValue={values?.title} autoFocus className="sm:col-span-2" />
+        <TextField label="Event title" id="title" name="title" required minLength={3} maxLength={200} defaultValue={values?.title} autoFocus={!isEdit} className="sm:col-span-2" />
         <TextField label="Short summary" id="summary" name="summary" maxLength={300} defaultValue={values?.summary} hint="One sentence shown in listings and link previews." className="sm:col-span-2" />
         <TextAreaField label="Description" id="description" name="description" rows={8} defaultValue={values?.description} className="sm:col-span-2" />
         <FieldWrap label="Event image" htmlFor="image" hint="Landscape works best (e.g. 1600×900). JPG, PNG or WebP up to 8 MB.">
@@ -65,7 +66,7 @@ export function EventForm({ orgSlug, venues, values, defaultFeeMode, canFeature 
         <h3 className="text-sm font-semibold">Visibility & rules</h3>
         <div className="grid gap-4 sm:grid-cols-2">
           <SelectField label="Visibility" id="visibility" name="visibility" defaultValue={values?.visibility ?? "public"} options={[{ value: "public", label: "Public — listed on Fat Tixx" }, { value: "unlisted", label: "Unlisted — not listed, anyone with the link" }, { value: "private", label: "Private — only via a secret link (key in the URL)" }]} hint="Presale / access codes for individual ticket types are set on each ticket type." />
-          <SelectField label="Category" id="category" name="category" defaultValue={values?.category ?? ""} options={[{ value: "", label: "No category" }, ...CATEGORY_NAMES.map((c) => ({ value: c, label: c }))]} hint="Used by the category filters on the homepage." />
+          <SelectField label="Category" id="category" name="category" defaultValue={values?.category ?? ""} options={[{ value: "", label: "No category" }, ...categoryOptions.map((c) => ({ value: c, label: c }))]} hint="Used by the category filters on the homepage." />
           {canFeature ? <><input type="hidden" name="featured_present" value="1" /><CheckField id="featured" name="featured" label="Feature on the homepage" hint="Super Admin: shows this event in the homepage featured strip." defaultChecked={values?.featured} /></> : null}
           <TextField label="Age restriction" id="age_restriction" name="age_restriction" type="number" min={0} max={99} placeholder="e.g. 21" defaultValue={values?.age_restriction} hint="Shown at purchase and prompts an ID check at the door." />
           <SelectField label="Refund policy" id="refund_policy" name="refund_policy" value={refundPolicy} onChange={(e) => setRefundPolicy(e.target.value)} options={[{ value: "no_refunds", label: "No refunds (except cancellation)" }, { value: "until_event_start", label: "Attendees may request a refund until the event starts" }, { value: "days_before", label: "Attendees may request a refund up to N days before" }]} />

@@ -1,36 +1,65 @@
 "use client";
 
-/*
- * Floating nav with the event search and a location box that fills in automatically:
- *   1. a place the visitor picked before (saved in this browser), else
- *   2. their precise location if they already allowed it for this site, else
- *   3. an approximate city from their IP (no permission prompt).
- * If there are events within 75 miles of that place, the event list is filtered to them.
- * On phones (<= 900px) the search opens as a panel under the nav.
- */
+/* Location priority: saved place, permitted GPS, then IP. Menus use lib/places.ts. */
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { FormEvent, KeyboardEvent } from "react";
 import { autoLocate, byGPS, loadSavedPlace } from "@/lib/home/location";
-import { knownCities } from "@/lib/home/events";
+import { cityMenu, citiesWithEvents, DISTANCE_OPTIONS, findPlace, milesText } from "@/lib/home/places";
+import type { CityOption } from "@/lib/home/places";
+import type { Place } from "@/lib/home/types";
 import { useHome } from "./HomeState";
-import { cx } from "@/components/home/styles";
-import { LogoMark, SearchIcon } from "./icons";
+import { cx } from "@/components/ui/styles";
+import { SearchIcon } from "./icons";
+import Logo from "./Logo";
 
 type MenuItem =
   | { kind: "gps" }
-  | { kind: "any" }
-  | { kind: "city"; city: string; count: number };
+  | { kind: "typed"; place: Place & { count: number } }
+  | { kind: "city"; city: CityOption }
+  | { kind: "any" };
 
 export type NavAccount = { href: string; label: string } | null;
 
-export default function SiteNav({ account, createHref }: { account: NavAccount; createHref: string }) {
+/**
+ * `overHero`: the homepage. The nav starts transparent over the hero photos and an ivory background fades in once the
+ * hero scrolls away (the text turns red to stay legible). Every other page shows the solid red nav from the start.
+ */
+export default function SiteNav({ account = null, overHero = false }: { account?: NavAccount; overHero?: boolean }) {
   const { upcoming, filters, setFilters, place, applyPlace, searchOpen, setSearchOpen, locInputRef } = useHome();
   const navRef = useRef<HTMLElement>(null);
+  const [scrolled, setScrolled] = useState(false);
+
+  // homepage: watch the hero; once its bottom edge passes the nav, the background fades in
+  useEffect(() => {
+    if (!overHero) return;
+    const hero = document.getElementById("hero");
+    if (!hero) return;
+    let raf = 0;
+    const check = () => {
+      raf = 0;
+      setScrolled(hero.getBoundingClientRect().bottom < 88);
+    };
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(check);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      cancelAnimationFrame(raf);
+    };
+  }, [overHero]);
+
+  // the three looks: solid red (every page), transparent over the hero, ivory once the homepage scrolls
+  const look: "red" | "clear" | "ivory" = !overHero ? "red" : scrolled ? "ivory" : "clear";
+  const onIvory = look === "ivory";
   const [q, setQ] = useState("");
   const [locText, setLocText] = useState("");
-  const [locating, setLocating] = useState(true); // until the saved / automatic place is known
+  const [locating, setLocating] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuFilter, setMenuFilter] = useState("");
   const [hl, setHl] = useState(-1);
@@ -48,22 +77,28 @@ export default function SiteNav({ account, createHref }: { account: NavAccount; 
     setQ(filters.q);
   }
 
-  // automatic location on first load
+  // automatic location on first load (after hydration: the saved place and the lookups live in the browser)
   useEffect(() => {
-    const saved = loadSavedPlace();
     let cancelled = false;
-    (saved ? Promise.resolve(saved) : autoLocate())
-      .then((p) => {
-        if (!cancelled && (saved || document.activeElement !== locInputRef.current)) applyPlace(p, { auto: true });
-      })
-      .catch(() => {})
-      .finally(() => !cancelled && setLocating(false));
+    const id = requestAnimationFrame(() => {
+      const saved = loadSavedPlace();
+      if (saved) {
+        applyPlace(saved, { auto: true });
+        return;
+      }
+      setLocating(true);
+      autoLocate()
+        .then((p) => {
+          if (!cancelled && document.activeElement !== locInputRef.current) applyPlace(p, { auto: true });
+        })
+        .catch(() => {})
+        .finally(() => !cancelled && setLocating(false));
+    });
     return () => {
       cancelled = true;
+      cancelAnimationFrame(id);
     };
-    // run once on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [applyPlace, locInputRef]);
 
   // phones: close the search panel when tapping outside the nav
   useEffect(() => {
@@ -75,16 +110,17 @@ export default function SiteNav({ account, createHref }: { account: NavAccount; 
     return () => document.removeEventListener("click", onDoc);
   }, [searchOpen, setSearchOpen]);
 
-  const CITY_COORDS = useMemo(() => knownCities(upcoming), [upcoming]);
-  const known = useMemo(() => Object.keys(CITY_COORDS).sort(), [CITY_COORDS]);
-  const items: MenuItem[] = useMemo(() => {
-    const f = menuFilter.trim().toLowerCase();
-    const cities = known
-      .filter((c) => !f || c.toLowerCase().includes(f))
-      .map((c) => ({ kind: "city" as const, city: c, count: upcoming.filter((e) => e.city === c).length }));
-    return [{ kind: "gps" }, { kind: "any" }, ...cities];
-  }, [menuFilter, known, upcoming]);
-  const cityCount = items.length - 2;
+  // what the dropdown lists for the text typed so far (see cityMenu in lib/places.ts)
+  const menu = useMemo(() => cityMenu(upcoming, menuFilter, place, filters.distance), [upcoming, menuFilter, place, filters.distance]);
+  const items: MenuItem[] = useMemo(
+    () => [
+      { kind: "gps" },
+      ...(menu.typed ? [{ kind: "typed" as const, place: menu.typed }] : []),
+      ...menu.cities.map((c) => ({ kind: "city" as const, city: c })),
+      { kind: "any" },
+    ],
+    [menu],
+  );
 
   function openMenu(filter: string) {
     setMenuFilter(filter);
@@ -100,10 +136,10 @@ export default function SiteNav({ account, createHref }: { account: NavAccount; 
     if (item.kind === "any") {
       closeMenu();
       applyPlace(null, { remember: true });
-    } else if (item.kind === "city") {
-      const k = CITY_COORDS[item.city];
+    } else if (item.kind === "city" || item.kind === "typed") {
+      const c = item.kind === "city" ? item.city : item.place;
       closeMenu();
-      applyPlace({ label: item.city, lat: k.lat, lon: k.lon, src: "pick" }, { remember: true, scroll: true });
+      applyPlace({ label: c.label, lat: c.lat, lon: c.lon, src: "pick" }, { remember: true, scroll: true });
     } else {
       setLocating(true);
       byGPS()
@@ -140,13 +176,19 @@ export default function SiteNav({ account, createHref }: { account: NavAccount; 
     closeMenu();
     const typed = locText.trim();
     if (typed && (!place || typed !== place.label)) {
-      const hit = known.find((c) => c.toLowerCase().includes(typed.toLowerCase()));
-      if (hit) applyPlace({ label: hit, lat: CITY_COORDS[hit].lat, lon: CITY_COORDS[hit].lon, src: "pick" }, { remember: true });
+      const hit = findPlace(typed, citiesWithEvents(upcoming, null));
+      if (hit) applyPlace(hit, { remember: true });
     } else if (!typed && place) {
       applyPlace(null, { remember: true });
     }
-    setFilters({ q }, { scroll: true });
     setSearchOpen(false);
+    // On pages without an event grid (pricing, help...), go to /events with the search.
+    // The place was already saved above, so /events picks it up too.
+    if (!document.getElementById("events")) {
+      window.location.assign(q.trim() ? `/events?q=${encodeURIComponent(q.trim())}` : "/events");
+      return;
+    }
+    setFilters({ q }, { scroll: true });
   }
 
   const menuBtn = "w-full flex items-center gap-[10px] min-h-[42px] px-3 rounded-xl text-fx-red text-[14px] text-left cursor-pointer hover:bg-fx-ivory";
@@ -155,11 +197,16 @@ export default function SiteNav({ account, createHref }: { account: NavAccount; 
     <header
       ref={navRef}
       id="nav"
-      className="fixed top-4 left-[clamp(12px,3vw,40px)] right-[clamp(12px,3vw,40px)] z-50 flex h-16 items-center justify-between gap-[18px] rounded-full border border-fx-ivory/12 bg-fx-red/86 pr-[10px] pl-[22px] text-fx-ivory backdrop-blur-[16px] backdrop-saturate-[1.4] max-[901px]:gap-[10px] max-[901px]:pl-[18px]"
+      data-look={look}
+      className={cx(
+        "fixed top-4 left-[clamp(12px,3vw,40px)] right-[clamp(12px,3vw,40px)] z-50 mx-auto max-w-[1840px] flex h-16 items-center justify-between gap-[18px] rounded-full border pr-[10px] pl-[22px] transition-[background-color,border-color,color,box-shadow] duration-500 ease-fx max-[901px]:gap-[10px] max-[901px]:pl-[18px]",
+        look === "red" && "border-fx-ivory/12 bg-fx-red/86 text-fx-ivory backdrop-blur-[16px] backdrop-saturate-[1.4]",
+        look === "clear" && "border-transparent bg-transparent text-fx-ivory",
+        look === "ivory" && "border-fx-red/12 bg-fx-ivory/92 text-fx-red shadow-[0_18px_40px_-30px_rgba(168,18,26,.45)] backdrop-blur-[16px] backdrop-saturate-[1.4]",
+      )}
     >
-      <Link href="/" className="flex items-center gap-[10px] font-display text-[20px] font-extrabold" aria-label="Fattixx home">
-        <LogoMark />
-        <span>FATTIXX</span>
+      <Link href="/" className="flex shrink-0 items-center py-2" aria-label="Fattixx home">
+        <Logo height={38} priority />
       </Link>
 
       <form
@@ -168,7 +215,8 @@ export default function SiteNav({ account, createHref }: { account: NavAccount; 
         autoComplete="off"
         onSubmit={onSubmit}
         className={cx(
-          "mr-auto ml-3 flex h-[46px] max-w-[560px] flex-[1_1_520px] items-center rounded-full bg-fx-ivory pr-1 pl-4 text-fx-red shadow-[0_8px_24px_-16px_rgba(0,0,0,.5)]",
+          "mr-auto ml-3 flex h-[46px] max-w-[560px] flex-[1_1_520px] items-center rounded-full border pr-1 pl-4 text-fx-red transition-[background-color,border-color,box-shadow] duration-500 ease-fx",
+          onIvory ? "border-fx-red/14 bg-white shadow-none" : "border-transparent bg-fx-ivory shadow-[0_8px_24px_-16px_rgba(0,0,0,.5)]",
           // phones: opens as a panel under the nav
           "max-[901px]:absolute max-[901px]:inset-x-0 max-[901px]:top-[calc(100%+10px)] max-[901px]:m-0 max-[901px]:h-auto max-[901px]:max-w-none max-[901px]:flex-col max-[901px]:items-stretch max-[901px]:gap-0 max-[901px]:rounded-[22px] max-[901px]:p-2 max-[901px]:shadow-[0_24px_50px_-20px_rgba(78,7,11,.6)]",
           searchOpen ? "max-[901px]:flex" : "max-[901px]:hidden",
@@ -230,7 +278,7 @@ export default function SiteNav({ account, createHref }: { account: NavAccount; 
             onMouseDown={(e) => e.preventDefault() /* keep focus in the box */}
             className="absolute top-[calc(100%+14px)] -left-3 z-[60] max-h-[340px] w-[290px] overflow-y-auto rounded-[18px] bg-white p-2 text-fx-red shadow-[0_24px_50px_-20px_rgba(78,7,11,.55),0_0_0_1px_rgba(168,18,26,.08)] max-[901px]:top-[calc(100%+4px)] max-[901px]:right-0 max-[901px]:left-0 max-[901px]:w-auto"
           >
-            {note && <div className="px-3 py-2 text-[13px] leading-[1.45] text-fx-red/75">{note}</div>}
+            {(note || menu.note) && <div className="px-3 py-2 text-[13px] leading-[1.45] text-fx-red/78">{note || menu.note}</div>}
             {items.map((it, i) => {
               const hlCls = i === hl ? " bg-fx-ivory" : "";
               if (it.kind === "gps")
@@ -246,22 +294,49 @@ export default function SiteNav({ account, createHref }: { account: NavAccount; 
               if (it.kind === "any")
                 return (
                   <Fragment key="any">
+                    <div className="mx-1 my-[6px] h-px bg-fx-red/10" />
                     <button type="button" className={menuBtn + " font-medium" + hlCls} onClick={() => choose(it)}>
                       Anywhere
                     </button>
-                    <div className="mx-1 my-[6px] h-px bg-fx-red/10" />
                   </Fragment>
                 );
+              if (it.kind === "typed")
+                return (
+                  <button key="typed" type="button" className={menuBtn + " font-medium" + hlCls} onClick={() => choose(it)}>
+                    {it.place.label}
+                    <small className="ml-auto text-right text-[12px] text-fx-red/78">
+                      {it.place.count} {it.place.count === 1 ? "event" : "events"} within {filters.distance} mi
+                    </small>
+                  </button>
+                );
               return (
-                <button key={it.city} type="button" className={menuBtn + " font-medium" + hlCls} onClick={() => choose(it)}>
-                  {it.city}
-                  <small className="ml-auto text-[12px] text-fx-red/60">
-                    {it.count} {it.count === 1 ? "event" : "events"}
+                <button key={it.city.label} type="button" className={menuBtn + " font-medium" + hlCls} onClick={() => choose(it)}>
+                  <span className="min-w-0">
+                    {it.city.label}
+                    {it.city.distance != null && <span className="block text-[12px] font-normal text-fx-red/78">{milesText(it.city.distance)}</span>}
+                  </span>
+                  <small className="ml-auto shrink-0 text-[12px] text-fx-red/78">
+                    {it.city.count} {it.city.count === 1 ? "event" : "events"}
                   </small>
                 </button>
               );
             })}
-            {cityCount === 0 && <div className="px-3 py-2 text-[13px] leading-[1.45] text-fx-red/75">No events in that city yet. Try another city or search anywhere.</div>}
+
+            <div className="mx-1 my-[6px] h-px bg-fx-red/10" />
+            <div className="flex items-center gap-1 px-2 pt-1 pb-[2px]" role="group" aria-label="Distance">
+              <span className="mr-1 text-[12px] font-semibold text-fx-red/78">Within</span>
+              {DISTANCE_OPTIONS.map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  aria-pressed={filters.distance === d}
+                  onClick={() => setFilters({ distance: d })}
+                  className="min-h-9 cursor-pointer rounded-full px-[10px] text-[12px] font-semibold whitespace-nowrap text-fx-red hover:bg-fx-ivory aria-pressed:bg-fx-red aria-pressed:text-fx-ivory"
+                >
+                  {d} mi
+                </button>
+              ))}
+            </div>
           </div>
         </div>
         <button
@@ -274,13 +349,13 @@ export default function SiteNav({ account, createHref }: { account: NavAccount; 
         </button>
       </form>
 
-      <nav aria-label="Main" className="mr-[10px] flex gap-[26px] text-[15px] whitespace-nowrap text-fx-ivory/80 max-[1181px]:hidden">
-        <a href="#events" className="hover:text-fx-ivory">
+      <nav aria-label="Main" className={cx("mr-[10px] flex gap-[26px] text-[15px] whitespace-nowrap max-[1101px]:hidden", onIvory ? "text-fx-red/78" : "text-fx-ivory/90")}>
+        <Link href="/events" className={onIvory ? "hover:text-fx-red" : "hover:text-fx-ivory"}>
           Browse events
-        </a>
-        <a href="#host" className="hover:text-fx-ivory">
-          Host an event
-        </a>
+        </Link>
+        <Link href="/pricing" className={onIvory ? "hover:text-fx-red" : "hover:text-fx-ivory"}>
+          Pricing
+        </Link>
       </nav>
 
       <div className="flex items-center gap-1 max-[901px]:gap-2">
@@ -294,14 +369,15 @@ export default function SiteNav({ account, createHref }: { account: NavAccount; 
             setSearchOpen(!searchOpen);
             if (!searchOpen) setTimeout(() => document.getElementById("ns-q")?.focus(), 0);
           }}
-          className="hidden h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-fx-ivory/12 text-fx-ivory max-[901px]:flex"
+          className={cx("hidden h-11 w-11 cursor-pointer items-center justify-center rounded-full transition-colors duration-500 max-[901px]:flex", onIvory ? "bg-fx-red/10 text-fx-red" : "bg-fx-ivory/12 text-fx-ivory")}
         >
           <SearchIcon size={20} stroke={2.2} />
         </button>
         <a href={account?.href ?? "/login"} className="px-4 py-[10px] text-[15px] font-medium max-[721px]:hidden">
           {account?.label ?? "Log in"}
         </a>
-        <a href={createHref} className="rounded-full bg-fx-yellow px-5 py-[11px] text-[15px] font-semibold whitespace-nowrap text-fx-red max-[901px]:px-4">
+
+        <a href="/create" className="rounded-full bg-fx-yellow px-5 py-[11px] text-[15px] font-semibold whitespace-nowrap text-fx-red max-[901px]:px-4">
           Create event
         </a>
       </div>

@@ -1,8 +1,7 @@
 import 'server-only';
 import { env } from '../env';
 import { query, type Row } from '../db';
-import { homepageEvents } from '../home/data';
-import { organizerInitials, organizerName } from '../home/events';
+import { publicEvents } from '../home/data';
 import {
   accessCodeMatches, addonAvailable, getPublicEventBySlug, listAddons, listEventDates, listQuestions, listSeriesSiblings, listTicketTypes, questionOptions, ticketTypeAvailable, ticketTypeOnSale,
   type PublicEventRow,
@@ -57,7 +56,7 @@ function parseHref(href: string | undefined): { slug: string; key: string | null
 }
 
 export async function mobileEventList(): Promise<{ events: MobileEventCard[] }> {
-  const real = await homepageEvents();
+  const real = await publicEvents();
   const events: MobileEventCard[] = [];
   for (const e of real) {
     const link = parseHref(e.href);
@@ -67,7 +66,7 @@ export async function mobileEventList(): Promise<{ events: MobileEventCard[] }> 
       id: e.id, slug: link.slug, key: link.key, title: e.title, category: e.category, date: e.date, time: e.time, venue: e.venue, city: e.city,
       lat: e.lat ?? null, lon: e.lon ?? null, price: e.price, featured: e.featured, tag: e.tag ?? null,
       imageUrl: isUrl ? absoluteUrl(e.image!) : null, poster: !isUrl && e.image ? e.image : 'gala',
-      organizerName: organizerName(e), organizerInitials: organizerInitials(e), organizerId: e.organizerId,
+      organizerName: e.organizerName, organizerInitials: e.organizerInitials, organizerId: e.organizerId,
     });
   }
   return { events };

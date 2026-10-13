@@ -1,9 +1,8 @@
-import { CITY_COORDS, ORGANIZERS } from "./sample-events";
-import type { CityCoords, EventItem, Filters, Place } from "./types";
+import { DEFAULT_DISTANCE, isWithin } from "./places";
+import type { EventItem, Filters, Place, PriceFilter } from "./types";
 
 export const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 export const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-export const NEAR_MILES = 75;
 export const PAGE_SIZE = 12;
 
 /* An event with its parsed start time and a poster style index (0-5) */
@@ -36,32 +35,7 @@ export function priceText(e: EventItem): string {
 }
 
 export function organizerName(e: EventItem): string {
-  return e.organizerName ?? ORGANIZERS[e.organizerId]?.name ?? "";
-}
-
-export function organizerInitials(e: EventItem): string {
-  return e.organizerInitials ?? ORGANIZERS[e.organizerId]?.initials ?? "";
-}
-
-/** Map position of an event: its venue, else the known city. */
-export function coordsOf(e: EventItem): CityCoords | null {
-  if (e.lat != null && e.lon != null) return { lat: e.lat, lon: e.lon };
-  return CITY_COORDS[e.city] ?? null;
-}
-
-/** Cities that can be picked in the nav location menu: every event city with a known position. */
-export function knownCities(events: EventItem[]): Record<string, CityCoords> {
-  const out: Record<string, CityCoords> = {};
-  for (const e of events) {
-    const c = coordsOf(e);
-    if (c && !out[e.city]) out[e.city] = c;
-  }
-  return out;
-}
-
-/** Real image URL for an event, or null when it only has a placeholder key. */
-export function imageUrl(e: EventItem): string | null {
-  return e.image && /^(\/|https?:)/.test(e.image) ? e.image : null;
+  return e.organizerName;
 }
 
 export function startOfToday(): Date {
@@ -81,18 +55,19 @@ export function listUpcoming(events: EventItem[], today: Date | null): ListedEve
   return list;
 }
 
-export function miles(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
-  const R = 3959;
-  const r = Math.PI / 180;
-  const dLa = (b.lat - a.lat) * r;
-  const dLo = (b.lon - a.lon) * r;
-  const h = Math.sin(dLa / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLo / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
+/* Is the event within `distance` miles of the place? (see places.ts) */
+export function isNear(e: EventItem, near: Place, distance = DEFAULT_DISTANCE): boolean {
+  return isWithin(e, near, distance);
 }
 
-export function isNear(e: EventItem, near: Place): boolean {
-  const c = coordsOf(e);
-  return !!c && miles(near, c) <= NEAR_MILES;
+/* Lowest ticket price against the price filter */
+export function priceMatches(e: EventItem, price: PriceFilter): boolean {
+  const p = e.price;
+  if (price === "free") return p == null;
+  if (price === "u25") return p != null && p <= 25;
+  if (price === "25to50") return p != null && p > 25 && p <= 50;
+  if (price === "o50") return p != null && p > 50;
+  return true;
 }
 
 function inWindow(e: ListedEvent, when: Filters["when"], today: Date | null): boolean {
@@ -111,30 +86,42 @@ function inWindow(e: ListedEvent, when: Filters["when"], today: Date | null): bo
   return e.dt >= today && e.dt < end;
 }
 
-/* Client-side filtering for the preview. In production this becomes a query to the events API. */
+/* Does the event match every filter? Filtering runs in the browser over the published events list. */
 export function matches(e: ListedEvent, f: Filters, today: Date | null): boolean {
   const q = f.q.trim().toLowerCase();
   if (q && `${e.title} ${organizerName(e)} ${e.venue} ${e.city} ${e.category}`.toLowerCase().indexOf(q) < 0) return false;
   if (f.city && e.city !== f.city) return false;
-  if (f.near && !isNear(e, f.near)) return false;
-  if (f.free && e.price != null) return false;
+  if (f.near && !isNear(e, f.near, f.distance)) return false;
+  if (!priceMatches(e, f.price)) return false;
   if (f.cat && e.category !== f.cat) return false;
   if (f.org && e.organizerId !== f.org) return false;
   return inWindow(e, f.when, today);
 }
 
-/* Placeholder photo for the featured strip: the event's own, else one per category */
-const CAT_IMG: Record<string, string> = {
-  Music: "fest",
-  Nightlife: "club",
-  Fundraisers: "gala",
-  Education: "conf",
-  "Beauty & hair": "conf",
-  Community: "fest",
-  "Food & drink": "party",
-  Comedy: "club",
-  Fitness: "fest",
-};
-export function photoKey(e: EventItem): string {
-  return (e.image && !imageUrl(e) ? e.image : null) || CAT_IMG[e.category] || "gala";
+/* Prefer the event image, then organizer logo; null enables CSS fallback art. */
+export type EventArtInfo = { kind: "image" | "logo"; src: string; alt: string };
+export function eventArt(e: EventItem): EventArtInfo | null {
+  if (e.image) return { kind: "image", src: e.image, alt: e.title };
+  if (e.organizerLogo) return { kind: "logo", src: e.organizerLogo, alt: e.organizerName + " logo" };
+  return null;
+}
+
+/* "From $40 at The Warehouse" / "Free at Riverside Park" */
+export function priceAtVenue(e: EventItem): string {
+  return `${priceText(e)} at ${e.venue}`;
+}
+
+/* Is the organizer on Fattixx Pro? (shows the Pro check next to their name) */
+export function isPro(e: Pick<EventItem, "organizerPro">): boolean {
+  return !!e.organizerPro;
+}
+
+/* The organizer's page: /o/<organization slug> */
+export function organizerHref(organizerId: string): string {
+  return `/o/${organizerId}`;
+}
+
+/* The event's own page */
+export function eventHref(e: EventItem): string {
+  return e.href;
 }

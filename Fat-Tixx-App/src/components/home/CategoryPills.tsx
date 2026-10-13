@@ -1,10 +1,11 @@
 import { ScrollView, StyleSheet } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+import { useConfig } from '@/api/hooks';
 import { Pill } from '@/components/ui';
 import { colors, GUTTER, red } from '@/theme/tokens';
 
-/** Same list and icon paths as the website (src/lib/event-categories.ts). */
-export const CATEGORIES = [
+/** The design's list, shown until the platform config (Super Admin → Website → Categories) has loaded. */
+const FALLBACK = [
   { name: 'Music', icon: 'M9 18V5l11-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM20 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z' },
   { name: 'Nightlife', icon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z' },
   { name: 'Beauty & hair', icon: 'M6 3v18M10 3v18M6 8h4M14 3l4 4-4 4M18 7H10' },
@@ -17,9 +18,11 @@ export const CATEGORIES = [
 ];
 
 export function CategoryPills({ value, onChange }: { value: string; onChange: (cat: string) => void }) {
+  const { data: config } = useConfig();
+  const categories = config?.categories?.length ? config.categories : FALLBACK;
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
-      {CATEGORIES.map((c) => {
+      {categories.map((c) => {
         const active = value === c.name;
         return (
           <Pill key={c.name} label={c.name} active={active} shadow onPress={() => onChange(active ? '' : c.name)}

@@ -14,17 +14,19 @@ import { toast } from "sonner";
  * The action receives the hidden `fields` as FormData and may return { error } or { ok }.
  */
 export function ConfirmButton({
-  action, fields = {}, title, description, confirmText = "Confirm", children, variant = "destructive", size = "sm", successText,
+  action, fields = {}, title, description, confirmText = "Confirm", children, variant = "destructive", size = "sm", successText, className,
 }: {
   action: (formData: FormData) => Promise<{ error?: string; ok?: boolean } | void>;
   fields?: Record<string, string | number>;
   title: string; description?: ReactNode; confirmText?: string; children: ReactNode;
   variant?: "destructive" | "outline" | "default" | "secondary" | "ghost"; size?: "sm" | "default" | "xs"; successText?: string;
+  /** classes for the trigger button, e.g. w-full */
+  className?: string;
 }) {
   const [pending, start] = useTransition();
   return (
     <AlertDialog>
-      <AlertDialogTrigger render={<Button variant={variant} size={size} disabled={pending} />}>
+      <AlertDialogTrigger render={<Button variant={variant} size={size} disabled={pending} className={className} />}>
         {pending ? <Loader2Icon className="animate-spin" /> : null}
         {children}
       </AlertDialogTrigger>

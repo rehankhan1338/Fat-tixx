@@ -52,7 +52,7 @@ function TicketTypeDialog({ orgSlug, eventId, tt, trigger, days = [] }: { orgSlu
             <TextField label="Display order" id="tt-sort" name="sort_order" type="number" min={0} defaultValue={tt?.sort_order ?? 0} />
             {days.length ? <SelectField label="Valid for" id="tt-day" name="event_date_id" defaultValue={tt?.event_date_id ? String(tt.event_date_id) : ""} options={[{ value: "", label: "Every day (multi-day pass)" }, ...days.map((d) => ({ value: String(d.id), label: `${d.label} only` }))]} hint="Passes are admitted once per day." /> : null}
             <TextAreaField label="Description" id="tt-desc" name="description" rows={2} maxLength={500} defaultValue={tt?.description ?? ""} className="sm:col-span-2" />
-            {kind !== "complimentary" ? <TextField label="Access / presale code" id="tt-code" name="access_code" maxLength={40} defaultValue={tt?.access_code ?? ""} placeholder="e.g. EARLYBIRD" className="font-mono uppercase" hint="Buyers who enter this code on the event page see this ticket. Leave blank for a normal ticket." /> : null}
+            {kind !== "complimentary" ? <TextField label="Access / presale code" id="tt-code" name="access_code" maxLength={40} defaultValue={tt?.access_code ?? ""} placeholder="e.g. EARLYBIRD" className="[&_input]:font-mono [&_input]:uppercase" hint="Buyers who enter this code on the event page see this ticket. Leave blank for a normal ticket." /> : null}
             {kind !== "complimentary" ? <CheckField id="tt-hidden" name="hidden" label="Hidden" hint="Not shown on the public page; used for door sales, comps or presales." defaultChecked={tt?.hidden} /> : null}
           </div>
           <div className="flex justify-end gap-2">

@@ -12,12 +12,12 @@ import { slugify, shortSuffix } from '../slug';
 import { isValidTimeZone, shiftWallClock, wallClockToUtc } from '../tz';
 import { copyUpload, deleteUpload, saveImageUpload } from '../uploads';
 import { getEvent, listEventDates, type EventRow } from './queries';
-import { CATEGORY_NAMES } from '../event-categories';
+import { categoryNames } from '../site-content/categories';
 
 /** Homepage listing fields: category (any organizer) and featured (Super Admin only; unchanged otherwise). */
 async function saveListingFields(fd: FormData, eventId: number, isSuperAdmin: boolean): Promise<string | null> {
   const category = String(fd.get('category') ?? '').trim();
-  if (category && !CATEGORY_NAMES.includes(category)) return 'Choose a category from the list.';
+  if (category && !(await categoryNames()).includes(category)) return 'Choose a category from the list.';
   await execute(`UPDATE events SET category = ? WHERE id = ?`, [category || null, eventId]);
   if (isSuperAdmin && fd.has('featured_present')) await execute(`UPDATE events SET featured = ? WHERE id = ?`, [fd.get('featured') ? 1 : 0, eventId]);
   return null;
@@ -66,16 +66,25 @@ function venueFields(fd: FormData) {
   if (!isValidTimeZone(timezone)) return { error: 'Choose a valid time zone.' } as const;
   if (!Number.isFinite(taxPct) || taxPct < 0 || taxPct > 30) return { error: 'Tax must be between 0 and 30 percent.' } as const;
   if (Number.isNaN(capacity)) return { error: 'Capacity must be a whole number.' } as const;
+  const city = str(fd, 'city', 120) || null, region = str(fd, 'region', 120) || null, taxBps = Math.round(taxPct * 100), taxLabel = str(fd, 'tax_label', 80) || null;
   return {
-    values: [name, str(fd, 'address_line1', 200) || null, str(fd, 'address_line2', 200) || null, str(fd, 'city', 120) || null, str(fd, 'region', 120) || null,
-      str(fd, 'postal_code', 20) || null, (str(fd, 'country', 2) || 'US').toUpperCase(), timezone, capacity, Math.round(taxPct * 100), str(fd, 'tax_label', 80) || null] as const,
+    values: [name, str(fd, 'address_line1', 200) || null, str(fd, 'address_line2', 200) || null, city, region,
+      str(fd, 'postal_code', 20) || null, (str(fd, 'country', 2) || 'US').toUpperCase(), timezone, capacity, taxBps, taxLabel] as const,
+    /** what the New event page needs to list the venue */
+    summary: { name, city, region, timezone, taxBps, taxLabel },
   };
 }
 
-export async function createVenue(_prev: ActionState, fd: FormData): Promise<ActionState> {
+export type InlineVenue = { id: number; name: string; city: string | null; region: string | null; timezone: string; taxBps: number; taxLabel: string | null };
+export type InlineVenueState = { error: string } | { ok: true; venue: InlineVenue } | undefined;
+
+// explicit: an inferred union of object literals gets each other's keys as optional, which breaks the 'error' in v checks
+type VenueInsert = { error: string } | { id: number; summary: Omit<InlineVenue, 'id'> };
+
+async function insertVenue(fd: FormData): Promise<VenueInsert> {
   const ctx = await assertOrg(str(fd, 'org', 64), 'organizer');
   const f = venueFields(fd);
-  if ('error' in f) return { error: f.error };
+  if (f.error !== undefined) return { error: f.error };
   const pos = coords(fd);
   if ('error' in pos) return { error: pos.error };
   const r = await execute(
@@ -85,7 +94,19 @@ export async function createVenue(_prev: ActionState, fd: FormData): Promise<Act
   await execute(`UPDATE venues SET latitude = ?, longitude = ? WHERE id = ?`, [pos.lat, pos.lon, r.insertId]);
   await audit('venue.created', { actorUserId: ctx.session.user.id, targetType: 'venue', targetId: r.insertId });
   revalidatePath(`/org/${ctx.org.slug}/venues`);
-  return { ok: true };
+  return { id: r.insertId, summary: f.summary };
+}
+
+export async function createVenue(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const v = await insertVenue(fd);
+  return 'error' in v ? { error: v.error } : { ok: true };
+}
+
+/** "Add venue" on the dashboard's New event page: saves the venue and returns it so the form can select it at once. */
+export async function createVenueInline(_prev: InlineVenueState, fd: FormData): Promise<InlineVenueState> {
+  const v = await insertVenue(fd);
+  if ('error' in v) return { error: v.error };
+  return { ok: true, venue: { id: v.id, ...v.summary } };
 }
 
 export async function updateVenue(_prev: ActionState, fd: FormData): Promise<ActionState> {

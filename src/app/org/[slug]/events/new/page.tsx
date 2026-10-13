@@ -2,21 +2,23 @@ import type { Metadata } from "next";
 import { requireOrg } from "@/lib/authz";
 import { listVenues } from "@/lib/events/queries";
 import { getSettings } from "@/lib/settings";
-import { PageHeader, Section } from "@/components/shared";
-import { EventForm } from "../event-form";
+import { listCategories } from "@/lib/site-content/categories";
+import { NewEventForm } from "./new-event-form";
 
 export const metadata: Metadata = { title: "New event" };
 
+/** The dashboard's "New event": the event form's fields in the /create page's design. Events start as drafts. */
 export default async function NewEventPage({ params }: PageProps<"/org/[slug]/events/new">) {
   const { slug } = await params;
   const ctx = await requireOrg(slug, "organizer");
-  const [venues, settings] = await Promise.all([listVenues(ctx.org.id), getSettings()]);
+  const [venues, settings, categories] = await Promise.all([listVenues(ctx.org.id), getSettings(), listCategories()]);
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <PageHeader title="New event" description="Events start as drafts. Add ticket types, then publish when you are ready to sell." />
-      <Section>
-        <EventForm orgSlug={slug} venues={venues.map((v) => ({ id: v.id, name: v.name, timezone: v.timezone, tax_bps: Number(v.tax_bps) }))} defaultFeeMode={settings.default_fee_mode} canFeature={ctx.isSuperAdmin} />
-      </Section>
-    </div>
+    <NewEventForm
+      orgSlug={slug}
+      venues={venues.map((v) => ({ id: Number(v.id), name: v.name, city: v.city, region: v.region, timezone: v.timezone, taxBps: Number(v.tax_bps), taxLabel: v.tax_label }))}
+      categories={categories}
+      defaultFeeMode={settings.default_fee_mode}
+      canFeature={ctx.isSuperAdmin}
+    />
   );
 }

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CheckField, SelectField, TextAreaField, TextField } from "@/components/form-fields";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export function EventStatusActions({ orgSlug, eventId, status, hasTicketTypes, canDelete, paidOrders, isSuperAdmin = false, inSeries = false }: { orgSlug: string; eventId: number; status: string; hasTicketTypes: boolean; canDelete: boolean; paidOrders: number; isSuperAdmin?: boolean; inSeries?: boolean }) {
   const [pending, start] = useTransition();
@@ -26,9 +27,19 @@ export function EventStatusActions({ orgSlug, eventId, status, hasTicketTypes, c
   return (
     <>
       {status === "draft" || status === "postponed" ? (
-        <Button disabled={pending || !hasTicketTypes} onClick={() => run(setEventStatus, { org: orgSlug, event_id: eventId, status: "published" }, "Event published")} title={!hasTicketTypes ? "Add a ticket type first" : undefined}>
-          {pending ? <Loader2Icon className="animate-spin" /> : null} Publish
-        </Button>
+        hasTicketTypes ? (
+          <Button disabled={pending} onClick={() => run(setEventStatus, { org: orgSlug, event_id: eventId, status: "published" }, "Event published")}>
+            {pending ? <Loader2Icon className="animate-spin" /> : null} Publish
+          </Button>
+        ) : (
+          // a disabled button gets no hover or focus events, so the wrapper carries the explanation
+          <Tooltip>
+            <TooltipTrigger render={<span tabIndex={0} className="inline-flex cursor-not-allowed rounded-md" aria-label="Publish: add a ticket type first" />}>
+              <Button disabled className="pointer-events-none">Publish</Button>
+            </TooltipTrigger>
+            <TooltipContent>Add at least one ticket type (Ticket types tab) before publishing.</TooltipContent>
+          </Tooltip>
+        )
       ) : null}
       {status === "published" ? <Button variant="outline" disabled={pending} onClick={() => run(setEventStatus, { org: orgSlug, event_id: eventId, status: "draft" }, "Event unpublished")}>Unpublish</Button> : null}
 

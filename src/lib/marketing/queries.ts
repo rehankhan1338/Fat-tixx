@@ -78,6 +78,6 @@ export async function utmReport(eventId: number) {
             COUNT(DISTINCT o.id) AS orders, COALESCE(SUM(oi.quantity),0) AS tickets, COALESCE(SUM(oi.quantity * oi.unit_price_cents),0) AS revenue_cents
        FROM orders o JOIN order_items oi ON oi.order_id = o.id
       WHERE o.event_id = ? AND o.status IN ('paid','partially_refunded')
-      GROUP BY source, medium, campaign, o.channel ORDER BY revenue_cents DESC`, [eventId],
+      GROUP BY o.utm_source, o.utm_medium, o.utm_campaign, o.channel ORDER BY revenue_cents DESC`, [eventId],
   );
 }

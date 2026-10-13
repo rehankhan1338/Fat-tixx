@@ -1,0 +1,451 @@
+/*
+ * Hero.tsx updates --split to clip full-width panels without moving their text.
+ * [data-dragging] disables transitions. Below 901px, panels stack.
+ * Both photographs fill the SAME full-width box and use the SAME crop.
+ * The reveal clips the doors; it never resizes either photograph.
+ */
+
+@property --split {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+.hero {
+  --split: 50%;
+  --edge: 64px;
+  --outer: max(var(--pad), calc(50vw - 960px + var(--pad))); /* outer gutter; holds the text in a 1920px frame on huge screens */
+
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: max(600px, min(100svh, 900px)); /* fills the screen, grows instead of clipping on short laptops */
+  transition: --split .7s var(--ease-fx);
+}
+
+.hero[data-draggable] {
+  touch-action: pan-y; /* horizontal swipes move the seam, vertical swipes still scroll the page */
+}
+
+.hero[data-dragging] {
+  transition: none;
+  cursor: grabbing;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* a door (a full-screen layer, clipped to its side of the seam) */
+
+.door {
+  grid-area: 1 / 1;
+  position: relative;
+  isolation: isolate; /* keeps the .bg layer (z-index -1) inside its own door */
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 28px;
+  padding-top: clamp(112px, 15svh, 140px);
+  padding-bottom: calc(var(--edge) + clamp(28px, 5svh, 56px));
+}
+
+.hero[data-draggable] .door {
+  cursor: grab;
+}
+
+.hero[data-dragging] .door,
+.hero[data-dragging] .door * {
+  cursor: grabbing;
+}
+
+.go {
+  padding-left: var(--outer);
+  padding-right: calc(50% + var(--pad)); /* text stays in the left half */
+  color: var(--color-fx-ivory);
+  clip-path: inset(0 calc(100% - var(--split)) 0 0);
+}
+
+.host {
+  padding-left: calc(50% + var(--pad) + 32px); /* text stays in the right half, clear of the "or" */
+  padding-right: var(--outer);
+  color: var(--color-fx-ivory);
+  clip-path: inset(0 0 0 var(--split));
+}
+
+/* Every background covers its full-width door, regardless of the split. */
+.bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background: #1c100c;
+}
+
+.scene {
+  object-fit: cover;
+  object-position: center center;
+}
+
+/* Identical shading on both images keeps the room continuous at the seam. */
+.bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(12, 5, 3, .44), transparent 38%, rgba(12, 5, 3, .18) 57%, transparent 92%),
+    linear-gradient(180deg, rgba(12, 5, 3, .24), transparent 24%, rgba(12, 5, 3, .10) 64%, rgba(12, 5, 3, .5));
+}
+
+.door::before {
+  content: "";
+  block-size: 17px;
+  flex-shrink: 0;
+}
+
+.body {
+  position: relative;
+}
+
+.word {
+  font-family: var(--font-display);
+  font-weight: 800;
+  /* the text width of a half (minus the gutters), divided by how wide "THROW" is per px of font size */
+  font-size: clamp(54px, min(19svh, calc((50vw - var(--pad) - 32px - var(--outer)) / 3.35)), 148px);
+  line-height: .85;
+  letter-spacing: -0.045em;
+  white-space: nowrap;
+  text-shadow: 0 3px 32px rgba(0, 0, 0, .35);
+}
+
+.lead {
+  margin-top: clamp(18px, 3svh, 28px);
+  max-width: 420px;
+  font-size: 18px;
+  line-height: 1.55;
+}
+
+.go .lead,
+.host .lead {
+  color: color-mix(in srgb, var(--color-fx-ivory) 90%, transparent);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, .8);
+}
+
+.cta {
+  position: relative;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 0 28px;
+  border-radius: 999px;
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform .25s var(--ease-spring), box-shadow .25s var(--ease-fx);
+}
+
+.go .cta {
+  background: var(--color-fx-ivory);
+  color: var(--color-fx-red);
+  box-shadow: 0 14px 30px -16px rgba(20, 1, 3, .7);
+}
+
+.host .cta {
+  background: var(--color-fx-yellow);
+  color: var(--color-fx-red-deep);
+  box-shadow: 0 14px 30px -16px rgba(0, 0, 0, .65);
+}
+
+.host .cta:focus-visible {
+  outline-color: var(--color-fx-ivory);
+}
+
+.cta:hover {
+  transform: translateY(-2px);
+}
+
+.cta svg {
+  transition: transform .25s var(--ease-spring);
+}
+
+.cta:hover svg {
+  transform: translateX(4px);
+}
+
+/* the tear line and the "or" stub */
+
+/* an overlay the size of the hero; only the line and the stub take the pointer */
+.tear {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+/* A generous 32px grab strip; the visible line is drawn by ::before. */
+.line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--split);
+  width: 32px;
+  margin-left: -16px;
+}
+
+.line::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  margin-left: -1.5px;
+  border-left: 1px solid rgba(245, 241, 234, .7);
+}
+
+.hero[data-draggable] .line {
+  pointer-events: auto;
+  cursor: col-resize;
+}
+
+.or {
+  position: absolute;
+  top: 50%;
+  /* follows the seam, but stays fully on screen when one door covers everything, so it can be dragged back */
+  left: clamp(52px, var(--split), calc(100% - 52px));
+  width: 84px;
+  height: 84px;
+  margin: -42px 0 0 -42px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-fx-ivory);
+  color: var(--color-fx-red);
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  box-shadow: 0 16px 30px -14px rgba(40, 2, 5, .6);
+  transition: transform .6s var(--ease-fx), box-shadow .3s var(--ease-fx);
+}
+
+.hero[data-draggable] .or {
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none; /* dragging the stub never scrolls the page */
+  outline: none;
+}
+
+.hero[data-draggable] .or:hover {
+  transform: scale(1.05);
+}
+
+/* picked up */
+.hero[data-dragging] .or {
+  cursor: grabbing;
+  transform: scale(1.1);
+  box-shadow: 0 24px 40px -16px rgba(40, 2, 5, .7);
+  transition: transform .2s var(--ease-spring), box-shadow .2s var(--ease-fx);
+}
+
+/* keyboard focus: a red + yellow ring that shows on both the red and the yellow side */
+.or:focus-visible {
+  box-shadow: 0 0 0 3px var(--color-fx-red), 0 0 0 6px var(--color-fx-yellow), 0 16px 30px -14px rgba(40, 2, 5, .6);
+}
+
+/* Always-visible arrows make the divider discoverable; hover emphasizes them. */
+.chev {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin-top: -6px;
+  opacity: .7;
+  transition: opacity .25s var(--ease-fx), transform .35s var(--ease-spring);
+}
+
+.chevL {
+  left: 9px;
+}
+
+.chevR {
+  right: 9px;
+}
+
+.slideHint {
+  position: absolute;
+  z-index: 3;
+  bottom: calc(var(--edge) + 24px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 40px);
+  text-align: center;
+  color: var(--color-fx-ivory);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, .8);
+  pointer-events: none;
+}
+
+.slideHint span {
+  display: block;
+  margin-top: 5px;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: .03em;
+  opacity: .8;
+}
+
+.hero[data-draggable] .or:hover .chev,
+.hero[data-draggable] .line:hover ~ .or .chev,
+.or:focus-visible .chev,
+.hero[data-dragging] .chev {
+  opacity: .75;
+}
+
+.hero[data-draggable] .or:hover .chevL,
+.hero[data-draggable] .line:hover ~ .or .chevL,
+.or:focus-visible .chevL,
+.hero[data-dragging] .chevL {
+  transform: translateX(-3px);
+}
+
+.hero[data-draggable] .or:hover .chevR,
+.hero[data-draggable] .line:hover ~ .or .chevR,
+.or:focus-visible .chevR,
+.hero[data-dragging] .chevR {
+  transform: translateX(3px);
+}
+
+@media (hover: none) {
+  .hero[data-draggable] .chev {
+    opacity: .6;
+  }
+}
+
+/* curved ivory edge into the next section, matching the footer */
+.edge {
+  position: absolute;
+  z-index: 4;
+  left: -24px;
+  right: -24px;
+  bottom: -1px;
+  height: var(--edge);
+  border-radius: 50% 50% 0 0 / var(--edge) var(--edge) 0 0;
+  background: var(--color-fx-ivory);
+  box-shadow: 0 -10px 24px -8px rgba(40, 2, 5, .4);
+  pointer-events: none;
+}
+
+/* smaller screens: the doors stack, the tear turns horizontal (decoration only) */
+
+@media (max-width: 900px) {
+  .hero {
+    min-height: 0;
+    transition: none;
+  }
+
+  .door {
+    container-type: inline-size; /* lets the big word size to the door */
+    clip-path: none;
+    justify-content: flex-start;
+    gap: 22px;
+  }
+
+  .go {
+    grid-area: 1 / 1;
+    padding: 120px var(--pad) 72px;
+  }
+
+  .host {
+    grid-area: 2 / 1;
+    padding: 72px var(--pad) calc(var(--edge) + 48px);
+  }
+
+  .word {
+    font-size: clamp(54px, calc(100cqi / 3.35), 120px); /* 100cqi = the door's text width */
+  }
+
+  /* Keep the party group and the producer visible in their stacked panels. */
+  .go .scene {
+    object-position: 32% center;
+  }
+
+  .host .scene {
+    object-position: 86% center;
+  }
+
+  /* the tear sits on the boundary between the two doors */
+  .tear {
+    position: relative;
+    inset: auto;
+    grid-area: 2 / 1;
+    align-self: start;
+    height: 0;
+  }
+
+  .line {
+    top: -16px;
+    bottom: auto;
+    left: 0;
+    right: 0;
+    width: auto;
+    height: 32px;
+    margin: 0;
+  }
+
+  .line::before {
+    top: 50%;
+    bottom: auto;
+    left: 0;
+    right: 0;
+    margin: -1.5px 0 0;
+    border-left: 0;
+    border-top: 1px solid rgba(245, 241, 234, .7);
+  }
+
+  .or {
+    top: 0;
+    left: 50%;
+    width: 68px;
+    height: 68px;
+    margin: -34px 0 0 -34px;
+    font-size: 22px;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero {
+    --edge: 36px;
+  }
+
+  .go {
+    padding-top: 112px;
+  }
+
+  .lead {
+    font-size: 16px;
+  }
+
+  .cta {
+    min-height: 52px;
+    padding: 0 24px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero,
+  .or,
+  .chev,
+  .cta,
+  .cta svg,
+  .hero[data-dragging] .or {
+    transition: none;
+  }
+}

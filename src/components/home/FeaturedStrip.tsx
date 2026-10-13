@@ -1,21 +1,18 @@
 "use client";
 
-/*
- * Featured strip: a full-width row of event photos drifting left (32 px/s), looping forever.
- *  - Mouse: pointing at a photo pauses the drift, grows that photo and shows its details underneath
- *    (lined up with the photo, kept on screen). Moving along the row switches event; leaving closes.
- *  - Touch: first tap opens a photo, tapping elsewhere closes it. Drag/swipe moves the strip.
- *  - Keyboard: tabbing onto a photo opens it.
- * The loop works by rendering the featured list several times ("sets") and wrapping the x offset.
- * The x offset and per-frame positioning are kept in refs (no re-render per frame).
- */
+/* Repeated tile sets create the loop; refs hold per-frame offsets without React renders. */
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { clock, DOW, imageUrl, money, MON, organizerName, photoKey, priceText, whenText } from "@/lib/home/events";
-import { cx } from "@/components/home/styles";
+import Link from "next/link";
+import { clock, DOW, eventHref, isPro, money, MON, organizerName, priceText, whenText } from "@/lib/home/events";
+import ProBadge from "@/components/events/ProBadge";
+import EventArt from "@/components/ui/EventArt";
+import { cx } from "@/components/ui/styles";
 import { useHome } from "./HomeState";
 
-const SPEED = 32; // pixels per second
+const SPEED = 32; // drift, pixels per second
+const RESUME_MS = 2500; // drift starts again this long after the last manual move
+const FRICTION = 4.5; // how quickly a flick slows down (per second)
 
 const infoBtn =
   "inline-flex min-h-[46px] items-center gap-2 rounded-full px-[22px] text-[15px] font-semibold transition-transform duration-[250ms] ease-spring hover:-translate-y-0.5 max-[721px]:min-h-[42px] max-[721px]:px-4 max-[721px]:text-[14px]";
@@ -36,11 +33,11 @@ export default function FeaturedStrip() {
     setW: 0,
     inside: false,
     inView: true,
-    drag: null as null | { sx: number; sy: number; x0: number; moved: boolean; id: number },
+    drag: null as null | { sx: number; sy: number; x0: number; moved: boolean; id: number; lx: number; lt: number },
+    vel: 0, // px/s, momentum after a flick
     suppressClick: false,
-    shift: 0,
-    lockUntil: 0,
-    leaveT: 0 as ReturnType<typeof setTimeout> | 0,
+    shift: 0, // remaining eased move (arrows, opening a tile)
+    resumeAt: 0,
     activeEl: null as HTMLElement | null,
   });
 
@@ -53,6 +50,7 @@ export default function FeaturedStrip() {
     while (st.x <= -st.setW) st.x += st.setW;
     while (st.x > 0) st.x -= st.setW;
   };
+  const hold = () => (s.current.resumeAt = performance.now() + RESUME_MS);
 
   /* keep the details lined up under the open photo, inside the screen */
   const place = () => {
@@ -68,15 +66,16 @@ export default function FeaturedStrip() {
   };
 
   const deactivate = useCallback(() => {
+    if (!s.current.activeEl) return;
     s.current.activeEl = null;
     setActive(null);
+    s.current.resumeAt = performance.now() + RESUME_MS;
   }, []);
 
   const activate = (el: HTMLElement) => {
     const st = s.current;
-    clearTimeout(st.leaveT);
-    if (el === st.activeEl) return;
     st.activeEl = el;
+    st.vel = 0;
     setActive(Number(el.dataset.pos));
     // slide the strip so the opened photo sits fully on screen
     const sec = secRef.current!;
@@ -87,7 +86,20 @@ export default function FeaturedStrip() {
     st.shift = 0;
     if (r.left + wOn > vw - pad) st.shift = vw - pad - (r.left + wOn);
     if (r.left + st.shift < pad) st.shift = pad - r.left;
-    if (Math.abs(st.shift) > 1) st.lockUntil = performance.now() + 700;
+  };
+
+  /** move by `dir` tiles (arrows / keyboard), eased */
+  const step = (dir: number) => {
+    const st = s.current;
+    const sec = secRef.current;
+    if (!sec) return;
+    const w = parseFloat(getComputedStyle(sec).getPropertyValue("--fw")) || 224;
+    const vw = document.documentElement.clientWidth;
+    const tiles = Math.max(1, Math.floor((vw * 0.6) / (w + 12)));
+    deactivate();
+    st.vel = 0;
+    st.shift += -dir * tiles * (w + 12);
+    hold();
   };
 
   // measure one set of tiles and decide how many copies fill the screen
@@ -101,7 +113,7 @@ export default function FeaturedStrip() {
       if (!first || !last) return;
       const gap = parseFloat(getComputedStyle(track).columnGap) || 0;
       s.current.setW = last.offsetLeft + last.offsetWidth + gap - first.offsetLeft;
-      const need = Math.max(2, Math.ceil(window.innerWidth / s.current.setW) + 1);
+      const need = Math.max(2, Math.ceil(window.innerWidth / s.current.setW) + 2);
       setSets(need);
       wrapX();
       paint();
@@ -119,7 +131,7 @@ export default function FeaturedStrip() {
     return () => window.removeEventListener("resize", onResize);
   }, [featured, deactivate]);
 
-  // animation loop
+  // animation loop: drift, momentum and eased moves
   useEffect(() => {
     const st = s.current;
     let last = 0;
@@ -128,16 +140,24 @@ export default function FeaturedStrip() {
     const tick = (now: number) => {
       const dt = last ? Math.min(0.05, (now - last) / 1000) : 0;
       last = now;
-      const paused = st.inside || st.activeEl || st.drag || !st.inView || document.hidden;
+      let moved = false;
+      if (!st.drag && Math.abs(st.vel) > 8) {
+        st.x += st.vel * dt;
+        st.vel *= Math.exp(-FRICTION * dt);
+        moved = true;
+      } else if (!st.drag) st.vel = 0;
+      if (Math.abs(st.shift) > 0.5) {
+        const k = st.shift * Math.min(1, dt * 9);
+        st.x += k;
+        st.shift -= k;
+        moved = true;
+      }
+      const paused = st.inside || st.activeEl || st.drag || !st.inView || document.hidden || now < st.resumeAt || Math.abs(st.vel) > 8;
       if (speed && !paused) {
         st.x -= speed * dt;
-        wrapX();
-        paint();
+        moved = true;
       }
-      if (Math.abs(st.shift) > 0.5) {
-        const step = st.shift * Math.min(1, dt * 9);
-        st.x += step;
-        st.shift -= step;
+      if (moved) {
         wrapX();
         paint();
       }
@@ -148,13 +168,35 @@ export default function FeaturedStrip() {
     const io = new IntersectionObserver((en) => (st.inView = en[0].isIntersecting));
     if (viewRef.current) io.observe(viewRef.current);
     const onDoc = (e: MouseEvent) => {
-      if (st.activeEl && secRef.current && !secRef.current.contains(e.target as Node)) deactivate();
+      // anywhere except a picture or the details (pictures handle their own clicks) closes the open one
+      const t = e.target as HTMLElement | null;
+      if (st.activeEl && !t?.closest?.(".ftile, .f-info")) deactivate();
     };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && deactivate();
     document.addEventListener("click", onDoc);
+    document.addEventListener("keydown", onKey);
+
+    // trackpad / Shift + wheel scrolls the strip sideways (needs a non-passive listener to stop the page moving)
+    const view = viewRef.current;
+    const onWheel = (e: WheelEvent) => {
+      const dx = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.shiftKey ? e.deltaY : 0;
+      if (!dx) return;
+      e.preventDefault();
+      deactivate();
+      st.vel = 0;
+      st.shift = 0;
+      st.x -= dx * (e.deltaMode === 1 ? 16 : 1);
+      wrapX();
+      paint();
+      st.resumeAt = performance.now() + RESUME_MS;
+    };
+    view?.addEventListener("wheel", onWheel, { passive: false });
     return () => {
       cancelAnimationFrame(raf);
       io.disconnect();
       document.removeEventListener("click", onDoc);
+      document.removeEventListener("keydown", onKey);
+      view?.removeEventListener("wheel", onWheel);
     };
   }, [reduceMotion, deactivate]);
 
@@ -168,8 +210,22 @@ export default function FeaturedStrip() {
     place();
   }, [active]);
 
+  function endDrag() {
+    const st = s.current;
+    const d = st.drag;
+    if (!d) return;
+    if (d.moved) {
+      st.suppressClick = true;
+      setTimeout(() => (st.suppressClick = false), 0);
+      st.vel = Math.max(-2500, Math.min(2500, st.vel));
+      if (performance.now() - d.lt > 80) st.vel = 0; // held still before letting go: no flick
+      hold();
+    }
+    st.drag = null;
+    viewRef.current?.classList.remove("dragging");
+  }
+
   const n = featured.length;
-  if (!n) return null; // no event with a photo yet: leave the strip out
   const tiles = [];
   for (let k = 0; k < sets * n; k++) {
     const e = featured[k % n];
@@ -177,7 +233,7 @@ export default function FeaturedStrip() {
     tiles.push(
       <a
         key={k}
-        href={e.href ?? "#events"}
+        href={eventHref(e)}
         className={"ftile" + (active === k ? " on" : "")}
         data-pos={k}
         draggable={false}
@@ -185,9 +241,10 @@ export default function FeaturedStrip() {
         tabIndex={dup ? -1 : undefined}
         aria-label={dup ? undefined : `${e.title}, ${whenText(e.dt)}, ${priceText(e)}`}
       >
-        {imageUrl(e)
-          ? <span className="fimg" style={{ backgroundImage: `url("${imageUrl(e)}")` }} aria-hidden="true" />
-          : <span className={"fimg ph-" + photoKey(e)} aria-hidden="true" />}
+
+        <span className="fimg" aria-hidden="true">
+          <EventArt e={e} sizes="(max-width: 720px) 240px, 320px" logoBox="inset-x-[14%] inset-y-[28%]" />
+        </span>
       </a>,
     );
   }
@@ -196,75 +253,103 @@ export default function FeaturedStrip() {
   return (
     <section
       ref={secRef}
-      className={"fstrip relative bg-fx-ivory pt-16 max-[721px]:pt-12" + (active !== null ? " open" : "")}
+      className={"fstrip group/strip relative bg-fx-ivory pt-16 max-[721px]:pt-12" + (active !== null ? " open" : "")}
       aria-label="Featured events"
+      aria-roledescription="carousel"
       onPointerEnter={(e) => {
-        if (e.pointerType === "mouse") {
-          s.current.inside = true;
-          clearTimeout(s.current.leaveT);
-        }
+        if (e.pointerType === "mouse") s.current.inside = true;
       }}
       onPointerLeave={(e) => {
         if (e.pointerType === "mouse") {
           s.current.inside = false;
-          s.current.leaveT = setTimeout(deactivate, 200);
+          hold();
         }
       }}
-      onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node) && !s.current.inside) deactivate();
-      }}
     >
-      <div
-        className="f-view"
-        ref={viewRef}
-        onPointerDown={(e) => {
-          if (e.button !== 0) return;
-          s.current.drag = { sx: e.clientX, sy: e.clientY, x0: s.current.x, moved: false, id: e.pointerId };
-        }}
-        onPointerMove={(e) => {
-          const d = s.current.drag;
-          if (!d || e.pointerId !== d.id) return;
-          const dx = e.clientX - d.sx;
-          if (!d.moved && Math.abs(dx) > 6 && Math.abs(dx) > Math.abs(e.clientY - d.sy)) {
-            d.moved = true;
-            viewRef.current?.classList.add("dragging");
-            try {
-              viewRef.current?.setPointerCapture(e.pointerId);
-            } catch {
-              /* ignore */
-            }
-          }
-          if (d.moved) {
-            s.current.x = d.x0 + dx;
-            wrapX();
-            paint();
-          }
-        }}
-        onPointerUp={() => endDrag()}
-        onPointerCancel={() => endDrag()}
-      >
+      <div className="relative">
         <div
-          className="f-track"
-          ref={trackRef}
-          onPointerOver={(e) => {
-            if (e.pointerType !== "mouse" || s.current.drag?.moved || performance.now() < s.current.lockUntil) return;
-            const t = (e.target as HTMLElement).closest<HTMLElement>(".ftile");
-            if (t) activate(t);
+          className="f-view"
+          ref={viewRef}
+          onPointerDown={(e) => {
+            if (e.button !== 0) return;
+            const st = s.current;
+            st.vel = 0;
+            st.shift = 0;
+            st.drag = { sx: e.clientX, sy: e.clientY, x0: st.x, moved: false, id: e.pointerId, lx: e.clientX, lt: performance.now() };
           }}
-          onFocus={(e) => {
-            const t = (e.target as HTMLElement).closest<HTMLElement>(".ftile");
-            if (t) activate(t);
+          onPointerMove={(e) => {
+            const st = s.current;
+            const d = st.drag;
+            if (!d || e.pointerId !== d.id) return;
+            const dx = e.clientX - d.sx;
+            if (!d.moved && Math.abs(dx) > 6 && Math.abs(dx) > Math.abs(e.clientY - d.sy)) {
+              d.moved = true;
+              deactivate();
+              viewRef.current?.classList.add("dragging");
+              try {
+                viewRef.current?.setPointerCapture(e.pointerId);
+              } catch {
+                /* ignore */
+              }
+            }
+            if (d.moved) {
+              const now = performance.now();
+              const dt = Math.max(1, now - d.lt) / 1000;
+              st.vel = 0.8 * ((e.clientX - d.lx) / dt) + 0.2 * st.vel;
+              d.lx = e.clientX;
+              d.lt = now;
+              st.x = d.x0 + dx;
+              wrapX();
+              paint();
+            }
           }}
-          onClickCapture={(e) => {
-            const t = (e.target as HTMLElement).closest<HTMLElement>(".ftile");
-            if (!t) return;
-            if (s.current.suppressClick) { e.preventDefault(); return; }
-            // first tap opens the details; a second tap on the open photo follows its link to the event page
-            if (t !== s.current.activeEl || t.getAttribute("href") === "#events") { e.preventDefault(); activate(t); }
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+              e.preventDefault();
+              step(e.key === "ArrowRight" ? 1 : -1);
+            }
           }}
         >
-          {tiles}
+          <div
+            className="f-track"
+            ref={trackRef}
+            onClickCapture={(e) => {
+              const t = (e.target as HTMLElement).closest<HTMLElement>(".ftile");
+              if (!t) return;
+              if (s.current.suppressClick) {
+                e.preventDefault();
+                return;
+              }
+              // first click opens the picture; clicking the open one follows its link to the event page
+              if (t !== s.current.activeEl) {
+                e.preventDefault();
+                activate(t);
+              }
+            }}
+          >
+            {tiles}
+          </div>
         </div>
+
+        {(["prev", "next"] as const).map((dir) => (
+          <button
+            key={dir}
+            type="button"
+            onClick={() => step(dir === "next" ? 1 : -1)}
+            aria-label={dir === "next" ? "Scroll featured events forward" : "Scroll featured events back"}
+            className={cx(
+              "absolute top-[calc(var(--fh)/2)] z-[2] flex h-12 w-12 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-white/95 text-fx-red shadow-[0_12px_28px_-12px_rgba(78,7,11,.55)] transition-[opacity,transform] duration-300 hover:scale-105 focus-visible:opacity-100",
+              "opacity-0 group-hover/strip:opacity-100 [@media(hover:none)]:hidden",
+              dir === "prev" ? "left-[clamp(12px,3vw,40px)]" : "right-[clamp(12px,3vw,40px)]",
+            )}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d={dir === "next" ? "M9 6l6 6-6 6" : "M15 6l-6 6 6 6"} />
+            </svg>
+          </button>
+        ))}
       </div>
 
       <div className="f-infobox">
@@ -280,7 +365,10 @@ export default function FeaturedStrip() {
               </span>
               {/* "fi-body" is the hook for the stagger animation in styles/effects/featured.css */}
               <div className="fi-body flex min-w-0 flex-col gap-[6px]">
-                <span className="text-[12px] font-bold tracking-[.12em] text-fx-red-second uppercase">{organizerName(ae)}</span>
+                <span className="flex items-center gap-[6px] text-[12px] font-bold tracking-[.12em] text-fx-red-second uppercase">
+                  {organizerName(ae)}
+                  {isPro(ae) && <ProBadge size={14} />}
+                </span>
                 <h3 className="font-display text-[26px] leading-[1.08] font-bold tracking-[-0.025em] max-[721px]:text-[22px]">{ae.title}</h3>
                 <p className="text-[15px] leading-[1.5] text-fx-red/78">
                   {DOW[ae.dt.getDay()]}, {MON[ae.dt.getMonth()]} {ae.dt.getDate()} at {clock(ae.dt)}
@@ -288,12 +376,15 @@ export default function FeaturedStrip() {
                   {ae.venue}, {ae.city}
                 </p>
                 <div className="mt-2 flex flex-wrap gap-[10px]">
-                  <a href={ae.href ?? "#events"} className={cx(infoBtn, "bg-fx-red text-fx-ivory")}>
+                  <a href={eventHref(ae)} className={cx(infoBtn, "bg-fx-red text-fx-ivory")}>
                     Get tickets <em className="text-fx-yellow not-italic">{ae.price == null ? "Free" : "from " + money(ae.price)}</em>
                   </a>
-                  <a href="#events" className={cx(infoBtn, "border border-fx-red/14 bg-white text-fx-red")}>
+                  <Link href="/events" className={cx(infoBtn, "border border-fx-red/14 bg-white text-fx-red")}>
                     View all
-                  </a>
+                  </Link>
+                  <button type="button" onClick={deactivate} className={cx(infoBtn, "cursor-pointer px-3 text-fx-red/78 hover:text-fx-red")}>
+                    Close
+                  </button>
                 </div>
               </div>
             </>
@@ -302,15 +393,4 @@ export default function FeaturedStrip() {
       </div>
     </section>
   );
-
-  function endDrag() {
-    const d = s.current.drag;
-    if (!d) return;
-    if (d.moved) {
-      s.current.suppressClick = true;
-      setTimeout(() => (s.current.suppressClick = false), 0);
-    }
-    s.current.drag = null;
-    viewRef.current?.classList.remove("dragging");
-  }
 }

@@ -3,28 +3,26 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle, EmptyContent } from "@/components/ui/empty";
 
-/* ---------- Page scaffolding ---------- */
+/* ---------- Page scaffolding, in the Fattixx design language (the Super Admin area restyles these through its own shell) ---------- */
 export function PageHeader({ title, description, actions }: { title: ReactNode; description?: ReactNode; actions?: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-4">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-        {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
+    <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="min-w-0">
+        <h1 className="font-display text-[clamp(28px,3vw,38px)] leading-[1.05] font-semibold tracking-[-0.035em] text-balance text-fx-red">{title}</h1>
+        {description ? <p className="mt-2 max-w-[640px] text-[15px] leading-[1.5] text-fx-red/78">{description}</p> : null}
       </div>
-      {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
+      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
     </div>
   );
 }
 
 export function Stat({ label, value, hint }: { label: string; value: ReactNode; hint?: ReactNode }) {
   return (
-    <Card>
-      <CardHeader className="pb-2"><CardDescription>{label}</CardDescription></CardHeader>
-      <CardContent>
-        <p className="text-3xl font-semibold tabular-nums tracking-tight">{value}</p>
-        {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
-      </CardContent>
-    </Card>
+    <div className="rounded-[24px] border border-fx-red/10 bg-white px-6 py-5 shadow-[0_18px_40px_-30px_rgba(168,18,26,.45)]">
+      <p className="text-[12px] font-semibold tracking-[.12em] text-fx-red/78 uppercase">{label}</p>
+      <p className="mt-3 font-display text-[clamp(28px,2.6vw,36px)] leading-none font-semibold tracking-[-0.03em] text-fx-red tabular-nums">{value}</p>
+      {hint ? <p className="mt-2 text-[13px] leading-[1.45] text-fx-red/78">{hint}</p> : null}
+    </div>
   );
 }
 
@@ -32,12 +30,12 @@ export function Section({ title, description, actions, children, className = "" 
   return (
     <Card className={className}>
       {title ? (
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <div>
+        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
             <CardTitle>{title}</CardTitle>
             {description ? <CardDescription>{description}</CardDescription> : null}
           </div>
-          {actions}
+          {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
         </CardHeader>
       ) : null}
       <CardContent>{children}</CardContent>

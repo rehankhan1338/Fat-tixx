@@ -1,18 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState, type FormEvent } from "react";
 import { submitApplication } from "@/lib/applications/actions";
 import { BotFields } from "@/components/bot-fields";
 import { CheckField, FormStatus, SelectField, TextAreaField, TextField } from "@/components/form-fields";
 import { SubmitButton } from "@/components/submit-button";
 import { Separator } from "@/components/ui/separator";
 
-export function ApplyForm({ defaultName, defaultEmail }: { defaultName?: string; defaultEmail?: string }) {
+export function ApplyForm({ defaultName, defaultEmail, defaultEvents }: { defaultName?: string; defaultEmail?: string; defaultEvents?: string }) {
   const [state, action] = useActionState(submitApplication, undefined);
+  // the button stays disabled until every required field is filled and the agreement is accepted (browser validity: required, email, pattern)
+  const [valid, setValid] = useState(false);
+  const checkValidity = (e: FormEvent<HTMLFormElement>) => setValid(e.currentTarget.checkValidity());
   if (state?.ok) return <FormStatus state={state} successText={state.message} />;
   return (
-    <form action={action} className="relative space-y-5 rounded-xl border p-5">
+    <form action={action} onChange={checkValidity} onInput={checkValidity} className="relative space-y-5 rounded-xl border p-5">
       <FormStatus state={state} />
       <BotFields />
       <p className="text-sm font-medium">You</p>
@@ -30,10 +33,10 @@ export function ApplyForm({ defaultName, defaultEmail }: { defaultName?: string;
         <TextField label="Tax ID (last 4 digits)" id="ap-tax" name="tax_id_last4" inputMode="numeric" maxLength={4} pattern="\d{4}" hint="EIN or SSN; we never ask for the full number here" />
         <TextField label="Website or social page" id="ap-web" name="website" type="url" placeholder="https://" className="sm:col-span-2" />
         <TextField label="Business address" id="ap-addr" name="address" required maxLength={300} autoComplete="street-address" className="sm:col-span-2" />
-        <TextAreaField label="What events will you sell?" id="ap-events" name="expected_events" rows={3} maxLength={500} className="sm:col-span-2" hint="Type of events, typical size, how often" />
+        <TextAreaField label="What events will you sell?" id="ap-events" name="expected_events" rows={3} maxLength={500} defaultValue={defaultEvents} className="sm:col-span-2" hint="Type of events, typical size, how often" />
       </div>
       <CheckField id="ap-agree" name="agree" required label={<>I have read and accept the <Link href="/organizer-agreement" target="_blank" className="underline">Organizer Agreement</Link></>} />
-      <SubmitButton className="w-full" pendingText="Sending…">Apply to sell tickets</SubmitButton>
+      <SubmitButton className="w-full" pendingText="Sending…" disabled={!valid}>Apply to sell tickets</SubmitButton>
     </form>
   );
 }

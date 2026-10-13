@@ -1,0 +1,438 @@
+/*
+ * Design skin for the application components (shadcn) used inside the public chrome and the organizer, organization
+ * admin and scanner panels: cards, tabs, tables, badges, dialogs, menus, alerts and buttons take the Fattixx design
+ * language (see components/ui/styles.ts and the /create page). Scoped to .fx-app / .fx-content / .fx-form and, for
+ * components rendered in portals, to a body that holds an .fx-app shell. The Super Admin area has none of these
+ * classes and keeps the stock shadcn look. Unlayered on purpose so these rules win over the component utilities.
+ */
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="card"] {
+  --card-spacing: 1.5rem;
+  border-radius: 24px;
+  border: 1px solid color-mix(in srgb, var(--color-fx-red) 10%, transparent);
+  background: #ffffff;
+  box-shadow: 0 18px 40px -30px rgba(168, 18, 26, .45);
+  font-size: 15px;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="card-header"] {
+  border-radius: 24px 24px 0 0;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="card-title"] {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--color-fx-red);
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="card-description"] {
+  font-size: 14px;
+  color: color-mix(in srgb, var(--color-fx-red) 78%, transparent);
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="card-footer"] {
+  border-radius: 0 0 24px 24px;
+  border-top-color: color-mix(in srgb, var(--color-fx-red) 10%, transparent);
+  background: var(--color-fx-ivory);
+}
+
+/* tabs: the design's segmented control */
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="tabs-list"] {
+  height: auto;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--color-fx-sand);
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="tabs-trigger"] {
+  min-height: 40px;
+  flex: 0 0 auto;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-fx-red);
+  box-shadow: none;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="tabs-trigger"][data-active] {
+  background: var(--color-fx-red);
+  color: var(--color-fx-ivory);
+  box-shadow: none;
+}
+
+/* badges */
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="badge"] {
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* tables */
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="table"] {
+  font-size: 15px;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="table-head"] {
+  height: 44px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-fx-red) 78%, transparent);
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="table-row"] {
+  border-color: color-mix(in srgb, var(--color-fx-red) 10%, transparent);
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="table-body"] [data-slot="table-row"]:hover {
+  background: color-mix(in srgb, var(--color-fx-ivory) 70%, transparent);
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="table-cell"] {
+  padding-block: 14px;
+}
+
+/* dialogs and side sheets */
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="dialog-content"], [data-slot="alert-dialog-content"]) {
+  gap: 20px;
+  padding: 28px;
+  border: 0;
+  border-radius: 28px;
+  background: var(--color-fx-ivory);
+  color: var(--color-fx-ink);
+  box-shadow: 0 40px 90px -30px rgba(40, 2, 5, .65);
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="sheet-content"] {
+  background: var(--color-fx-ivory);
+  color: var(--color-fx-ink);
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="dialog-title"], [data-slot="alert-dialog-title"], [data-slot="sheet-title"]) {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--color-fx-red);
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="dialog-description"], [data-slot="alert-dialog-description"], [data-slot="sheet-description"]) {
+  font-size: 15px;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--color-fx-red) 78%, transparent);
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="dialog-footer"], [data-slot="alert-dialog-footer"]) {
+  margin: 0 -28px -28px;
+  padding: 20px 28px 28px;
+  border-top: 1px dashed color-mix(in srgb, var(--color-fx-red) 25%, transparent);
+  border-radius: 0 0 28px 28px;
+  background: transparent;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="dialog-overlay"], [data-slot="alert-dialog-overlay"], [data-slot="sheet-overlay"]) {
+  background: color-mix(in srgb, var(--color-fx-red-deep) 55%, transparent);
+}
+
+/* menus and popovers */
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="dropdown-menu-content"], [data-slot="dropdown-menu-sub-content"], [data-slot="popover-content"], [data-slot="select-content"]) {
+  padding: 6px;
+  border: 1px solid color-mix(in srgb, var(--color-fx-red) 12%, transparent);
+  border-radius: 18px;
+  background: #ffffff;
+  color: var(--color-fx-red);
+  box-shadow: 0 24px 50px -20px rgba(78, 7, 11, .45);
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="dropdown-menu-item"], [data-slot="select-item"], [data-slot="command-item"]) {
+  min-height: 40px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="dropdown-menu-label"], [data-slot="select-label"]):not([data-plain]) {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-fx-red) 78%, transparent);
+}
+
+/* notices */
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="alert"] {
+  padding: 16px 20px;
+  border-radius: 18px;
+  border-color: color-mix(in srgb, var(--color-fx-yellow) 80%, transparent);
+  background: color-mix(in srgb, var(--color-fx-yellow) 30%, #ffffff);
+  color: var(--color-fx-ink);
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="alert-title"] {
+  font-weight: 600;
+  color: var(--color-fx-red);
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="alert-description"] {
+  color: color-mix(in srgb, var(--color-fx-red) 85%, transparent);
+}
+
+/* empty states */
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="empty"] {
+  padding: 48px 24px;
+  border: 1.5px dashed color-mix(in srgb, var(--color-fx-red) 25%, transparent);
+  border-radius: 24px;
+  background: transparent;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="empty-title"] {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-fx-red);
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="empty-description"] {
+  font-size: 15px;
+  color: color-mix(in srgb, var(--color-fx-red) 78%, transparent);
+}
+
+/* form controls */
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="label"] {
+  font-size: 13px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--color-fx-red) 78%, transparent);
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="input"], [data-slot="input-group"], [data-slot="textarea"], [data-slot="native-select"], [data-slot="select-trigger"], [data-slot="command-input-wrapper"]) {
+  min-height: 3rem;
+  border-radius: 14px;
+  background: #ffffff;
+  font-size: 15px;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="input"], [data-slot="textarea"], [data-slot="native-select"], [data-slot="select-trigger"]) {
+  padding-inline: 1rem;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="input-group"] [data-slot="input-group-control"] {
+  padding-inline: 1rem;
+  font-size: 15px;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="textarea"] {
+  padding-block: .75rem;
+  line-height: 1.5;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="separator"] {
+  background: color-mix(in srgb, var(--color-fx-red) 12%, transparent);
+}
+
+/* form controls: exactly the create page's fields (components/create/ui.tsx: input, labelCls) */
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="input"], [data-slot="input-group"], [data-slot="textarea"], [data-slot="native-select"], [data-slot="select-trigger"]) {
+  border: 1px solid color-mix(in srgb, var(--color-fx-red) 20%, transparent);
+  color: var(--color-fx-ink);
+  transition: border-color .15s;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="input"], [data-slot="input-group"], [data-slot="textarea"], [data-slot="native-select"], [data-slot="select-trigger"]):is(:focus-visible, :focus-within, [data-focused]) {
+  border-color: var(--color-fx-red);
+  box-shadow: none;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="input"], [data-slot="input-group-control"], [data-slot="textarea"])::placeholder {
+  color: color-mix(in srgb, var(--color-fx-red) 55%, transparent);
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="input-group"] :is([data-slot="input-group-control"], [data-slot="input-group-control"]:focus-visible) {
+  border: 0;
+  box-shadow: none;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="input"], [data-slot="native-select"], [data-slot="select-trigger"])[aria-invalid="true"] {
+  border-color: var(--color-fx-red-second);
+  box-shadow: none;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-fx-field] > p:last-child:not([id$="-fx-error"]) {
+  font-size: 13px;
+  color: color-mix(in srgb, var(--color-fx-red) 78%, transparent);
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="checkbox"] {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  border-color: color-mix(in srgb, var(--color-fx-red) 30%, transparent);
+  background: #ffffff;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="checkbox"][data-checked] {
+  border-color: var(--color-fx-red);
+  background: var(--color-fx-red);
+  color: var(--color-fx-ivory);
+}
+
+/* the create page's switch: 48 x 28, red when on */
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="switch"][data-size="default"] {
+  width: 48px;
+  height: 28px;
+  background: color-mix(in srgb, var(--color-fx-red) 20%, transparent);
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="switch"][data-size="default"][data-checked] {
+  background: var(--color-fx-red);
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="switch"][data-size="default"] [data-slot="switch-thumb"] {
+  width: 20px;
+  height: 20px;
+  margin-left: 3px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(78, 7, 11, .35);
+}
+
+/* buttons: the create page's pills (button() in components/ui/styles.ts). A Button rendered as a dialog, menu or popover
+   trigger carries the trigger's data-slot, so buttons are also matched by their variant + size attributes. */
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size]) {
+  height: auto;
+  min-height: 46px;
+  padding-inline: 22px;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: none;
+  transition: background-color .2s, color .2s, border-color .2s, opacity .2s;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-variant="default"] {
+  background: var(--color-fx-yellow);
+  color: var(--color-fx-red);
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-variant="default"]:hover {
+  background: var(--color-fx-yellow);
+  opacity: .88;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-variant="secondary"] {
+  background: var(--color-fx-red);
+  color: var(--color-fx-ivory);
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-variant="secondary"]:hover {
+  background: var(--color-fx-red);
+  opacity: .88;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-variant="outline"] {
+  border-color: color-mix(in srgb, var(--color-fx-red) 30%, transparent);
+  background: #ffffff;
+  color: var(--color-fx-red);
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-variant="outline"]:hover {
+  border-color: var(--color-fx-red);
+  background: #ffffff;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-variant="ghost"] {
+  background: transparent;
+  color: var(--color-fx-red);
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-variant="ghost"]:hover {
+  background: var(--color-fx-sand);
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-variant="destructive"] {
+  background: var(--color-fx-red-second);
+  color: var(--color-fx-ivory);
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-variant="destructive"]:hover {
+  background: var(--color-fx-red-second);
+  opacity: .88;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-variant="link"] {
+  min-height: 36px;
+  padding-inline: 4px;
+  color: var(--color-fx-red-second);
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-size="sm"],
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-size="xs"] {
+  min-height: 42px;
+  padding-inline: 18px;
+  font-size: 14px;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-size="lg"] {
+  min-height: 52px;
+  padding-inline: 26px;
+  font-size: 16px;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-size^="icon"] {
+  min-height: 0;
+  padding-inline: 0;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-size="icon"] {
+  width: 44px;
+  height: 44px;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-size="icon-sm"] {
+  width: 40px;
+  height: 40px;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-size="icon-xs"] {
+  width: 32px;
+  height: 32px;
+}
+
+/* the close button of a pop-up */
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="dialog-content"], [data-slot="alert-dialog-content"], [data-slot="sheet-content"]) > [data-slot="dialog-close"],
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="dialog-content"], [data-slot="sheet-content"]) > [data-slot="sheet-close"] {
+  top: 20px;
+  right: 20px;
+  width: 44px;
+  height: 44px;
+  border: 1px solid color-mix(in srgb, var(--color-fx-red) 15%, transparent);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--color-fx-red);
+  opacity: 1;
+}
+
+/* native selects fill their field like the create page's selects; the chevron sits inside the padding */
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="native-select-wrapper"] {
+  width: 100%;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="native-select"] {
+  height: auto;
+  width: 100%;
+  padding-right: 2.75rem;
+  cursor: pointer;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="native-select-icon"] {
+  right: 1rem;
+  color: color-mix(in srgb, var(--color-fx-red) 78%, transparent);
+}

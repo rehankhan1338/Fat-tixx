@@ -1,11 +1,11 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-/* Public homepage design (Fattixx brand). Effects are scoped to .fx-home so they never touch the admin UI. */
-@import "../styles/fx-home/hero.css";
-@import "../styles/fx-home/how-it-works.css";
-@import "../styles/fx-home/featured.css";
-@import "../styles/fx-home/posters.css";
+/* Public site design (Fattixx brand). Effects are scoped to .fx-home so they never touch the admin UI. */
+@import "../styles/fx/how-it-works.css";
+@import "../styles/fx/featured.css";
+@import "../styles/fx/posters.css";
+@import "../styles/fx/app-skin.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -141,22 +141,27 @@ input:-webkit-autofill:focus {
   }
 }
 /* ---------------------------------------------------------------------------
- * Fattixx brand tokens (homepage design). Utilities: bg-fx-red, text-fx-yellow, font-display, ease-fx, animate-rise...
- * The design is desktop-first; its components use max-[901px]: style variants, so Tailwind's default
- * min-width breakpoints used by the rest of the app are unchanged.
+ * Fattixx brand tokens (public site design). Utilities: bg-fx-red, text-fx-yellow, font-display, ease-fx, animate-rise...
+ * "static" so every token is emitted as a CSS variable: Hero.module.css and the effect stylesheets read them directly.
+ * The design is desktop-first and its components use max-[901px]: style variants, so Tailwind's default breakpoints
+ * used by the rest of the app are unchanged.
  * ------------------------------------------------------------------------- */
-@theme {
-  --color-fx-red: #A8121A;
-  --color-fx-red-dark: #8E0E15;
-  --color-fx-red-deep: #4E070B;
-  --color-fx-red-night: #6E0A10;
-  --color-fx-red-second: #C8201A;
+@theme static {
+  --color-fx-red: #A8121A;          /* primary red: text on light, main buttons */
+  --color-fx-red-dark: #8E0E15;     /* big background word, tile placeholder */
+  --color-fx-red-deep: #4E070B;     /* shadows, overlays */
+  --color-fx-red-night: #6E0A10;    /* footer */
+  --color-fx-red-second: #C8201A;   /* dates, organizer names, prices on light */
   --color-fx-red-bright: #E0241B;
-  --color-fx-yellow: #FFD23F;
-  --color-fx-ivory: #F5F1EA;
-  --color-fx-white: #FFFDFA;
-  --color-fx-sand: #F3ECE2;
-  --color-fx-ink: #2A0A0C;
+  --color-fx-yellow: #FFD23F;       /* accent: primary buttons, highlights */
+  --color-fx-ivory: #F5F1EA;        /* page background, text on red */
+  --color-fx-white: #FFFDFA;        /* light sheets */
+  --color-fx-sand: #F3ECE2;         /* avatar chips */
+  --color-fx-ink: #2A0A0C;          /* typed text in inputs */
+  --color-fx-footer-edge: #E2D6C3;  /* shadow under the footer's curved top edge */
+
+  /* self-hosted with next/font (src/app/fonts.ts); the variables are set on <html> */
+  --font-display: var(--font-bricolage), system-ui, sans-serif;
 
   --ease-fx: cubic-bezier(.16, 1, .3, 1);
   --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
@@ -164,6 +169,9 @@ input:-webkit-autofill:focus {
 
   --animate-rise: rise .6s cubic-bezier(.16, 1, .3, 1) both;
   --animate-locpulse: locpulse 1s ease-in-out infinite;
+  --animate-pop-in: pop-in .26s cubic-bezier(.16, 1, .3, 1);       /* ticket pop-up, desktop */
+  --animate-sheet-in: sheet-in .34s cubic-bezier(.16, 1, .3, 1);   /* ticket pop-up, phones */
+  --animate-fade-in: fade-in .2s ease-out;                          /* pop-up backdrop */
 
   @keyframes rise {
     from { opacity: 0; transform: translateY(14px); }
@@ -173,11 +181,18 @@ input:-webkit-autofill:focus {
   @keyframes locpulse {
     50% { opacity: .25; }
   }
-}
 
-@theme inline {
-  /* self-hosted with next/font; the variables are set on the .fx-home wrapper */
-  --font-display: var(--font-fx-display), system-ui, sans-serif;
+  @keyframes pop-in {
+    from { opacity: 0; transform: translateY(16px) scale(.985); }
+  }
+
+  @keyframes sheet-in {
+    from { transform: translateY(100%); }
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+  }
 }
 
 /* hide a horizontal scrollbar on swipeable rows */
@@ -189,41 +204,28 @@ input:-webkit-autofill:focus {
 }
 
 @layer base {
-  html:has(.fx-home) {
-    scroll-behavior: smooth;
-    background: #F5F1EA;
+  :root {
+    --pad: clamp(20px, 5.5vw, 80px); /* page side gutter */
   }
 
-  .fx-home {
-    /* variables used by the effect stylesheets */
-    --dark: #A8121A;
-    --dark-rgb: 168, 18, 26;
-    --dark2: #8E0E15;
-    --deep: #4E070B;
-    --deep-rgb: 78, 7, 11;
-    --second: #C8201A;
-    --face: #E0241B;
-    --accent: #FFD23F;
-    --accent-rgb: 255, 210, 63;
-    --ivory: #F5F1EA;
-    --ivory-rgb: 245, 241, 234;
-    --pad: clamp(20px, 5.5vw, 80px);
-    --ease: cubic-bezier(.16, 1, .3, 1);
-    --flipease: cubic-bezier(.65, 0, .35, 1);
-    --spring: cubic-bezier(.34, 1.56, .64, 1);
-    --font-display: var(--font-fx-display), system-ui, sans-serif;
+  html:has(.fx-home) {
+    scroll-behavior: smooth;
+    background: var(--color-fx-ivory);
+  }
 
-    font-family: var(--font-fx-sans), system-ui, -apple-system, sans-serif;
-    background: #F5F1EA;
-    color: #A8121A;
+  /* wrapper of every public page: brand fonts and colors, scoped so the admin UI keeps its own */
+  .fx-home {
+    font-family: var(--font-plex), system-ui, -apple-system, sans-serif;
+    background: var(--color-fx-ivory);
+    color: var(--color-fx-red);
     line-height: normal;
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
     overflow-x: clip;
   }
 
-  .fx-home :where(a, button, input, select):focus-visible {
-    outline: 2px solid #FFD23F;
+  .fx-home :where(a, button, input, select, textarea):focus-visible {
+    outline: 2px solid var(--color-fx-yellow);
     outline-offset: 3px;
   }
 
@@ -231,11 +233,72 @@ input:-webkit-autofill:focus {
     -webkit-appearance: none;
   }
 
+  /*
+   * The application's own components (shadcn: inputs, buttons, cards, alerts) inside the public chrome: checkout,
+   * orders, tickets, account, sign-in forms, the waitlist and waiting room in the ticket pop-up. Re-pointing the
+   * shadcn tokens at the brand palette makes them match the design without restyling each form.
+   */
+  .fx-home .fx-content,
+  .fx-home .fx-form,
+  body:has(.fx-app) {
+    --background: #ffffff;
+    --foreground: var(--color-fx-ink);
+    --card: #ffffff;
+    --card-foreground: var(--color-fx-ink);
+    --popover: #ffffff;
+    --popover-foreground: var(--color-fx-ink);
+    --primary: var(--color-fx-red);
+    --primary-foreground: var(--color-fx-ivory);
+    --secondary: var(--color-fx-sand);
+    --secondary-foreground: var(--color-fx-red);
+    --muted: var(--color-fx-sand);
+    --muted-foreground: color-mix(in srgb, var(--color-fx-red) 78%, transparent);
+    --accent: var(--color-fx-sand);
+    --accent-foreground: var(--color-fx-red);
+    --destructive: var(--color-fx-red-second);
+    --border: color-mix(in srgb, var(--color-fx-red) 18%, transparent);
+    --input: color-mix(in srgb, var(--color-fx-red) 22%, transparent);
+    --ring: var(--color-fx-red);
+    --radius: 0.875rem;
+    color: var(--foreground);
+    line-height: 1.5;
+  }
+
+  .fx-home .fx-content {
+    --background: var(--color-fx-ivory);
+  }
+
+  /*
+   * Organizer, staff and scanner dashboards (AppShell): the sidebar in brand red, the work area on ivory. Set on
+   * <body> so menus and dialogs rendered in portals take the same colours. The Super Admin area has no .fx-app
+   * and keeps its own look.
+   */
+  body:has(.fx-app) {
+    --background: var(--color-fx-ivory);
+    --sidebar: var(--color-fx-red);
+    --sidebar-foreground: var(--color-fx-ivory);
+    --sidebar-primary: var(--color-fx-yellow);
+    --sidebar-primary-foreground: var(--color-fx-red);
+    --sidebar-accent: color-mix(in srgb, var(--color-fx-ivory) 14%, transparent);
+    --sidebar-accent-foreground: var(--color-fx-ivory);
+    --sidebar-border: color-mix(in srgb, var(--color-fx-ivory) 14%, transparent);
+    --sidebar-ring: var(--color-fx-yellow);
+    background: var(--color-fx-ivory);
+    color: var(--color-fx-ink);
+    font-family: var(--font-plex), system-ui, -apple-system, sans-serif;
+  }
+
+  .fx-home :is(.fx-content, .fx-form) :is(h1, h2, h3) {
+    font-family: var(--font-display);
+    color: var(--color-fx-red);
+  }
+
+
   /* fade-in on scroll (RevealOnScroll adds .js to <html> and .in to each element) */
   .js .fx-home .reveal {
     opacity: 0;
     transform: translateY(20px);
-    transition: opacity .9s var(--ease), transform .9s var(--ease);
+    transition: opacity .9s var(--ease-fx), transform .9s var(--ease-fx);
   }
 
   .js .fx-home .reveal.in {

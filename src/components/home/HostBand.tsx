@@ -1,13 +1,10 @@
-/*
- * Organizer band. The fee points are passed in from the platform's fee settings (Admin → Fees & Settings),
- * so the marketing copy can never drift from what checkout actually charges.
- */
+/* Organizer band on the homepage. Copy and fee points come from Super Admin → Website (tokens such as {fee} are filled from the live fee settings). */
 
-import { button, cardShadow, container, cx, eyebrow, sectionTitle } from "@/components/home/styles";
+import { button, cardShadow, container, cx, eyebrow, sectionTitle } from "@/components/ui/styles";
+import type { HomeContent } from "@/lib/site-content/schema";
+import { Lines } from "@/lib/site-content/inline";
 
-export type HostStat = { b: string; t: string };
-
-export default function HostBand({ stats: STATS, createHref }: { stats: HostStat[]; createHref: string }) {
+export default function HostBand({ content: c, createHref }: { content: HomeContent["host"]; createHref?: string }) {
   return (
     <section className="relative bg-fx-ivory pt-[110px] max-[721px]:pt-[88px]" id="host" aria-labelledby="host-h">
       <div className={container}>
@@ -18,31 +15,38 @@ export default function HostBand({ stats: STATS, createHref }: { stats: HostStat
           )}
         >
           <div>
-            <div className={eyebrow}>For organizers</div>
+            <div className={eyebrow}>{c.eyebrow}</div>
             <h2 className={cx(sectionTitle, "mt-3 text-[clamp(34px,4.2vw,56px)] leading-none tracking-[-0.04em]")} id="host-h">
-              Hosting something?
-              <br />
-              Do it all with FATTIXX.
+              <Lines text={c.title} />
             </h2>
-            <p className="mt-4 max-w-[480px] text-[16px] leading-[1.6] text-fx-red/78">
-              Build your event page, set your ticket tiers and check guests in at the door, with one simple fee.
-            </p>
+            <p className="mt-4 max-w-[480px] text-[16px] leading-[1.6] text-fx-red/78">{c.lead}</p>
             <div className="mt-7 flex flex-wrap gap-[10px]">
-              <a href={createHref} className={button("primary")}>
-                Create an event
-              </a>
-              <a href="#how" className={button("outline")}>
-                How it works
+              <a href={createHref ?? c.cta.href} className={button("primary")}>
+                {c.cta.label}
               </a>
             </div>
           </div>
           <div className="relative grid">
-            {STATS.map((s) => (
-              <div key={s.b} className="flex items-baseline gap-[18px] border-t border-fx-red/14 py-[18px] last:border-b max-[721px]:flex-col max-[721px]:gap-1">
-                <b className="min-w-[150px] shrink-0 font-display text-[26px] font-semibold tracking-[-0.02em] text-fx-red-second">{s.b}</b>
-                <span className="text-[14px] leading-[1.5] text-fx-red/78">{s.t}</span>
+            {c.stats.map((s, i) => (
+              <div
+                key={i}
+                className={cx(
+                  "flex items-baseline gap-[18px] border-t border-fx-red/14 py-[18px] max-[721px]:flex-col max-[721px]:gap-1",
+                  i === c.stats.length - 1 && "border-b",
+                )}
+              >
+                <b className="min-w-[150px] shrink-0 font-display text-[26px] font-semibold tracking-[-0.02em] text-fx-red-second">{s.big}</b>
+                <span className="text-[14px] leading-[1.5] text-fx-red/78">{s.text}</span>
               </div>
             ))}
+            {c.pricingLink.label && (
+              <a
+                href={c.pricingLink.href}
+                className="mt-4 justify-self-start rounded-sm text-[15px] font-semibold text-fx-red underline decoration-fx-red/30 underline-offset-4 transition-colors hover:decoration-fx-red"
+              >
+                {c.pricingLink.label}
+              </a>
+            )}
           </div>
         </div>
       </div>

@@ -19,10 +19,13 @@ const isControl = (el: unknown): el is Control =>
 
 const messageId = (c: Control) => `${c.form?.id || "f"}-${c.id || c.name}-fx-error`;
 
-/** Where the message goes: under the box a person sees (the select wrapper, the checkbox's label). */
+/**
+ * Where the message goes: under the box a person sees (the select wrapper, the checkbox's label, the input group
+ * around a password field and its show/hide button), never inside it.
+ */
 function anchorFor(c: Control): Element {
   if (c instanceof HTMLInputElement && (c.type === "checkbox" || c.type === "radio")) return c.closest("label") ?? c;
-  return c.closest('[data-slot="native-select-wrapper"]') ?? c;
+  return c.closest('[data-slot="native-select-wrapper"], [data-slot="input-group"]') ?? c;
 }
 
 /** Radio buttons share one name: flag the whole group. */

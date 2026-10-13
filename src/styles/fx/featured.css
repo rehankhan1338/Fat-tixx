@@ -1,0 +1,177 @@
+/* FeaturedStrip.tsx drives tile expansion and details-panel animation. */
+
+@keyframes fiup {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* scoped to the public site wrapper so nothing leaks into the admin UI */
+.fx-home {
+@layer components {
+
+/* Featured 3D carousel */
+.fstrip {
+  /* portrait 4:5 tiles (event images are portrait by default; wider images are cropped to fit) */
+  --fw: 224px;
+  --fh: 280px;
+  --fw-on: 304px;
+  --fh-on: 380px;
+}
+
+/* closed: only as tall as the tiles. Opening a tile grows the strip to fit it (and the details below),
+   so there's no empty space reserved for a panel that isn't showing */
+.f-view {
+  height: var(--fh);
+  overflow: hidden;
+  transition: height .55s var(--ease-fx);
+  touch-action: pan-y;
+  cursor: grab;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.fstrip.open .f-view {
+  height: var(--fh-on);
+}
+
+.f-view.dragging {
+  cursor: grabbing;
+}
+
+.f-track {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: max-content;
+  will-change: transform;
+}
+
+.ftile {
+  position: relative;
+  flex: 0 0 auto;
+  display: block;
+  width: var(--fw);
+  height: var(--fh);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #FFFFFF;
+  box-shadow: inset 0 0 0 1px rgba(168, 18, 26, .1);
+  -webkit-user-drag: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: width .55s var(--ease-fx), height .55s var(--ease-fx), opacity .4s ease, box-shadow .4s ease;
+}
+
+.ftile:focus-visible {
+  outline-offset: -3px;
+}
+
+.ftile.on {
+  width: var(--fw-on);
+  height: var(--fh-on);
+  box-shadow: 0 30px 50px -30px rgba(78, 7, 11, .6);
+}
+
+.fstrip.open .ftile:not(.on) {
+  opacity: .55;
+}
+
+.fimg {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background-size: cover;
+  background-position: center;
+  transition: transform .8s var(--ease-fx);
+}
+
+.ftile:not(.on):hover .fimg {
+  transform: scale(1.04);
+}
+
+/* pictures never start a native image drag, so dragging always moves the strip */
+.f-view img {
+  -webkit-user-drag: none;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* details open underneath the photo you point at */
+.f-infobox {
+  position: relative;
+  height: 0;
+  margin-top: 0;
+  overflow: clip;
+  overflow-clip-margin: 8px; /* room for focus rings */
+  transition: height .55s var(--ease-fx), margin-top .55s var(--ease-fx);
+}
+
+.fstrip.open .f-infobox {
+  height: 210px;
+  margin-top: 24px;
+}
+
+.f-info {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: min(540px, calc(100% - 32px));
+  display: flex;
+  gap: 18px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .3s ease;
+}
+
+.fstrip.open .f-info {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.f-info.fi-swap>*,
+.f-info.fi-swap .fi-body>* {
+  animation: fiup .5s var(--ease-fx) both;
+}
+
+.f-info.fi-swap .fi-body> :nth-child(2) {
+  animation-delay: .04s;
+}
+
+.f-info.fi-swap .fi-body> :nth-child(3) {
+  animation-delay: .08s;
+}
+
+.f-info.fi-swap .fi-body> :nth-child(4) {
+  animation-delay: .12s;
+}
+
+
+@media (max-width: 720px) {
+  .fstrip {
+    --fw: 160px;
+    --fh: 200px;
+    --fw-on: 232px;
+    --fh-on: 290px;
+  }
+
+  .fstrip.open .f-infobox {
+    height: 250px;
+    margin-top: 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .f-view,
+  .f-infobox {
+    transition: none;
+  }
+}
+
+}
+}

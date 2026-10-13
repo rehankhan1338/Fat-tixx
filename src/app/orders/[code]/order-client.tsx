@@ -31,12 +31,12 @@ export function AttendeeNameForm({ code, token, ticketId, currentName, locked }:
   );
 }
 
-export function RefundRequestButton({ code, token, amountLabel }: { code: string; token: string | null; amountLabel: string }) {
+export function RefundRequestButton({ code, token, amountLabel, className }: { code: string; token: string | null; amountLabel: string; className?: string }) {
   return (
     <ConfirmButton
       action={async (fd) => { fd.set("code", code); if (token) fd.set("token", token); return requestRefund(undefined, fd); }}
       title="Request a full refund?" description={`${amountLabel} will be returned to your original payment method and your tickets will be cancelled. This cannot be undone.`}
-      confirmText="Refund my order" variant="outline" size="sm" successText="Refund issued. Check your email for confirmation."
+      confirmText="Refund my order" variant="outline" size="sm" successText="Refund issued. Check your email for confirmation." className={className}
     >
       Request a refund
     </ConfirmButton>

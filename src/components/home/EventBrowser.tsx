@@ -1,18 +1,19 @@
 "use client";
 
-/*
- * "Upcoming events": filter bar (date, free, search, city), active filter chips, card grid,
- * "Show more" (12 at a time). Saved hearts are kept in localStorage for now; in production
- * they become the signed-in user's favourites.
- */
+/* Saved events are stored locally until account favorites are connected. */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { imageUrl, matches, organizerInitials, organizerName, priceText, whenText } from "@/lib/home/events";
+import Link from "next/link";
+import { categoryIconPath } from "@/lib/event-categories";
+import { eventHref, isPro, matches, organizerName, priceText, whenText } from "@/lib/home/events";
 import type { ListedEvent } from "@/lib/home/events";
 import type { WhenFilter } from "@/lib/home/types";
+import type { HomeContent } from "@/lib/site-content/schema";
 import { useHome } from "./HomeState";
 import { HeartIcon } from "./icons";
-import { button, cardShadow, container, cx, eyebrow, sectionTitle } from "@/components/home/styles";
+import ProBadge from "@/components/events/ProBadge";
+import EventArt from "@/components/ui/EventArt";
+import { button, cardShadow, container, cx, eyebrow, sectionTitle } from "@/components/ui/styles";
 
 const SAVED_KEY = "fx_saved";
 const WHEN_PILLS: { v: WhenFilter; label: string }[] = [
@@ -30,20 +31,18 @@ const pill =
   "min-h-[38px] cursor-pointer rounded-full border border-fx-red/14 bg-white px-[14px] text-[13px] font-medium text-fx-red/78 transition-colors duration-200 hover:border-fx-red/30 hover:text-fx-red aria-pressed:border-fx-red aria-pressed:bg-fx-red aria-pressed:text-fx-ivory";
 
 function EventCard({ e, saved, onSave }: { e: ListedEvent; saved: boolean; onSave: () => void }) {
-  const img = imageUrl(e);
   return (
     <article className="group relative flex animate-rise flex-col gap-[14px] max-[481px]:grid max-[481px]:grid-cols-[112px_minmax(0,1fr)] max-[481px]:items-start">
-      {/* the event's own image, else generated poster art (styles/fx-home/posters.css) */}
+
       <span
-        style={img ? { backgroundImage: `url("${img}")`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
         className={cx(
           "poster pv" + e.v,
-          "aspect-[4/3] transition-transform duration-500 ease-fx group-hover:scale-102 max-[481px]:aspect-square max-[481px]:rounded-[14px]",
+          "aspect-[4/5] transition-transform duration-500 ease-fx group-hover:scale-102 after:hidden max-[481px]:rounded-[14px]",
           cardShadow,
         )}
         aria-hidden="true"
       >
-        <span className="pc max-[481px]:hidden">{e.category}</span>
+        <EventArt e={e} sizes="(max-width: 480px) 112px, (max-width: 720px) 50vw, 300px" logoBox="inset-x-[14%] inset-y-[28%]" className="border border-fx-red/10 rounded-[inherit]" />
       </span>
       <button
         type="button"
@@ -64,7 +63,7 @@ function EventCard({ e, saved, onSave }: { e: ListedEvent; saved: boolean; onSav
           )}
         </span>
         <h3 className="font-display text-[19px] leading-[1.2] font-semibold tracking-[-0.015em] max-[481px]:text-[17px]">
-          <a href={e.href ?? "#events"} className="after:absolute after:inset-0 after:z-[1] after:content-['']">
+          <a href={eventHref(e)} className="after:absolute after:inset-0 after:z-[1] after:content-['']">
             {e.title}
           </a>
         </h3>
@@ -75,9 +74,10 @@ function EventCard({ e, saved, onSave }: { e: ListedEvent; saved: boolean; onSav
           <span className="text-[14px] font-semibold">{priceText(e)}</span>
           <span className="inline-flex min-w-0 items-center gap-[7px] text-[13px] text-fx-red/78">
             <span className="inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full border border-fx-red/30 bg-fx-sand text-[9px] font-bold text-fx-red">
-              {organizerInitials(e)}
+              {e.organizerInitials}
             </span>
             <span className="truncate">{organizerName(e)}</span>
+            {isPro(e) && <ProBadge size={14} />}
           </span>
         </div>
       </div>
@@ -85,14 +85,17 @@ function EventCard({ e, saved, onSave }: { e: ListedEvent; saved: boolean; onSav
   );
 }
 
-export default function EventBrowser() {
-  const { today, upcoming, filters, setFilters, showMore, clearAll, clearPlace, focusLocation } = useHome();
+/** Section copy comes from Super Admin → Website; /events reuses the browser with its own heading. */
+export default function EventBrowser({
+  content: c = { show: true, eyebrow: "On sale now", title: "Upcoming events", link: { label: "Browse all events", href: "/events" } },
+}: { content?: HomeContent["browse"] }) {
+  const { today, upcoming, filters, setFilters, showMore, clearAll, clearPlace, focusLocation, categories } = useHome();
   const [saved, setSaved] = useState<Record<string, 1>>({});
   const [qText, setQText] = useState(filters.q);
   const qTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
+  // saved events live in this browser; read them after hydration
   useEffect(() => {
-    // read saved hearts after hydration (the server has no localStorage)
     const id = requestAnimationFrame(() => {
       try {
         setSaved(JSON.parse(localStorage.getItem(SAVED_KEY) || "{}") || {});
@@ -102,6 +105,7 @@ export default function EventBrowser() {
     });
     return () => cancelAnimationFrame(id);
   }, []);
+  // the nav search changes the shared filter: mirror it into the box (adjusting state while rendering)
   const [seenQ, setSeenQ] = useState(filters.q);
   if (seenQ !== filters.q) {
     setSeenQ(filters.q);
@@ -145,9 +149,9 @@ export default function EventBrowser() {
       <div className={container}>
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div>
-            <div className={eyebrow}>On sale now</div>
+            <div className={eyebrow}>{c.eyebrow}</div>
             <h2 className={cx(sectionTitle, "mt-[10px] text-[clamp(32px,3.6vw,48px)] leading-[1.02] tracking-[-0.035em]")} id="browse-h">
-              Upcoming events
+              {c.title}
             </h2>
             {filters.near && (
               <p className="mt-[10px] text-[16px] text-fx-red/78">
@@ -162,19 +166,59 @@ export default function EventBrowser() {
               </p>
             )}
           </div>
+          {c.link.label && (
+            <Link href={c.link.href} className="text-[15px] font-semibold text-fx-red-second underline decoration-fx-red/30 underline-offset-4 hover:decoration-fx-red">
+              {c.link.label}
+            </Link>
+          )}
+        </div>
+
+        <div
+          role="group"
+          aria-label="Categories"
+          className="no-scrollbar mt-7 flex flex-wrap gap-2 max-[1101px]:mx-[calc(var(--pad)*-1)] max-[1101px]:flex-nowrap max-[1101px]:overflow-x-auto max-[1101px]:px-(--pad) max-[1101px]:py-[2px] max-[1101px]:*:shrink-0"
+        >
+          <button type="button" className={cx(pill, "min-h-10 px-[14px]")} aria-pressed={!filters.cat} onClick={() => setFilters({ cat: "" })}>
+            All
+          </button>
+          {categories.map((cat) => (
+            <button
+              key={cat.name}
+              type="button"
+              aria-pressed={filters.cat === cat.name}
+              onClick={() => setFilters({ cat: filters.cat === cat.name ? "" : cat.name })}
+              className={cx(pill, "inline-flex min-h-10 items-center gap-[7px] pr-[14px] pl-[11px]")}
+            >
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.9"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+                className="shrink-0"
+              >
+                <path d={categoryIconPath(cat.icon)} />
+              </svg>
+              {cat.name}
+            </button>
+          ))}
         </div>
 
         <div
           role="group"
           aria-label="Filter events"
-          className="no-scrollbar relative mt-6 flex flex-wrap items-center gap-2 max-[721px]:mx-[calc(var(--pad)*-1)] max-[721px]:flex-nowrap max-[721px]:overflow-x-auto max-[721px]:px-(--pad) max-[721px]:py-[2px] max-[721px]:*:shrink-0"
+          className="no-scrollbar relative mt-3 flex flex-wrap items-center gap-2 max-[721px]:mx-[calc(var(--pad)*-1)] max-[721px]:flex-nowrap max-[721px]:overflow-x-auto max-[721px]:px-(--pad) max-[721px]:py-[2px] max-[721px]:*:shrink-0"
         >
           {WHEN_PILLS.map((w) => (
             <button key={w.label} type="button" className={pill} aria-pressed={filters.when === w.v} onClick={() => setFilters({ when: w.v })}>
               {w.label}
             </button>
           ))}
-          <button type="button" className={pill} aria-pressed={filters.free} onClick={() => setFilters({ free: !filters.free })}>
+          <button type="button" className={pill} aria-pressed={filters.price === "free"} onClick={() => setFilters({ price: filters.price === "free" ? "" : "free" })}>
             Free
           </button>
           <label className="sr-only" htmlFor="q">
@@ -193,7 +237,7 @@ export default function EventBrowser() {
               qTimer.current = setTimeout(() => setFilters({ q: v }), 150);
             }}
             style={{ backgroundImage: SEARCH_ICON }}
-            className="min-h-[38px] w-[200px] rounded-full border border-fx-red/14 bg-white bg-[position:14px_center] bg-no-repeat pr-[14px] pl-9 text-[13px] text-fx-red outline-none placeholder:text-fx-red/60 focus:border-fx-red/30"
+            className="min-h-[38px] w-[200px] rounded-full border border-fx-red/14 bg-white bg-[position:14px_center] bg-no-repeat pr-[14px] pl-9 text-[13px] text-fx-red outline-none placeholder:text-fx-red/55 focus:border-fx-red/30"
           />
           <label className="sr-only" htmlFor="city-f">
             City
@@ -213,11 +257,10 @@ export default function EventBrowser() {
             ))}
           </select>
           <span className="inline-flex gap-1 empty:hidden max-[721px]:flex max-[721px]:gap-2">
-            {filters.cat && chip(filters.cat, () => setFilters({ cat: "" }))}
-            {filters.org && chip(organizerName(upcoming.find((x) => x.organizerId === filters.org) ?? upcoming[0]) || filters.org, () => setFilters({ org: "" }))}
+            {filters.org && chip(upcoming.find((e) => e.organizerId === filters.org)?.organizerName ?? filters.org, () => setFilters({ org: "" }))}
             {filters.near && chip("Near " + filters.near.label, clearPlace)}
           </span>
-          <span className="ml-auto text-[13px] text-fx-red/60 max-[721px]:ml-0 max-[721px]:pr-(--pad)" aria-live="polite">
+          <span className="ml-auto text-[13px] text-fx-red/78 max-[721px]:ml-0 max-[721px]:pr-(--pad)" aria-live="polite">
             {list.length} {list.length === 1 ? "event" : "events"}
           </span>
         </div>
@@ -227,16 +270,10 @@ export default function EventBrowser() {
             shown.map((e) => <EventCard key={e.id} e={e} saved={!!saved[e.id]} onSave={() => toggleSave(e.id)} />)
           ) : (
             <div className="col-span-full rounded-[20px] border border-fx-red/14 p-12 text-center text-[16px] text-fx-red/78">
-              {upcoming.length === 0 ? (
-                "No events found. Check back soon."
-              ) : (
-                <>
-                  {filters.near ? `No events near ${filters.near.label} match yet.` : "No events match those filters yet."}{" "}
-                  <button type="button" className={cx(pill, "ml-2")} onClick={clearAll}>
-                    Clear filters
-                  </button>
-                </>
-              )}
+              {filters.near ? `No events near ${filters.near.label} match yet.` : "No events match those filters yet."}{" "}
+              <button type="button" className={cx(pill, "ml-2")} onClick={clearAll}>
+                Clear filters
+              </button>
             </div>
           )}
         </div>

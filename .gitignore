@@ -56,3 +56,6 @@ backups/
 # Expo mobile app (Fat-Tixx-App has its own .gitignore for node_modules, .expo, builds)
 Fat-Tixx-App/.env
 Fat-Tixx-App/*.keystore
+
+# verification builds (FX_DIST_DIR)
+.next-verify

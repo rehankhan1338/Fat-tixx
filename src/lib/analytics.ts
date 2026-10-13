@@ -16,7 +16,8 @@ export async function salesByDay(scope: { eventId?: number; orgId?: number }, da
     `SELECT DATE_FORMAT(o.paid_at, '%Y-%m-%d') AS day, COUNT(DISTINCT o.id) AS orders,
             COALESCE(SUM((SELECT SUM(oi.quantity) FROM order_items oi WHERE oi.order_id = o.id)),0) AS tickets,
             COALESCE(SUM(o.subtotal_cents),0) AS revenue_cents
-       FROM orders o WHERE ${where} AND ${PAID} AND o.paid_at >= UTC_DATE() - INTERVAL ? DAY GROUP BY day`,
+       FROM orders o WHERE ${where} AND ${PAID} AND o.paid_at >= UTC_DATE() - INTERVAL ? DAY
+      GROUP BY DATE_FORMAT(o.paid_at, '%Y-%m-%d')`, // the expression, not its alias: MySQL's only_full_group_by rejects the alias
     [scope.eventId ?? scope.orgId!, days - 1],
   );
   const by = new Map(rows.map((r) => [r.day, r]));

@@ -12,7 +12,7 @@ import sharp from 'sharp';
 export const UPLOAD_ROOT = path.join(process.cwd(), 'uploads');
 const MAX_BYTES = 8 * 1024 * 1024;
 
-export type UploadKind = 'events' | 'orgs' | 'ads' | 'sponsors';
+export type UploadKind = 'events' | 'orgs' | 'ads' | 'sponsors' | 'site';
 
 export async function saveImageUpload(file: File, kind: UploadKind, maxWidth = 1600): Promise<string> {
   if (file.size === 0) throw new Error('Empty file');
@@ -45,7 +45,7 @@ export async function deleteUpload(relPath: string | null | undefined): Promise<
 }
 
 export function isSafeUploadPath(rel: string): boolean {
-  return /^(events|orgs|ads|sponsors)\/[a-z0-9-]+\.webp$/.test(rel);
+  return /^(events|orgs|ads|sponsors|site)\/[a-z0-9-]+\.webp$/.test(rel);
 }
 
 export function uploadUrl(relPath: string | null | undefined): string | null {

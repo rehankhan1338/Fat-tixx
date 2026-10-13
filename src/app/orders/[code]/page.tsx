@@ -36,7 +36,7 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/or
   const mayTransfer = !holderMayTransfer(order);
 
   return (
-    <PublicShell>
+    <PublicShell wide>
       <div className="space-y-6">
         {order.status === "paid" ? (
           <Alert className="border-emerald-500/40"><CheckCircle2Icon className="text-emerald-400" /><AlertTitle>You’re going! Your tickets are below and on their way to {order.buyer_email}.</AlertTitle><AlertDescription>Show the QR code at the door, on your phone or printed.{order.age_restriction ? ` This event is ${order.age_restriction}+; bring a valid photo ID.` : ""}</AlertDescription></Alert>
@@ -91,10 +91,17 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/or
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="space-y-3 pt-6 text-sm">
-                <p className="flex items-center gap-2 text-muted-foreground"><MailIcon className="size-4" /> A copy was emailed to {order.buyer_email}.</p>
-                {mayRefund ? <RefundRequestButton code={order.code} token={token} amountLabel={formatCents(Number(order.total_cents), order.currency)} /> : <p className="text-xs text-muted-foreground">Refunds: {order.refund_policy === "no_refunds" ? "not available except if the event is cancelled." : "no longer available for this order."}</p>}
-                <Button variant="ghost" size="sm" className="w-full" render={<Link href="/tickets/find" />}>Find my other tickets</Button>
+              <CardHeader className="pb-2"><CardTitle className="text-base">Your order</CardTitle></CardHeader>
+              <CardContent className="space-y-4 text-sm">
+                <p className="flex items-start gap-2 text-muted-foreground">
+                  <MailIcon className="mt-0.5 size-4 shrink-0" />
+                  <span className="min-w-0 break-words">A copy was emailed to <span className="font-medium text-foreground">{order.buyer_email}</span>.</span>
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {mayRefund ? <RefundRequestButton code={order.code} token={token} amountLabel={formatCents(Number(order.total_cents), order.currency)} className="w-full" /> : null}
+                  <Button variant="outline" size="sm" className={mayRefund ? "w-full" : "w-full sm:col-span-2"} render={<Link href="/tickets/find" />}>Find my other tickets</Button>
+                </div>
+                {!mayRefund ? <p className="text-xs text-muted-foreground">Refunds: {order.refund_policy === "no_refunds" ? "not available except if the event is cancelled." : "no longer available for this order."}</p> : null}
               </CardContent>
             </Card>
           </div>

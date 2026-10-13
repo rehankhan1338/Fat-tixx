@@ -1,9 +1,6 @@
 "use client";
 
-/*
- * Fades in every element with class "reveal" the first time it scrolls into view.
- * Adds "js" to <html> first; without it (no JS) the .reveal elements simply show.
- */
+/* The .js class enables reveals; content remains visible without JavaScript. */
 
 import { useEffect } from "react";
 

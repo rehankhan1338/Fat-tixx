@@ -1,13 +1,6 @@
 import type { Place } from "./types";
 
-/*
- * Visitor location for the nav search.
- *  - byIP():  approximate city from the visitor's IP, no permission prompt (geojs.io, free, no key)
- *  - byGPS(): precise location via the browser (asks permission), turned into a city name
- *             with bigdatacloud.net's free client-side reverse geocoder
- * Both are third-party services: list them in the privacy policy, or swap for your own
- * endpoint (e.g. Vercel's request geo headers in a Route Handler).
- */
+/* GeoJS supplies IP location; BigDataCloud reverse-geocodes browser GPS coordinates. */
 
 const STATES: Record<string, string> = {
   Alabama: "AL", Alaska: "AK", Arizona: "AZ", Arkansas: "AR", California: "CA", Colorado: "CO", Connecticut: "CT",

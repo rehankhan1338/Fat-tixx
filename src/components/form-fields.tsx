@@ -1,7 +1,8 @@
-import type { ComponentProps, ReactNode } from "react";
+import type { ChangeEventHandler, ComponentProps, ReactNode } from "react";
 import { CheckCircle2Icon } from "lucide-react";
 import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/password-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
@@ -34,10 +35,12 @@ export function FieldWrap({ label, htmlFor, hint, children, className = "" }: { 
   );
 }
 
+/** Text input with label and hint. `type="password"` automatically gets a show/hide (eye) toggle. */
 export function TextField({ label, hint, className, ...props }: { label: ReactNode; hint?: ReactNode; className?: string } & ComponentProps<typeof Input> & { id: string; name: string }) {
+  const { type, ...rest } = props;
   return (
     <FieldWrap label={label} htmlFor={props.id} hint={hint} className={className}>
-      <Input {...props} />
+      {type === "password" ? <PasswordInput {...rest} /> : <Input {...props} />}
     </FieldWrap>
   );
 }
@@ -63,10 +66,10 @@ export function SelectField({ label, hint, options, className, ...props }: {
 }
 
 /** Native checkbox styled to match; submits "1" when checked. */
-export function CheckField({ label, hint, id, name, defaultChecked, required }: { label: ReactNode; hint?: ReactNode; id: string; name: string; defaultChecked?: boolean; required?: boolean }) {
+export function CheckField({ label, hint, id, name, defaultChecked, required, onChange }: { label: ReactNode; hint?: ReactNode; id: string; name: string; defaultChecked?: boolean; required?: boolean; onChange?: ChangeEventHandler<HTMLInputElement> }) {
   return (
     <label htmlFor={id} className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 hover:bg-accent/40 has-aria-invalid:border-destructive has-aria-invalid:bg-destructive/5">
-      <input id={id} name={name} type="checkbox" value="1" defaultChecked={defaultChecked} required={required} className="mt-0.5 size-4 accent-[var(--primary)]" />
+      <input id={id} name={name} type="checkbox" value="1" defaultChecked={defaultChecked} required={required} onChange={onChange} className="mt-0.5 size-4 accent-[var(--primary)]" />
       <span className="grid gap-0.5 text-sm">
         <span className="font-medium leading-none">{label}</span>
         {hint ? <span className="text-xs text-muted-foreground">{hint}</span> : null}
