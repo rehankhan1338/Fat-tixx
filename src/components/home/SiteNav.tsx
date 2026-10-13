@@ -377,7 +377,7 @@ export default function SiteNav({ account = null, overHero = false }: { account?
           {account?.label ?? "Log in"}
         </a>
 
-        <a href="/create" className="rounded-full bg-fx-yellow px-5 py-[11px] text-[15px] font-semibold whitespace-nowrap text-fx-red max-[901px]:px-4">
+        <a href="/org/organization/events/new" className="rounded-full bg-fx-yellow px-5 py-[11px] text-[15px] font-semibold whitespace-nowrap text-fx-red max-[901px]:px-4">
           Create event
         </a>
       </div>
