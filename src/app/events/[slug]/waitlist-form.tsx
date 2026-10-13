@@ -4,15 +4,15 @@ import { useActionState, useState } from "react";
 import { BellRingIcon } from "lucide-react";
 import { joinWaitlist } from "@/lib/waitlist/actions";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertTitle } from "@/components/ui/alert";
 import { FormStatus, SelectField, TextField } from "@/components/form-fields";
+import { SuccessAlert } from "@/components/form-validation";
 import { SubmitButton } from "@/components/submit-button";
 
 /** Shown when the event (or some ticket types) sold out and the organizer enabled the waitlist. */
 export function WaitlistForm({ eventSlug, soldOutTypes, allSoldOut, defaultEmail, defaultName }: { eventSlug: string; soldOutTypes: { id: number; name: string }[]; allSoldOut: boolean; defaultEmail?: string; defaultName?: string }) {
   const [open, setOpen] = useState(allSoldOut);
   const [state, action] = useActionState(joinWaitlist, undefined);
-  if (state?.ok) return <Alert className="mt-4 border-emerald-500/40"><BellRingIcon className="text-emerald-500" /><AlertTitle>{state.message}</AlertTitle></Alert>;
+  if (state?.ok) return <SuccessAlert className="mt-4" message={state.message ?? "You are on the waitlist."} result={state} />;
   if (!open) return <Button type="button" variant="outline" className="mt-4 w-full" onClick={() => setOpen(true)}><BellRingIcon /> Join the waitlist for sold-out tickets</Button>;
   return (
     <form action={action} className="mt-4 space-y-3 rounded-xl border p-3">

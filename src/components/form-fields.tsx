@@ -1,27 +1,19 @@
 import type { ChangeEventHandler, ComponentProps, ReactNode } from "react";
-import { CheckCircle2Icon } from "lucide-react";
-import { Alert, AlertTitle } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/password-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { ErrorAlert } from "@/components/form-validation";
+import { ErrorAlert, SuccessAlert } from "@/components/form-validation";
 
 /**
- * Renders the {error, ok} state returned by server actions. Errors scroll into view; an action that
- * also returns `field` (the input's name) gets that field highlighted and focused.
+ * Renders the {error, ok} state returned by server actions. Both the error and the success box scroll
+ * into view when they appear; an error that also names `field` (the input's name) gets that field
+ * highlighted and focused instead.
  */
 export function FormStatus({ state, successText }: { state: { error?: string; ok?: boolean; field?: string } | undefined; successText?: string }) {
   if (state?.error) return <ErrorAlert message={state.error} field={state.field} result={state} />;
-  if (state?.ok && successText) {
-    return (
-      <Alert className="border-emerald-500/40 text-emerald-700 dark:text-emerald-300 [&>svg]:text-emerald-700 dark:[&>svg]:text-emerald-300">
-        <CheckCircle2Icon />
-        <AlertTitle>{successText}</AlertTitle>
-      </Alert>
-    );
-  }
+  if (state?.ok && successText) return <SuccessAlert message={successText} result={state} />;
   return null;
 }
 

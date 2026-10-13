@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type RefObject } from "react";
-import { AlertCircleIcon } from "lucide-react";
+import { AlertCircleIcon, CheckCircle2Icon } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 /**
@@ -144,6 +144,24 @@ export function ErrorAlert({ message, field, result }: { message: string; field?
       <AlertCircleIcon />
       <AlertTitle>Something went wrong</AlertTitle>
       <AlertDescription>{message}</AlertDescription>
+    </Alert>
+  );
+}
+
+/**
+ * Success box for a server action result (something saved, added or deleted). Like ErrorAlert, each new
+ * result scrolls the box into view, so a message rendered above a long form is still seen after pressing
+ * Save at the bottom of it.
+ */
+export function SuccessAlert({ message, result, className = "" }: { message: string; result: unknown; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (ref.current) reveal(ref.current);
+  }, [message, result]);
+  return (
+    <Alert ref={ref} tabIndex={-1} className={`border-emerald-500/40 text-emerald-700 outline-none dark:text-emerald-300 [&>svg]:text-emerald-700 dark:[&>svg]:text-emerald-300 ${className}`}>
+      <CheckCircle2Icon />
+      <AlertTitle>{message}</AlertTitle>
     </Alert>
   );
 }
