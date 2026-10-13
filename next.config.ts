@@ -8,7 +8,8 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["192.168.1.22", "*.trycloudflare.com"],
   reactStrictMode: true,
   // next/image qualities used by the public site (the hero photos request 85).
-  images: { qualities: [75, 85] },
+  // Uploaded photos live on Vercel Blob in production (src/lib/uploads.ts).
+  images: { qualities: [75, 85], remotePatterns: [{ protocol: "https", hostname: "*.public.blob.vercel-storage.com" }] },
   // The policy pages read content/legal/*.md at request time; make sure the files ship with the server build.
   outputFileTracingIncludes: { "/terms": ["./content/legal/**"], "/privacy": ["./content/legal/**"] },
   // Native / Node-only packages must not be bundled into the server build.

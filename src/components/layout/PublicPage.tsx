@@ -15,7 +15,7 @@ import SiteFooter from "./SiteFooter";
 export async function navAccount(): Promise<NavAccount> {
   const session = await getSession();
   if (!session) return null;
-  if (session.user.roles.length) return { href: "/admin", label: "Admin" };
+  if (session.user.roles.length) return { href: "/admin", label: "Admin", canCreateEvents: false };
   const memberships = await listMemberships(session.user.id);
   return { href: memberships.length ? "/dashboard" : "/account", label: "My account" };
 }

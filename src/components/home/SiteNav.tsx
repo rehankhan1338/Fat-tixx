@@ -20,7 +20,8 @@ type MenuItem =
   | { kind: "city"; city: CityOption }
   | { kind: "any" };
 
-export type NavAccount = { href: string; label: string } | null;
+/** `canCreateEvents` is false for platform staff (Super Admin etc.), who never create events themselves. */
+export type NavAccount = { href: string; label: string; canCreateEvents?: boolean } | null;
 
 /**
  * `overHero`: the homepage. The nav starts transparent over the hero photos and an ivory background fades in once the
@@ -377,9 +378,11 @@ export default function SiteNav({ account = null, overHero = false }: { account?
           {account?.label ?? "Log in"}
         </a>
 
-        <a href="/org/organization/events/new" className="rounded-full bg-fx-yellow px-5 py-[11px] text-[15px] font-semibold whitespace-nowrap text-fx-red max-[901px]:px-4 max-[721px]:hidden">
-          Create event
-        </a>
+        {account?.canCreateEvents !== false && (
+          <a href="/org/organization/events/new" className="rounded-full bg-fx-yellow px-5 py-[11px] text-[15px] font-semibold whitespace-nowrap text-fx-red max-[901px]:px-4 max-[721px]:hidden">
+            Create event
+          </a>
+        )}
       </div>
     </header>
   );

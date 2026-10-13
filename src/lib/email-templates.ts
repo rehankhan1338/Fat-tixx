@@ -2,6 +2,7 @@ import 'server-only';
 import { query, type Row } from './db';
 import { escapeHtml } from './email';
 import { getBranding, type Branding } from './settings';
+import { uploadUrl } from './uploads';
 import { env } from './env';
 
 /** Public origin used in the sample variables shown on the Admin → Emails → Templates preview. */
@@ -231,8 +232,9 @@ export function htmlToText(html: string): string {
 
 /** Brand-aware HTML wrapper used by every template. */
 export function brandedLayout(title: string, bodyHtml: string, brand: Branding, appUrl: string): string {
-  const logo = brand.logoPath
-    ? `<img src="${appUrl}/api/uploads/${brand.logoPath}" alt="${escapeHtml(brand.name)}" style="height:36px;display:block">`
+  const logoSrc = uploadUrl(brand.logoPath);
+  const logo = logoSrc
+    ? `<img src="${/^https?:/.test(logoSrc) ? logoSrc : appUrl + logoSrc}" alt="${escapeHtml(brand.name)}" style="height:36px;display:block">`
     : `<span style="font-size:20px;font-weight:bold;color:${brand.color}">${escapeHtml(brand.name.toUpperCase())}</span>`;
   return `<!doctype html><html><head><meta charset="utf-8"><style>
     .btn{display:inline-block;background:${brand.color};color:#18181b !important;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:bold}

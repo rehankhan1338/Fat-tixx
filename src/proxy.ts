@@ -51,7 +51,7 @@ export function proxy(request: NextRequest) {
     `default-src 'self'`,
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://js.stripe.com${isDev ? " 'unsafe-eval'" : ''}`,
     `style-src 'self' 'unsafe-inline'`,
-    `img-src 'self' blob: data: https://*.stripe.com${pixelImg}`,
+    `img-src 'self' blob: data: https://*.stripe.com https://*.public.blob.vercel-storage.com${pixelImg}`,
     `font-src 'self'`,
     `connect-src 'self' https://api.stripe.com https://m.stripe.com https://r.stripe.com${pixelConnect}${geoConnect}`,
     `worker-src 'self'`,
