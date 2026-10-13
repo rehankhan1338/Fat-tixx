@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { login, watchConsole } from "./helpers/ui";
 
 const ADMIN_PAGES = ["/admin", "/admin/ads", "/admin/ads/new", "/admin/applications", "/admin/organizations", "/admin/events", "/admin/orders", "/admin/users", "/admin/settings", "/admin/settings?tab=branding", "/admin/emails", "/admin/emails/templates", "/admin/payments", "/admin/payments?tab=stripe", "/admin/payouts", "/admin/disputes", "/admin/monitoring", "/admin/audit", "/admin/security", "/dashboard", "/account"];
-const PUBLIC_PAGES = ["/", "/login", "/register", "/forgot-password", "/tickets/find", "/set-password/not-a-real-token", "/terms", "/privacy", "/refunds", "/ticketing-terms", "/organizer-agreement", "/sell"];
+const PUBLIC_PAGES = ["/", "/login", "/admin/login", "/register", "/forgot-password", "/tickets/find", "/set-password/not-a-real-token", "/terms", "/privacy", "/refunds", "/ticketing-terms", "/organizer-agreement", "/sell"];
 
 test.describe("smoke", () => {
   test("public pages render without console errors", async ({ page }) => {

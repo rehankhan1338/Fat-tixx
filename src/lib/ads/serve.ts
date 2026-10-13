@@ -113,11 +113,11 @@ export async function adHtmlForEmail(eventId: number | null): Promise<string> {
   const ad = await pickAd('email', { eventId });
   if (!ad) return '';
   const base = env.APP_URL;
-  const img = ad.imageUrl ? `<img src="${base}${ad.imageUrl}" alt="${escapeHtml(ad.alt)}" width="552" style="display:block;width:100%;max-width:552px;border-radius:8px">` : '';
+  const img = ad.imageUrl ? `<img src="${base}${ad.imageUrl}" alt="${escapeHtml(ad.alt)}" width="552" style="display:block;width:100%;max-width:552px;border-radius:12px">` : '';
   const text = [ad.headline ? `<strong>${escapeHtml(ad.headline)}</strong>` : '', ad.body ? escapeHtml(ad.body) : ''].filter(Boolean).join('<br>');
-  return `<div style="margin-top:24px;border-top:1px solid #e4e4e7;padding-top:12px">
-<p style="margin:0 0 6px;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:#71717a">Sponsored${ad.advertiser ? ` · ${escapeHtml(ad.advertiser)}` : ''}</p>
-<a href="${base}${ad.clickUrl}" style="color:#18181b;text-decoration:none">${img}${text ? `<p style="margin:8px 0 0">${text}</p>` : ''}</a>
+  return `<div style="margin-top:24px;border-top:1px solid #EFD4D6;padding-top:14px">
+<p style="margin:0 0 6px;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:#BB464C">Sponsored${ad.advertiser ? ` · ${escapeHtml(ad.advertiser)}` : ''}</p>
+<a href="${base}${ad.clickUrl}" style="color:#2A0A0C;text-decoration:none">${img}${text ? `<p style="margin:8px 0 0">${text}</p>` : ''}</a>
 <img src="${base}/api/ads/px?d=${encodeURIComponent(ad.token)}" width="1" height="1" alt="" style="display:block;width:1px;height:1px">
 </div>`;
 }

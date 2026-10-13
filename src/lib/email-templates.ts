@@ -230,23 +230,60 @@ export function htmlToText(html: string): string {
     .replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
-/** Brand-aware HTML wrapper used by every template. */
+/**
+ * Brand palette shared with the public site (src/app/globals.css, @theme static --color-fx-*). Email clients cannot read CSS
+ * variables, so the hex values are repeated here; keep the two in sync.
+ */
+export const EMAIL_THEME = {
+  red: '#A8121A',        // --color-fx-red: headings, text on light, header band
+  redSecond: '#C8201A',  // --color-fx-red-second: links, prices, notices
+  redNight: '#6E0A10',   // --color-fx-red-night: footer
+  yellow: '#FFD23F',     // --color-fx-yellow: primary buttons
+  ivory: '#F5F1EA',      // --color-fx-ivory: page background, text on red
+  white: '#FFFDFA',      // --color-fx-white: the sheet
+  sand: '#F3ECE2',       // --color-fx-sand: chips, code
+  ink: '#2A0A0C',        // --color-fx-ink: body text
+  muted: '#BB464C',      // red at 78% over white (the site's --muted-foreground)
+  border: '#EFD4D6',     // red at 18% over white (the site's --border)
+  footerText: '#CCACA9', // ivory at 70% over red-night (footer links)
+  sans: "'IBM Plex Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif",
+  display: "'Bricolage Grotesque', 'IBM Plex Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif",
+} as const;
+
+/** Brand-aware HTML wrapper used by every template, styled like the public site (ivory page, white sheet, red header, yellow pill buttons). */
 export function brandedLayout(title: string, bodyHtml: string, brand: Branding, appUrl: string): string {
-  const logoSrc = uploadUrl(brand.logoPath);
-  const logo = logoSrc
-    ? `<img src="${/^https?:/.test(logoSrc) ? logoSrc : appUrl + logoSrc}" alt="${escapeHtml(brand.name)}" style="height:36px;display:block">`
-    : `<span style="font-size:20px;font-weight:bold;color:${brand.color}">${escapeHtml(brand.name.toUpperCase())}</span>`;
-  return `<!doctype html><html><head><meta charset="utf-8"><style>
-    .btn{display:inline-block;background:${brand.color};color:#18181b !important;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:bold}
-    .muted{color:#71717a;font-size:12px} .notice{color:#b45309;font-weight:bold} code{font-family:monospace}
-    table.receipt{width:100%;border-collapse:collapse;font-size:14px} table.receipt td{padding:4px 0} table.receipt tr:last-child td{border-top:1px solid #e4e4e7;padding-top:8px}
-    h2{font-size:16px;margin:20px 0 8px}
-  </style></head><body style="margin:0;background:#f4f4f5;font-family:Arial,Helvetica,sans-serif;color:#18181b">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:24px">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:12px;overflow:hidden">
-<tr><td style="background:#18181b;padding:18px 24px">${logo}</td></tr>
-<tr><td style="padding:24px"><h1 style="margin:0 0 12px;font-size:20px">${escapeHtml(title)}</h1>${bodyHtml}</td></tr>
-<tr><td style="padding:16px 24px;color:#71717a;font-size:12px">You received this email because of a purchase or account on ${escapeHtml(brand.name)}. Questions? ${escapeHtml(brand.supportEmail)}</td></tr>
+  const T = EMAIL_THEME;
+  const uploaded = uploadUrl(brand.logoPath);
+  // The Super Admin logo wins; otherwise the Fattixx wordmark the site uses (transparent PNG, legible on the red band).
+  const logoSrc = uploaded ? (/^https?:/.test(uploaded) ? uploaded : appUrl + uploaded) : `${appUrl}/images/brand/fattixx-logo.png`;
+  const logo = `<img src="${logoSrc}" alt="${escapeHtml(brand.name)}" height="40" style="height:40px;width:auto;max-width:220px;display:block;border:0">`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${escapeHtml(title)}</title><style>
+    body{margin:0;padding:0;background:${T.ivory};-webkit-font-smoothing:antialiased}
+    p{margin:0 0 14px;font-size:15px;line-height:1.55}
+    a{color:${T.redSecond}}
+    strong{color:${T.red}}
+    h1{margin:0 0 16px;font-family:${T.display};font-size:24px;line-height:1.2;font-weight:700;letter-spacing:-.01em;color:${T.red}}
+    h2{margin:24px 0 10px;font-family:${T.display};font-size:17px;line-height:1.3;font-weight:600;color:${T.red}}
+    .btn{display:inline-block;background:${T.yellow};color:${T.red} !important;padding:13px 24px;border-radius:999px;text-decoration:none;font-weight:600;font-size:15px;line-height:1.2;mso-padding-alt:0;mso-line-height-rule:exactly}
+    .btn:hover{opacity:.88}
+    .muted{color:${T.muted};font-size:13px;line-height:1.5}
+    .muted a{color:${T.muted}}
+    .notice{color:${T.redSecond};font-weight:600}
+    code{font-family:'Geist Mono',Menlo,Consolas,monospace;font-size:13px;color:${T.red};background:${T.sand};padding:2px 7px;border-radius:6px;white-space:nowrap}
+    table.receipt{width:100%;border-collapse:collapse;font-size:14px;margin:4px 0 18px;color:${T.ink}}
+    table.receipt td{padding:8px 0;border-bottom:1px solid ${T.border};vertical-align:top}
+    table.receipt tr:last-child td{border-bottom:0;border-top:2px solid ${T.red};padding-top:12px;color:${T.red}}
+    @media (max-width:640px){.sheet{border-radius:18px !important}.pad{padding:22px !important}.band{padding:18px 22px !important}}
+  </style></head><body style="margin:0;background:${T.ivory};font-family:${T.sans};color:${T.ink}">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${T.ivory}"><tr><td align="center" style="padding:32px 16px">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" class="sheet" style="width:100%;max-width:600px;background:${T.white};border-radius:24px;overflow:hidden;box-shadow:0 18px 40px -24px rgba(78,7,11,.45)">
+<tr><td class="band" style="background:${T.red};padding:22px 28px"><a href="${appUrl}" style="display:inline-block;text-decoration:none">${logo}</a></td></tr>
+<tr><td class="pad" style="padding:28px;font-family:${T.sans};font-size:15px;line-height:1.55;color:${T.ink}"><h1 style="margin:0 0 16px;font-family:${T.display};font-size:24px;line-height:1.2;font-weight:700;letter-spacing:-.01em;color:${T.red}">${escapeHtml(title)}</h1>${bodyHtml}</td></tr>
+<tr><td class="pad" style="background:${T.redNight};padding:22px 28px;font-family:${T.sans};font-size:12px;line-height:1.6;color:${T.footerText}">
+<span style="font-family:${T.display};font-size:15px;font-weight:600;color:${T.ivory}">${escapeHtml(brand.name)}</span><br>
+You received this email because of a purchase or account on ${escapeHtml(brand.name)}.<br>
+Questions? <a href="mailto:${escapeHtml(brand.supportEmail)}" style="color:${T.ivory};text-decoration:underline">${escapeHtml(brand.supportEmail)}</a>
+</td></tr>
 </table></td></tr></table></body></html>`;
 }
 
