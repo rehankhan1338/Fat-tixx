@@ -36,7 +36,7 @@ export default async function WebsitePage({ searchParams }: PageProps<"/admin/we
         }
       />
       <Tabs defaultValue={tab}>
-        <TabsList>
+        <TabsList className="no-scrollbar w-full max-w-full flex-nowrap justify-start overflow-x-auto scroll-px-1 snap-x [&>*]:shrink-0 [&>*]:snap-start sm:w-fit sm:overflow-visible">
           <TabsTrigger value="homepage">Homepage</TabsTrigger>
           <TabsTrigger value="pricing">Pricing page</TabsTrigger>
           <TabsTrigger value="footer">Footer</TabsTrigger>
