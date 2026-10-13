@@ -373,11 +373,11 @@ export default function SiteNav({ account = null, overHero = false }: { account?
         >
           <SearchIcon size={20} stroke={2.2} />
         </button>
-        <a href={account?.href ?? "/login"} className="px-4 py-[10px] text-[15px] font-medium max-[721px]:hidden">
+        <a href={account?.href ?? "/login"} className="px-4 py-[10px] text-[15px] font-medium">
           {account?.label ?? "Log in"}
         </a>
 
-        <a href="/org/organization/events/new" className="rounded-full bg-fx-yellow px-5 py-[11px] text-[15px] font-semibold whitespace-nowrap text-fx-red max-[901px]:px-4">
+        <a href="/org/organization/events/new" className="rounded-full bg-fx-yellow px-5 py-[11px] text-[15px] font-semibold whitespace-nowrap text-fx-red max-[901px]:px-4 max-[721px]:hidden">
           Create event
         </a>
       </div>
