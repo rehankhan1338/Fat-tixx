@@ -1,0 +1,5 @@
+/* The admin console uses the public site's stylesheet unchanged: theme tokens, shadcn, the Fattixx brand skin. */
+@import "../../../Fattixx-web/src/app/globals.css";
+
+/* Tailwind scans this folder on its own; the shared components and the moved pages' imports live in Fattixx-web. */
+@source "../../../Fattixx-web/src";

@@ -5,6 +5,14 @@ project plan: organizations and roles, events and ticket types, all-in pricing, 
 holds, Stripe payments, signed QR tickets, check-in scanning, orders and refunds, settlement statements,
 fee and tax configuration, email delivery and a full audit trail. Product requirements live in `docs/`.
 
+The repository holds three apps side by side:
+
+| Folder | What it is |
+|---|---|
+| `Fattixx-web/` | the public site and organizer dashboards (Next.js) plus all shared code: `src/lib`, `src/components`, database migrations, scripts and tests. Every `npm` command below runs here. |
+| `Fattixx-admin/` | the platform staff console (Next.js, port 3100). Routes only; it imports `../Fattixx-web/src` and uses its `node_modules`. See `Fattixx-admin/README.md`. |
+| `Fattixx-app/` | the iOS / Android app (Expo). Its own `package.json` and README. |
+
 ## Stack
 
 | Layer      | Choice                                                            |
@@ -19,9 +27,10 @@ fee and tax configuration, email delivery and a full audit trail. Product requir
 ## First-time setup (Windows + XAMPP)
 
 1. Start **Apache** and **MySQL** in the XAMPP control panel.
-2. Install dependencies and create the database, tables and a least-privilege DB user:
+2. From `Fattixx-web/`, install dependencies and create the database, tables and a least-privilege DB user:
 
    ```bash
+   cd Fattixx-web
    npm install
    npm run db:setup
    ```
@@ -43,7 +52,8 @@ fee and tax configuration, email delivery and a full audit trail. Product requir
    ```
 
 Re-running `npm run admin:create` with the same email resets that account's password and revokes its sessions.
-Re-running `npm run db:setup` applies any new migration in `db/migrations/`.
+Re-running `npm run db:setup` applies any new migration in `db/migrations/`. `npm install` also links
+`node_modules` at the repository root to `Fattixx-web/node_modules`, which is how the admin console finds its packages.
 
 ## Optional integrations (.env.local)
 
@@ -63,8 +73,8 @@ Copy `.env.example` for the full list.
 
 | Role | Where they work | What they can do |
 |---|---|---|
-| **Super Admin** | `/admin` | Everything: create, edit and delete organizations, events (even with orders), orders, tickets and users; platform fees, emails, audit log, security. |
-| **Support / Finance** | `/admin` (reduced) | Platform staff roles for order lookup and money operations. |
+| **Super Admin** | admin console (`Fattixx-admin/`, `npm run admin:dev`, http://localhost:3100) | Everything: create, edit and delete organizations, events (even with orders), orders, tickets and users; platform fees, emails, audit log, security. |
+| **Support / Finance** | admin console (reduced) | Platform staff roles for order lookup and money operations. |
 | **Organization Admin** | `/org/<slug>` | Team & permissions, venues, all events, orders, refunds, settlement, organization profile. |
 | **Organizer** | `/org/<slug>` | Events they created or are assigned to; refunds / overrides only if granted. |
 | **Staff / Scanner** | `/org/<slug>/scan` | Check-in only, on assigned events. No financial data. |
@@ -144,7 +154,11 @@ and removes everything it created afterwards. Reports land in `tests/e2e/.report
 
 ## Project layout
 
+Paths are inside `Fattixx-web/` unless stated otherwise.
+
 ```
+../Fattixx-admin/        admin console: staff sign-in and /admin/** pages (imports ../Fattixx-web/src)
+../Fattixx-app/          Expo mobile app
 db/migrations/           SQL migrations, applied in order by scripts/db-setup.mjs
 scripts/                 db-setup.mjs (database, user, migrations) · create-super-admin.mjs
 src/proxy.ts             security headers, CSP nonce, CSRF origin check, /admin redirect
@@ -155,7 +169,7 @@ src/lib/checkin/         scan / manual / override / undo
 src/lib/events/          venues, events, ticket types
 src/lib/payments/        Stripe client · src/app/api/stripe/webhook
 src/lib/email.ts         outbox + SMTP · src/lib/tickets.ts  signed QR payloads
-src/app/admin/**         Super Admin panel · src/app/org/[slug]/**  organization panel
+src/app/org/[slug]/**    organization panel (the Super Admin panel lives in ../Fattixx-admin)
 src/app/…                /, /events/[slug], /checkout/[code], /orders/[code], /t/[code], /tickets/find, /account
 src/components/ui/       shadcn/ui components (owned source)
 tests/unit/              Vitest unit + DB integration tests · tests/e2e/  Playwright specs
@@ -163,6 +177,8 @@ uploads/                 event and organization images (served by /api/uploads)
 ```
 
 ## Scripts
+
+Run from `Fattixx-web/`.
 
 | Command                | Purpose                                            |
 |------------------------|----------------------------------------------------|
@@ -175,5 +191,6 @@ uploads/                 event and organization images (served by /api/uploads)
 | `npm run typecheck`    | TypeScript check                                    |
 | `npm run lint`         | ESLint                                              |
 | `npm run build`        | production build                                    |
+| `npm run admin:dev`    | admin console on http://localhost:3100 (also `admin:build`, `admin:start`, `admin:typecheck`, `admin:lint`) |
 #   F a t - t i x x  
  

@@ -1,6 +1,6 @@
 # Fat Tixx: project plan status
 
-Checked against *Fat_Tixx_Project_Plan.docx* on 2026-10-01. ✅ built and tested · 🟡 partly built (the gap is stated) · ⛔ not built (the reason is stated).
+Checked against *Fat_Tixx_Project_Plan.docx* on 2026-10-01. Paths are inside `Fattixx-web/` (the public site and shared code); the admin console is `Fattixx-admin/` and the mobile app `Fattixx-app/`. ✅ built and tested · 🟡 partly built (the gap is stated) · ⛔ not built (the reason is stated).
 
 ## Phase 1 (initial launch)
 
@@ -68,7 +68,7 @@ The Fattixx design handoff (`fattixx-web`) is applied to every public page, on t
 | Plan item | Why it is not built |
 |---|---|
 | Automated organizer payouts | Needs Stripe Connect and the money-flow decisions in 7.2 |
-| FATTIXX iOS / Android app | 🟡 Built 2026-10-04 as an Expo app in `Fat-Tixx-App/` (discover, event pages, Stripe checkout, tickets with QR, account, door scanner, Manage tab for organisers / staff / admins with native sales, attendee and order screens, and every other dashboard page inside the app via the `/app-login` sign-in handoff) on top of the Bearer-token API under `src/app/api/mobile/v1`. Offline scanning added 2026-10-04 (ticket list stored in SQLite with payload hashes only, queued check-ins synced with conflict flagging, same code on Android and iOS). Still to do: device testing on iOS, App Store / Play publishing under Chapman Products Co. accounts |
+| FATTIXX iOS / Android app | 🟡 Built 2026-10-04 as an Expo app in `Fattixx-app/` (discover, event pages, Stripe checkout, tickets with QR, account, door scanner, Manage tab for organisers / staff / admins with native sales, attendee and order screens, and every other dashboard page inside the app via the `/app-login` sign-in handoff) on top of the Bearer-token API under `src/app/api/mobile/v1`. Offline scanning added 2026-10-04 (ticket list stored in SQLite with payload hashes only, queued check-ins synced with conflict flagging, same code on Android and iOS). Still to do: device testing on iOS, App Store / Play publishing under Chapman Products Co. accounts |
 | Apple / Google Wallet passes | Needs Apple Pass Type ID certificate and Google Wallet issuer account |
 | White-label, subscriptions, sponsorship marketplace, self-service ad portal, expanded ad targeting | Phase 3 product scope; the data model (campaigns, org scoping) is ready for it |
 

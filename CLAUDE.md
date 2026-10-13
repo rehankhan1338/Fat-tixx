@@ -1,1 +1,1 @@
-@AGENTS.md
+@Fattixx-web/AGENTS.md

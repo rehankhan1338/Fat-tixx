@@ -1,0 +1,8 @@
+# build output (dependencies and tooling come from ../Fattixx-web)
+.next/
+node_modules/
+next-env.d.ts
+*.tsbuildinfo
+
+# env overrides for the console (the public site's ../Fattixx-web/.env.local is the fallback)
+.env*

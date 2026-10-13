@@ -1,61 +1,26 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Repository-wide ignores. Each app keeps its own .gitignore too:
+#   Fattixx-web/    public site + shared code (Next.js)
+#   Fattixx-admin/  admin console (Next.js, shares Fattixx-web's code and node_modules)
+#   Fattixx-app/    mobile app (Expo)
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+# dependencies (the root node_modules is a link to Fattixx-web/node_modules, made by its postinstall, for Fattixx-admin)
+node_modules/
 
-# testing
-/coverage
+# env files (each app's .env.example is kept)
+.env*
+!.env.example
 
-# next.js
-/.next/
-/out/
+# next.js build output and generated files
+.next/
+*.tsbuildinfo
+next-env.d.ts
 
-# production
-/build
+# vercel
+.vercel
 
 # misc
 .DS_Store
 *.pem
 
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-
-# keep the documented example env file
-!.env.example
-
-# user-uploaded images (served by /api/uploads)
-/uploads/
-
-# test output
-tests/e2e/.artifacts/
-tests/e2e/.report/
-
-# database backups (npm run db:backup)
-backups/
-
-# Expo mobile app (Fat-Tixx-App has its own .gitignore for node_modules, .expo, builds)
-Fat-Tixx-App/.env
-Fat-Tixx-App/*.keystore
-
-# verification builds (FX_DIST_DIR)
-.next-verify
+# Expo mobile app (Fattixx-app has its own .gitignore for .expo and builds)
+Fattixx-app/*.keystore
