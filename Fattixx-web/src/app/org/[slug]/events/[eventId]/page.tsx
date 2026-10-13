@@ -94,7 +94,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/or
       </div>
 
       <Tabs defaultValue={tab}>
-        <TabsList className="flex-wrap">
+        <TabsList className="no-scrollbar w-full max-w-full flex-nowrap justify-start overflow-x-auto scroll-px-1 snap-x [&>*]:snap-start sm:w-fit sm:flex-wrap sm:justify-center sm:overflow-visible">
           <TabsTrigger value="tickets">Ticket types</TabsTrigger>
           <TabsTrigger value="attendees">Attendees ({attendees.length})</TabsTrigger>
           {canEdit ? <TabsTrigger value="schedule">Schedule{dates.length > 1 ? ` (${dates.length} days)` : ""}</TabsTrigger> : null}

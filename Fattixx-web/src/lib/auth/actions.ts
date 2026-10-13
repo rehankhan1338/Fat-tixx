@@ -59,7 +59,8 @@ async function signIn(portal: LoginPortal, formData: FormData): Promise<ActionSt
     const [ip, ua] = await Promise.all([clientIp(), userAgent()]);
     await recordAttempt({ emailNormalized: normalizeEmail(email), userId: user.id, ip, success: false, reason: `wrong_portal:${portal}`, userAgent: ua });
     await audit('auth.login.failed', { actorUserId: user.id, metadata: { reason: 'wrong_portal', portal } });
-    return { error: portal === 'public' ? `Platform staff sign in at the admin console: ${env.ADMIN_URL}` : STAFF_ONLY_PORTAL_ERROR };
+    // The public site deliberately does not say where staff sign in; the alert shows just its title.
+    return { error: portal === 'public' ? 'Something went wrong' : STAFF_ONLY_PORTAL_ERROR };
   }
 
   await createSession(user.id);

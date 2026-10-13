@@ -35,10 +35,13 @@ export function ColumnChart({ data, valueLabel, height = 160, emptyText = "No da
       <div className="flex justify-between text-[11px] text-muted-foreground" aria-hidden="true">
         <span>{data[0].label}</span>{data.length > 2 ? <span>{data[Math.floor(data.length / 2)].label}</span> : null}<span>{data[data.length - 1].label}</span>
       </div>
-      <table className="sr-only">
-        <caption>{valueLabel}</caption>
-        <tbody>{data.map((x) => <tr key={x.label}><th scope="row">{x.label}</th><td>{x.display ?? x.value}</td></tr>)}</tbody>
-      </table>
+      {/* Screen-reader data. The wrapper carries sr-only: a <table> ignores the 1px height and overflow clip and would stretch the page. */}
+      <div className="sr-only">
+        <table>
+          <caption>{valueLabel}</caption>
+          <tbody>{data.map((x) => <tr key={x.label}><th scope="row">{x.label}</th><td>{x.display ?? x.value}</td></tr>)}</tbody>
+        </table>
+      </div>
     </figure>
   );
 }

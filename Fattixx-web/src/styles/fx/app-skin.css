@@ -303,7 +303,7 @@
 
 /* buttons: the create page's pills (button() in components/ui/styles.ts). A Button rendered as a dialog, menu or popover
    trigger carries the trigger's data-slot, so buttons are also matched by their variant + size attributes. */
-:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size]) {
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size]:not([data-slot="item"])) {
   height: auto;
   min-height: 46px;
   padding-inline: 22px;
@@ -317,91 +317,91 @@
   transition: background-color .2s, color .2s, border-color .2s, opacity .2s;
 }
 
-:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-variant="default"] {
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size]:not([data-slot="item"]))[data-variant="default"] {
   background: var(--color-fx-yellow);
   color: var(--color-fx-red);
 }
 
-:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-variant="default"]:hover {
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size]:not([data-slot="item"]))[data-variant="default"]:hover {
   background: var(--color-fx-yellow);
   opacity: .88;
 }
 
-:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-variant="secondary"] {
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size]:not([data-slot="item"]))[data-variant="secondary"] {
   background: var(--color-fx-red);
   color: var(--color-fx-ivory);
 }
 
-:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-variant="secondary"]:hover {
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size]:not([data-slot="item"]))[data-variant="secondary"]:hover {
   background: var(--color-fx-red);
   opacity: .88;
 }
 
-:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-variant="outline"] {
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size]:not([data-slot="item"]))[data-variant="outline"] {
   border-color: color-mix(in srgb, var(--color-fx-red) 30%, transparent);
   background: #ffffff;
   color: var(--color-fx-red);
 }
 
-:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-variant="outline"]:hover {
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size]:not([data-slot="item"]))[data-variant="outline"]:hover {
   border-color: var(--color-fx-red);
   background: #ffffff;
 }
 
-:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-variant="ghost"] {
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size]:not([data-slot="item"]))[data-variant="ghost"] {
   background: transparent;
   color: var(--color-fx-red);
 }
 
-:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-variant="ghost"]:hover {
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size]:not([data-slot="item"]))[data-variant="ghost"]:hover {
   background: var(--color-fx-sand);
 }
 
-:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-variant="destructive"] {
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size]:not([data-slot="item"]))[data-variant="destructive"] {
   background: var(--color-fx-red-second);
   color: var(--color-fx-ivory);
 }
 
-:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-variant="destructive"]:hover {
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size]:not([data-slot="item"]))[data-variant="destructive"]:hover {
   background: var(--color-fx-red-second);
   opacity: .88;
 }
 
-:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-variant="link"] {
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size]:not([data-slot="item"]))[data-variant="link"] {
   min-height: 36px;
   padding-inline: 4px;
   color: var(--color-fx-red-second);
 }
 
-:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-size="sm"],
-:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-size="xs"] {
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size]:not([data-slot="item"]))[data-size="sm"],
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size]:not([data-slot="item"]))[data-size="xs"] {
   min-height: 42px;
   padding-inline: 18px;
   font-size: 14px;
 }
 
-:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-size="lg"] {
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size]:not([data-slot="item"]))[data-size="lg"] {
   min-height: 52px;
   padding-inline: 26px;
   font-size: 16px;
 }
 
-:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-size^="icon"] {
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size]:not([data-slot="item"]))[data-size^="icon"] {
   min-height: 0;
   padding-inline: 0;
 }
 
-:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-size="icon"] {
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size]:not([data-slot="item"]))[data-size="icon"] {
   width: 44px;
   height: 44px;
 }
 
-:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-size="icon-sm"] {
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size]:not([data-slot="item"]))[data-size="icon-sm"] {
   width: 40px;
   height: 40px;
 }
 
-:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size])[data-size="icon-xs"] {
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) :is([data-slot="button"], [data-variant][data-size]:not([data-slot="item"]))[data-size="icon-xs"] {
   width: 32px;
   height: 32px;
 }
@@ -435,4 +435,30 @@
 :where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="native-select-icon"] {
   right: 1rem;
   color: color-mix(in srgb, var(--color-fx-red) 78%, transparent);
+}
+
+/* list items (components/ui/item): rounded rows, never the button pill (they carry data-variant/data-size too) */
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="item"] {
+  border-radius: 18px;
+  padding: 14px 16px;
+  gap: 12px;
+  font-size: 15px;
+  white-space: normal;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="item"][data-variant="outline"] {
+  border: 1px solid color-mix(in srgb, var(--color-fx-red) 15%, transparent);
+  background: #ffffff;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="item-title"] {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-fx-red);
+  flex-wrap: wrap;
+}
+
+:where(.fx-app, .fx-content, .fx-form, body:has(.fx-app)) [data-slot="item-description"] {
+  color: color-mix(in srgb, var(--color-fx-red) 70%, #000);
 }

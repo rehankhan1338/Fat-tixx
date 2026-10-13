@@ -22,8 +22,8 @@ export default async function ScanIndexPage({ params }: PageProps<"/org/[slug]/s
           <ItemGroup>
             {events.map((e) => (
               <Item key={e.id} variant="outline">
-                <ItemContent><ItemTitle>{e.title} <StatusBadge status={e.status} /></ItemTitle><ItemDescription>{formatEventDate(new Date(e.starts_at), e.timezone)}{e.venue_name ? ` · ${e.venue_name}` : ""} · {e.checked_in}/{e.tickets_sold} checked in</ItemDescription></ItemContent>
-                <ItemActions><Button render={<Link href={`/org/${slug}/events/${e.id}/scan`} />}><ScanLineIcon /> Open scanner</Button></ItemActions>
+                <ItemContent className="min-w-0 basis-full sm:basis-auto"><ItemTitle className="line-clamp-none w-full">{e.title} <StatusBadge status={e.status} /></ItemTitle><ItemDescription>{formatEventDate(new Date(e.starts_at), e.timezone)}{e.venue_name ? ` · ${e.venue_name}` : ""} · {e.checked_in}/{e.tickets_sold} checked in</ItemDescription></ItemContent>
+                <ItemActions className="w-full sm:w-auto"><Button className="w-full sm:w-auto" render={<Link href={`/org/${slug}/events/${e.id}/scan`} />}><ScanLineIcon /> Open scanner</Button></ItemActions>
               </Item>
             ))}
           </ItemGroup>

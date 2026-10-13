@@ -125,6 +125,8 @@ export function FormValidation() {
  * Error box for a server action result. Each new result scrolls into view; when the action names the
  * field (`field`), that field is highlighted and focused instead.
  */
+const ERROR_TITLE = "Something went wrong";
+
 export function ErrorAlert({ message, field, result }: { message: string; field?: string; result: unknown }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -142,8 +144,8 @@ export function ErrorAlert({ message, field, result }: { message: string; field?
   return (
     <Alert ref={ref} tabIndex={-1} variant="destructive" className="outline-none">
       <AlertCircleIcon />
-      <AlertTitle>Something went wrong</AlertTitle>
-      <AlertDescription>{message}</AlertDescription>
+      <AlertTitle>{ERROR_TITLE}</AlertTitle>
+      {message === ERROR_TITLE ? null : <AlertDescription>{message}</AlertDescription>}
     </Alert>
   );
 }

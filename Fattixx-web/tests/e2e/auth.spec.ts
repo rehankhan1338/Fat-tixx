@@ -46,7 +46,7 @@ test.describe("authentication", () => {
   test("super admin cannot sign in from the public /login page", async ({ page, context }) => {
     await login(page, E2E.adminEmail, E2E.adminPassword, "/login");
     await expect(page).toHaveURL(/\/login$/);
-    await expect(page.locator("form [role=alert]")).toContainText("Platform staff sign in at the admin console");
+    await expect(page.locator("form [role=alert]")).toHaveText(/^\s*Something went wrong\s*$/);
     expect((await context.cookies()).filter((k) => /fx_session|fx_admin/.test(k.name))).toEqual([]);
     // Signed out, every admin link on the public site ends on the console's sign-in page, not the public one.
     await page.goto("/admin/users");
