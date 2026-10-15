@@ -66,9 +66,6 @@ export function sessionCookieOptions(maxAgeSeconds: number) {
   };
 }
 
-/** Browser sessions opened from inside the mobile app's web view carry this label so signing out of the app revokes them too. */
-export const APP_WEB_UA_PREFIX = 'FatTixxAppWeb/';
-
 export async function createSession(userId: number, opts: { label?: string } = {}): Promise<void> {
   const token = randomToken(32);
   const id = sha256(token);
@@ -157,9 +154,8 @@ async function resolveSession(token: string, via: CurrentSession['via']): Promis
  * Returns null for missing, expired, idle, revoked, or suspended.
  */
 export const getSession = cache(async (): Promise<CurrentSession | null> => {
-  // The app's Bearer header wins over the cookie. On a phone the in-app WebView (signed in through
-  // /app-login) shares its cookie jar with the app's own fetch, so API requests may carry a browser
-  // cookie as well; that cookie must never shadow, or (once idle) hide, the app session the request names.
+  // The app's Bearer header wins over the cookie: a stray browser cookie on the phone must never shadow,
+  // or (once idle) hide, the app session the request names.
   const auth = (await headers()).get('authorization');
   const m = auth?.match(/^Bearer\s+([A-Za-z0-9_-]{32,128})$/i);
   if (m && plausibleToken(m[1])) return resolveSession(m[1], 'bearer');

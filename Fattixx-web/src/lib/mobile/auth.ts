@@ -19,7 +19,7 @@ export interface MobileMembership { slug: string; name: string; role: OrgRole; l
 export interface MobileAccount {
   user: MobileUser;
   memberships: MobileMembership[];
-  /** True when the Scan tab should be shown: any organisation membership or a platform role. */
+  /** True when the account has somewhere to be in the app: an active organisation membership. Platform roles alone do not count. */
   canScan: boolean;
 }
 
@@ -36,6 +36,6 @@ export async function mobileAccount(userId: number): Promise<MobileAccount | nul
   return {
     user: { id: row.public_id, email: row.email, name: row.name, emailVerified: row.email_verified_at != null, roles },
     memberships: memberships.map((m) => ({ slug: m.slug, name: m.name, role: m.role, logoUrl: absoluteUrl(uploadUrl(m.logo_path)), suspended: m.status !== 'active' })),
-    canScan: roles.length > 0 || memberships.some((m) => m.status === 'active'),
+    canScan: memberships.some((m) => m.status === 'active'),
   };
 }

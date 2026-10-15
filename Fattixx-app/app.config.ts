@@ -4,12 +4,13 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
  * Fat Tixx mobile app (Android + iOS). Native behaviour is configured here and generated at build time
  * (Continuous Native Generation); the ios/ and android/ folders are never edited by hand.
  *
- * API_URL: where the Next.js backend runs. Set EXPO_PUBLIC_API_URL in `.env` (see .env.example).
- * During development on a phone this is your PC's LAN address, e.g. http://192.168.1.22:3000.
+ * API_URL: where the Next.js backend runs. Unset in development, the app uses the machine that runs
+ * `npx expo start` (see src/lib/config.ts); set EXPO_PUBLIC_API_URL in `.env` for a fixed backend.
  * Production builds must point at an https:// origin (enforced in src/lib/config.ts).
  */
-const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
-const isDevApi = /^http:\/\//i.test(apiUrl);
+const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? null;
+// Plain-http backend (a dev machine on the LAN): Android must be allowed cleartext traffic.
+const isDevApi = !apiUrl || /^http:\/\//i.test(apiUrl);
 
 const BRAND_RED = '#A8121A';
 
@@ -42,12 +43,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     'expo-router',
-    ['expo-splash-screen', { backgroundColor: BRAND_RED, image: './assets/images/splash-icon.png', imageWidth: 120 }],
+    // Launch screen: the ticket logo on brand red, like the website's header (Expo Go cannot show it; the
+    // in-app src/components/Splash.tsx draws the same screen while the session is restored).
+    ['expo-splash-screen', { backgroundColor: BRAND_RED, image: './assets/images/splash-icon.png', imageWidth: 220, resizeMode: 'contain', dark: { backgroundColor: BRAND_RED, image: './assets/images/splash-icon.png' } }],
     ['expo-secure-store', { configureAndroidBackup: false }],
     ['expo-camera', { cameraPermission: 'Fat Tixx uses the camera to scan ticket QR codes at the door.' }],
-    ['@stripe/stripe-react-native', { merchantIdentifier: 'merchant.com.fattixx.app', enableGooglePay: true }],
     ['expo-build-properties', { android: { usesCleartextTraffic: isDevApi }, ios: {} }],
   ],
-  extra: { apiUrl },
+  extra: apiUrl ? { apiUrl } : {},
   experiments: { typedRoutes: true, reactCompiler: true },
 });

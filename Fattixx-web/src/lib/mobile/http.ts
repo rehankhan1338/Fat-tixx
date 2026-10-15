@@ -76,6 +76,18 @@ export function appAccessError(roles: PlatformRole[]): string | null {
   return roles.some((r) => APP_BLOCKED_ROLES.includes(r)) ? APP_BLOCKED_MESSAGE : null;
 }
 
+/**
+ * The app is the Scan Manager (plan: download tickets, scan, manual check-in, override, undo, live counts)
+ * for Organization Admins, Organizers and Staff / Scanners, each through an active organisation membership.
+ * It has no attendee side (decision 2026-10-14) and nothing for platform-only accounts, so an account
+ * without an active membership is refused at sign-in with a pointer to the website.
+ */
+export const APP_NO_PANEL_MESSAGE = 'This app is for organization admins, organizers and door staff. Attendees can see their tickets on the website.';
+
+export function appPanelError(account: { memberships: { suspended: boolean }[] }): string | null {
+  return account.memberships.some((m) => !m.suspended) ? null : APP_NO_PANEL_MESSAGE;
+}
+
 /** The signed-in app user, or 401. Blocked roles get 401 too, so the app drops the stored session. */
 export async function requireUser(): Promise<CurrentSession> {
   const session = await getSession();

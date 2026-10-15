@@ -1,23 +1,23 @@
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
-import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { LogOut, Smartphone, Globe, ShieldCheck } from 'lucide-react-native';
-import { useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
 import { useConfig, useSessions } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthProvider';
-import { BrandBlock } from '@/components/BrandMark';
 import { Button, Card, Notice, Screen, Txt } from '@/components/ui';
 import { API_URL, APP_VERSION } from '@/lib/config';
 import { colors, red } from '@/theme/tokens';
 
+/**
+ * The signed-in person: who they are, which organisations they work for and in what role, where they
+ * are signed in, and the legal pages (opened in the system browser). Organisation settings, team,
+ * payouts and the rest of the dashboard are website-only and are not linked from here.
+ */
 export default function AccountScreen() {
-  const { status, account, signOut, refresh } = useAuth();
+  const { account, signOut, refresh } = useAuth();
   const { data: config } = useConfig();
-  const signedIn = status === 'signed-in' && !!account;
-  const { data: sessions, refetch } = useSessions(signedIn);
-  const queryClient = useQueryClient();
+  const { data: sessions, refetch } = useSessions(!!account);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -31,7 +31,7 @@ export default function AccountScreen() {
     refetch();
   }
   function confirmSignOut() {
-    Alert.alert('Sign out', 'This signs out this device. Tickets bought as a guest on this device are forgotten too.', [
+    Alert.alert('Sign out', 'This signs out this device. Ticket lists saved for offline scanning are removed.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Sign out', style: 'destructive', onPress: () => { void signOut(); } },
     ]);
@@ -40,28 +40,17 @@ export default function AccountScreen() {
   const legal = config?.legal ?? { terms: `${API_URL}/terms`, privacy: `${API_URL}/privacy`, refunds: `${API_URL}/refunds`, ticketing: `${API_URL}/ticketing-terms` };
 
   return (
-    <Screen title="Account" onRefresh={signedIn ? () => { refresh(); refetch(); queryClient.invalidateQueries({ queryKey: ['me:orders'] }); } : undefined} refreshing={false}>
-      {!signedIn ? (
-        <Card style={{ gap: 14, alignItems: 'flex-start' }}>
-          <BrandBlock size={48} />
-          <Txt variant="title">Your Fat Tixx account</Txt>
-          <Txt variant="small">Keep every ticket in one place, check in faster at the door and manage events you organize.</Txt>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            <Button title="Sign in" onPress={() => router.push('/login')} />
-            <Button title="Create account" variant="outline" onPress={() => router.push('/register')} />
-          </View>
-        </Card>
-      ) : (
+    <Screen title="Account" onRefresh={() => { refresh(); refetch(); }} refreshing={false}>
+      {account ? (
         <>
           <Card style={{ gap: 4 }}>
             <Txt variant="caption">Signed in as</Txt>
             <Txt variant="title">{account.user.name}</Txt>
             <Txt variant="small">{account.user.email}</Txt>
-            {account.user.roles.length ? <Txt variant="caption">Platform role: {account.user.roles.join(', ')}</Txt> : null}
           </Card>
           {!account.user.emailVerified ? (
             <Notice tone="warning" title="Confirm your email address">
-              <Txt variant="small" color={colors.amber}>Until it is confirmed, only orders placed while signed in are shown.</Txt>
+              <Txt variant="small" color={colors.amber}>Check your inbox for the confirmation link.</Txt>
               {msg ? <Txt variant="small" color={colors.amber} style={{ marginTop: 4 }}>{msg}</Txt> : null}
               <Button title="Resend confirmation link" variant="outline" size="sm" onPress={resend} loading={busy} style={{ marginTop: 8 }} />
             </Notice>
@@ -70,15 +59,14 @@ export default function AccountScreen() {
             <View style={{ gap: 8, marginTop: 16 }}>
               <Txt variant="eyebrow">Organizations</Txt>
               {account.memberships.map((m) => (
-                <Pressable key={m.slug} accessibilityRole="button" onPress={() => router.push({ pathname: '/manage/[org]', params: { org: m.slug, name: m.name } })} style={styles.row}>
-                  <View style={{ flex: 1 }}><Txt variant="bodyStrong">{m.name}</Txt><Txt variant="caption">{m.role.replace('_', ' ')}{m.suspended ? ' · suspended' : ''}</Txt></View>
-                  <Txt variant="caption">Manage</Txt>
-                </Pressable>
+                <View key={m.slug} style={styles.row}>
+                  <View style={{ flex: 1 }}><Txt variant="bodyStrong">{m.name}</Txt><Txt variant="caption">{m.role === 'org_admin' ? 'Organization admin' : m.role === 'organizer' ? 'Organizer' : 'Staff / scanner'}{m.suspended ? ' · suspended' : ''}</Txt></View>
+                </View>
               ))}
             </View>
           ) : null}
           <View style={{ gap: 8, marginTop: 16 }}>
-            <Txt variant="eyebrow">Where you’re signed in</Txt>
+            <Txt variant="eyebrow">Where you&rsquo;re signed in</Txt>
             {(sessions?.sessions ?? []).map((s) => (
               <View key={s.id} style={styles.row}>
                 {s.kind === 'app' ? <Smartphone size={18} color={red(0.6)} /> : <Globe size={18} color={red(0.6)} />}
@@ -92,12 +80,12 @@ export default function AccountScreen() {
           </View>
           <Button title="Sign out" variant="outline" full onPress={confirmSignOut} icon={<LogOut size={16} color={colors.red} />} style={{ marginTop: 20 }} />
         </>
-      )}
+      ) : null}
 
       <View style={{ gap: 8, marginTop: 28 }}>
         <Txt variant="eyebrow">Legal & help</Txt>
         <Card flat style={{ gap: 2, padding: 6 }}>
-          {[['Terms of service', legal.terms], ['Privacy policy', legal.privacy], ['Refund policy', legal.refunds], ['Ticketing terms', legal.ticketing], ['Sell tickets on Fat Tixx', `${API_URL}/sell`]].map(([label, url]) => (
+          {[['Terms of service', legal.terms], ['Privacy policy', legal.privacy], ['Refund policy', legal.refunds], ['Ticketing terms', legal.ticketing]].map(([label, url]) => (
             <Pressable key={label} accessibilityRole="link" onPress={() => WebBrowser.openBrowserAsync(url)} style={styles.link}><Txt variant="body">{label}</Txt></Pressable>
           ))}
         </Card>

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -7,13 +7,14 @@ import { useFonts } from 'expo-font';
 import { BricolageGrotesque_600SemiBold, BricolageGrotesque_700Bold, BricolageGrotesque_800ExtraBold } from '@expo-google-fonts/bricolage-grotesque';
 import { IBMPlexSans_400Regular, IBMPlexSans_500Medium, IBMPlexSans_600SemiBold, IBMPlexSans_700Bold } from '@expo-google-fonts/ibm-plex-sans';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { StripeProvider } from '@stripe/stripe-react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { AuthProvider } from '@/auth/AuthProvider';
+import { AuthProvider, useAuth } from '@/auth/AuthProvider';
+import { Splash } from '@/components/Splash';
 import { TopProgress } from '@/components/TopProgress';
-import { useConfig } from '@/api/hooks';
 import { colors } from '@/theme/tokens';
 
+// The native splash (brand red with the ticket logo) stays up until the in-app <Splash /> (same screen plus a
+// loading spinner) has drawn; that one stays until fonts are in and the stored session is checked.
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 /**
@@ -26,45 +27,56 @@ const queryClient = new QueryClient({
 const theme = { ...DefaultTheme, colors: { ...DefaultTheme.colors, primary: colors.red, background: colors.ivory, card: colors.pureWhite, text: colors.red, border: 'rgba(168,18,26,0.12)' } };
 
 export default function RootLayout() {
-  const [fontsLoaded, fontError] = useFonts({
-    BricolageGrotesque_600SemiBold, BricolageGrotesque_700Bold, BricolageGrotesque_800ExtraBold,
-    IBMPlexSans_400Regular, IBMPlexSans_500Medium, IBMPlexSans_600SemiBold, IBMPlexSans_700Bold,
-  });
-  useEffect(() => {
-    if (fontsLoaded || fontError) SplashScreen.hideAsync().catch(() => {});
-  }, [fontsLoaded, fontError]);
-  if (!fontsLoaded && !fontError) return <View style={styles.splash} />;
   return (
     <GestureHandlerRootView style={styles.fill}>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <Providers />
+          <Gate />
         </AuthProvider>
       </QueryClientProvider>
     </GestureHandlerRootView>
   );
 }
 
-/** Stripe needs the platform's publishable key; until the config has loaded the provider stays idle (empty key). */
-function Providers() {
-  const { data: config } = useConfig();
+/**
+ * The app has two worlds and nothing public: signed out there is only the sign-in screen (and password
+ * reset); signed in there are the events and the check-in screens. `Stack.Protected` keeps each side
+ * unreachable from the other, and when the session ends on a signed-in screen the router drops back to
+ * "/", which redirects to sign-in. Nothing here links to the website: the organiser dashboard, admin
+ * console, analytics, marketing, orders and the like stay on the web.
+ */
+function Gate() {
+  const { status } = useAuth();
+  const [fontsLoaded, fontError] = useFonts({
+    BricolageGrotesque_600SemiBold, BricolageGrotesque_700Bold, BricolageGrotesque_800ExtraBold,
+    IBMPlexSans_400Regular, IBMPlexSans_500Medium, IBMPlexSans_600SemiBold, IBMPlexSans_700Bold,
+  });
+  const ready = (fontsLoaded || !!fontError) && status !== 'loading';
+  useEffect(() => {
+    if (ready) SplashScreen.hideAsync().catch(() => {});
+  }, [ready]);
+  if (!ready) return <Splash />;
+
+  const signedIn = status === 'signed-in';
   return (
-    <StripeProvider publishableKey={config?.stripe?.publishableKey ?? ''} merchantIdentifier="merchant.com.fattixx.app" urlScheme="fattixx">
-      <ThemeProvider value={theme}>
-        <StatusBar style="dark" />
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ivory }, animation: 'slide_from_right' }}>
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="login" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
-          <Stack.Screen name="register" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+    <ThemeProvider value={theme}>
+      <StatusBar style="dark" />
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ivory }, animation: 'slide_from_right' }}>
+        <Stack.Screen name="index" options={{ animation: 'none' }} />
+        <Stack.Protected guard={!signedIn}>
+          <Stack.Screen name="login" options={{ animation: 'fade' }} />
           <Stack.Screen name="forgot" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
-          <Stack.Screen name="find-tickets" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
-          <Stack.Screen name="web" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
-          <Stack.Screen name="ticket/[code]" options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
-        </Stack>
-        <TopProgress />
-      </ThemeProvider>
-    </StripeProvider>
+        </Stack.Protected>
+        <Stack.Protected guard={signedIn}>
+          <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
+          <Stack.Screen name="event/[org]/[eventId]/index" />
+          <Stack.Screen name="event/[org]/[eventId]/attendees" />
+          <Stack.Screen name="scan/[org]/[eventId]" />
+        </Stack.Protected>
+      </Stack>
+      <TopProgress />
+    </ThemeProvider>
   );
 }
 
-const styles = StyleSheet.create({ fill: { flex: 1 }, splash: { flex: 1, backgroundColor: colors.red } });
+const styles = StyleSheet.create({ fill: { flex: 1 } });

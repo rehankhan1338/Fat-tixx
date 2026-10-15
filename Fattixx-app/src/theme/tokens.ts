@@ -41,7 +41,6 @@ export const colors = {
 /** rgba() of the brand red at a given opacity (the site uses text-fx-red/78, border-fx-red/14 ...). */
 export const red = (alpha: number) => `rgba(168,18,26,${alpha})`;
 export const ivory = (alpha: number) => `rgba(245,241,234,${alpha})`;
-export const deep = (alpha: number) => `rgba(78,7,11,${alpha})`;
 
 export const radius = { sm: 8, md: 12, lg: 16, xl: 20, pill: 999 } as const;
 
@@ -68,13 +67,3 @@ export const cardShadow = {
   shadowOffset: { width: 0, height: 10 },
   elevation: 4,
 } as const;
-
-/** Poster art variants for events without a photo (styles/fx-home/posters.css). */
-export const posterVariants = [
-  { bg: '#FFD23F', accent: '#E0241B', text: '#A8121A', shape: 'dot' },
-  { bg: '#B01A18', bg2: '#7A0C12', accent: 'rgba(255,210,63,0.9)', text: '#F5F1EA', shape: 'glow' },
-  { bg: '#F5F1EA', accent: '#E0241B', text: '#A8121A', shape: 'dot-stripes' },
-  { bg: '#E0241B', bg2: '#8E0E15', accent: '#FFD23F', text: '#F5F1EA', shape: 'ring' },
-  { bg: '#FFD23F', bg2: '#FF8F3D', accent: '#C8201A', text: '#A8121A', shape: 'ring-left' },
-  { bg: '#8E0E15', bg2: '#5E090E', accent: 'rgba(255,210,63,0.5)', text: '#FFD23F', shape: 'glow-top' },
-] as const;

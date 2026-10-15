@@ -4,22 +4,23 @@ import { useLocalSearchParams } from 'expo-router';
 import { Search } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
-import { useManageAttendees, useManageEvent } from '@/api/hooks';
-import type { ManageAttendee, ScanResult } from '@/api/types';
+import { useAttendees, useEventDetail } from '@/api/hooks';
+import type { Attendee, ScanResult } from '@/api/types';
 import { Button, ErrorState, Notice, Screen, ScreenLoader, StatusBadge, Txt } from '@/components/ui';
 import { colors, fonts, radius, red } from '@/theme/tokens';
 
 /**
- * Door list. Check a guest in by name when their phone is dead, or undo a mistaken scan. Both go through
- * the same server actions as the camera scanner, so every change is logged with the staff member's name
- * and the organisation's override / undo permissions apply.
+ * Door list. Check a guest in by name when their phone is dead, admit a ticket the scanner refused
+ * (override), or undo a mistaken scan. All go through the same server actions as the camera scanner, so
+ * every change is logged with the staff member's name and the per-member override / undo permissions
+ * set by the Organization Admin apply.
  */
 export default function AttendeesScreen() {
   const { org, eventId, title } = useLocalSearchParams<{ org: string; eventId: string; title?: string }>();
   const [q, setQ] = useState('');
   const [debounced, setDebounced] = useState('');
-  const { data, isLoading, isError, error, refetch, isRefetching } = useManageAttendees(org, eventId, debounced);
-  const { data: event } = useManageEvent(org, eventId);
+  const { data, isLoading, isError, error, refetch, isRefetching } = useAttendees(org, eventId, debounced);
+  const { data: event } = useEventDetail(org, eventId);
   const queryClient = useQueryClient();
   const [msg, setMsg] = useState<{ tone: 'success' | 'error' | 'warning'; text: string } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -30,16 +31,16 @@ export default function AttendeesScreen() {
     timer.current = setTimeout(() => setDebounced(v.trim()), 250);
   }
 
-  async function act(a: ManageAttendee, action: 'manual' | 'undo' | 'override') {
+  async function act(a: Attendee, action: 'manual' | 'undo' | 'override') {
     const reason = action === 'manual' ? undefined : action === 'undo' ? 'Undone from the app door list' : 'Admitted from the app door list';
     try {
       const r = await api<ScanResult>(`/scan/${org}/${eventId}`, { method: 'POST', body: { action, ticketId: a.ticketId, reason } });
       const good = r.result === 'manual' || r.result === 'override' || r.result === 'undo';
       setMsg({ tone: good ? 'success' : r.result === 'already_used' ? 'warning' : 'error', text: `${a.name ?? a.buyerName ?? a.code}: ${r.message}` });
-      await queryClient.invalidateQueries({ queryKey: ['me:manage', org] });
+      await queryClient.invalidateQueries({ queryKey: ['me:event', org, eventId] });
     } catch (e) { setMsg({ tone: 'error', text: (e as Error).message }); }
   }
-  function confirm(a: ManageAttendee) {
+  function confirm(a: Attendee) {
     const who = a.name ?? a.buyerName ?? a.code;
     if (a.status === 'valid') {
       Alert.alert('Check in', `Admit ${who} (${a.ticketType})?`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Check in', onPress: () => { void act(a, 'manual'); } }]);

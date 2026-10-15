@@ -7,6 +7,7 @@ import { AuthShell } from '@/components/AuthShell';
 import { Button, Field, Notice, Txt } from '@/components/ui';
 import { colors } from '@/theme/tokens';
 
+/** The app's first screen. Only organisation members (organization admin, organizer, staff / scanner) get in. */
 export default function LoginScreen() {
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
@@ -20,16 +21,17 @@ export default function LoginScreen() {
     setBusy(true); setError(null);
     try {
       await signIn(email.trim(), password);
-      if (router.canGoBack()) router.back(); else router.replace('/');
+      router.replace('/');
     } catch (e) {
       setError((e as ApiError).message);
-    } finally { setBusy(false); }
+      setBusy(false);
+    }
   }
 
   return (
-    <AuthShell title="Sign in" subtitle="Welcome back." footer={<><Txt variant="small">New here? <Txt variant="bodyStrong" style={{ fontSize: 13 }} onPress={() => router.replace('/register')}>Create an account</Txt></Txt><Txt variant="caption">Buying tickets does not need an account.</Txt></>}>
+    <AuthShell title="Sign in" subtitle="Organization admins, organizers and door staff." footer={<Txt variant="caption" center>Looking for your tickets? They are on the Fat Tixx website.</Txt>}>
       {error ? <Notice tone="error">{error}</Notice> : null}
-      <Field label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" textContentType="username" autoFocus returnKeyType="next" onSubmitEditing={() => pwRef.current?.focus()} maxLength={254} />
+      <Field label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" textContentType="username" returnKeyType="next" onSubmitEditing={() => pwRef.current?.focus()} maxLength={254} />
       <Field ref={pwRef} label="Password" value={password} onChangeText={setPassword} secure autoComplete="current-password" textContentType="password" returnKeyType="go" onSubmitEditing={submit} maxLength={128} />
       <Pressable accessibilityRole="link" onPress={() => router.push('/forgot')} style={{ alignSelf: 'flex-end' }}><Txt variant="caption" color={colors.red}>Forgot password?</Txt></Pressable>
       <Button title={busy ? 'Signing in…' : 'Sign in'} size="lg" full onPress={submit} loading={busy} />

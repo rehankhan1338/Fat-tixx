@@ -1,23 +1,23 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, ApiError, configureAuth, describeDevice } from '@/api/client';
-import type { Account, AuthResponse, PendingRegistration } from '@/api/types';
-import { forgetOrders, getSessionToken, setSessionToken } from './secure';
+import type { Account, AuthResponse } from '@/api/types';
+import { getSessionToken, setSessionToken } from './secure';
+import { hasAppAccess, NO_ACCESS_MESSAGE } from '@/lib/access';
 import { clearOfflineSnapshots } from '@/scanner/store';
 
 /**
  * Session state for the whole app. The token lives in SecureStore and in memory only; it is attached to
  * requests by the API client. A 401 from the server (revoked / expired session) signs the user out locally.
+ * Only accounts with an active organisation membership (see lib/access.ts) are kept signed in; any other
+ * account is refused at sign-in and dropped if its memberships disappear later.
  */
 type Status = 'loading' | 'guest' | 'signed-in';
 
 interface AuthContextValue {
   status: Status;
   account: Account | null;
-  /** The raw session token, for the in-app web view's one-time sign-in handoff header. Never log or display it. */
-  getToken: () => string | null;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (name: string, email: string, password: string, startedAt: number) => Promise<{ pending: boolean; message?: string }>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAccount(null);
     setStatus('guest');
     await setSessionToken(null);
-    // Anything fetched with the old token must not linger (orders, scanner events).
+    // Anything fetched with the old token must not linger (events, attendees, sessions).
     queryClient.removeQueries({ predicate: (q) => String(q.queryKey[0]).startsWith('me:') });
   }, [queryClient]);
 
@@ -51,6 +51,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [clearLocal]);
 
   const adopt = useCallback(async (r: AuthResponse) => {
+    if (!hasAppAccess(r.account)) {
+      // Nothing for this account here: end the session the server just created and keep nothing on the device.
+      tokenRef.current = r.token;
+      await api('/auth/logout', { method: 'POST', timeoutMs: 6000 }).catch(() => {});
+      tokenRef.current = null;
+      throw new ApiError(403, NO_ACCESS_MESSAGE);
+    }
     tokenRef.current = r.token;
     await setSessionToken(r.token);
     setAccount(r.account);
@@ -61,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!tokenRef.current) return;
     try {
       const r = await api<{ account: Account }>('/auth/me');
+      if (!hasAppAccess(r.account)) { await clearLocal(); return; }
       setAccount(r.account);
       setStatus('signed-in');
     } catch (e) {
@@ -79,7 +87,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       tokenRef.current = token;
       try {
         const r = await api<{ account: Account }>('/auth/me');
-        if (!cancelled) { setAccount(r.account); setStatus('signed-in'); }
+        if (cancelled) return;
+        if (!hasAppAccess(r.account)) { await clearLocal(); return; }
+        setAccount(r.account); setStatus('signed-in');
       } catch (e) {
         if (cancelled) return;
         if (e instanceof ApiError && e.isAuth) await clearLocal();
@@ -94,23 +104,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await adopt(r);
   }, [adopt]);
 
-  const signUp = useCallback(async (name: string, email: string, password: string, startedAt: number) => {
-    const r = await api<AuthResponse | PendingRegistration>('/auth/register', { method: 'POST', body: { name, email, password, startedAt, device: describeDevice() }, anonymous: true });
-    if ('pending' in r) return { pending: true, message: r.message };
-    await adopt(r);
-    return { pending: false, message: r.message };
-  }, [adopt]);
-
   const signOut = useCallback(async () => {
     const hadToken = !!tokenRef.current;
     if (hadToken) await api('/auth/logout', { method: 'POST', timeoutMs: 6000 }).catch(() => {});
     await clearLocal();
-    await forgetOrders();
     await clearOfflineSnapshots().catch(() => {});
     queryClient.clear();
   }, [clearLocal, queryClient]);
 
-  const getToken = useCallback(() => tokenRef.current, []);
-  const value = useMemo<AuthContextValue>(() => ({ status, account, getToken, signIn, signUp, signOut, refresh }), [status, account, getToken, signIn, signUp, signOut, refresh]);
+  const value = useMemo<AuthContextValue>(() => ({ status, account, signIn, signOut, refresh }), [status, account, signIn, signOut, refresh]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -2,7 +2,7 @@ import { audit } from '@/lib/audit';
 import { authenticateWithPassword } from '@/lib/auth/credentials';
 import { createBearerSession } from '@/lib/auth/session';
 import { mobileAccount } from '@/lib/mobile/auth';
-import { appAccessError, deviceLabel, fail, handle, json, readJson, v } from '@/lib/mobile/http';
+import { appAccessError, appPanelError, deviceLabel, fail, handle, json, readJson, v } from '@/lib/mobile/http';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,11 +13,12 @@ export const POST = handle(async (req) => {
   const password = v.raw(body.password, 128, 'password');
   const result = await authenticateWithPassword(email, password);
   if (!result.ok) return fail(result.status, result.error);
-  // Credentials are right, but some roles must use the website for now: no session is created.
+  // Credentials are right, but some roles must use the website for now, and attendee accounts have no
+  // panel in the app: no session is created for either.
   const account = await mobileAccount(result.user.id);
-  const blocked = appAccessError(account?.user.roles ?? []);
+  const blocked = account ? appAccessError(account.user.roles) ?? appPanelError(account) : null;
   if (!account || blocked) {
-    await audit('auth.login.failed', { actorUserId: result.user.id, metadata: { reason: 'role_blocked_in_app', client: 'mobile' } });
+    await audit('auth.login.failed', { actorUserId: result.user.id, metadata: { reason: account && !appAccessError(account.user.roles) ? 'no_panel_in_app' : 'role_blocked_in_app', client: 'mobile' } });
     return fail(403, blocked ?? 'This account cannot use the app.');
   }
   const { token, expiresAt } = await createBearerSession(result.user.id, deviceLabel(body));

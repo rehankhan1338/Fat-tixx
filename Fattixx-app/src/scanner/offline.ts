@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { useNetworkState } from 'expo-network';
 import { api, ApiError } from '@/api/client';
 import type { OfflineTicket, ScanResult, ScannerSnapshot, SyncResult } from '@/api/types';
@@ -23,6 +24,77 @@ export function isNetworkError(e: unknown): boolean {
 
 function ticketView(t: OfflineTicket): NonNullable<ScanResult['ticket']> {
   return { id: t.id, code: t.code, attendeeName: t.attendeeName, ticketType: t.ticketType, seatLabel: t.seatLabel, dayLabel: t.dayLabel, addons: t.addons, checkedInAt: null, checkedInBy: null, orderCode: t.orderCode, buyerEmail: t.buyerEmail };
+}
+
+/** Download the event's ticket list ("download tickets" in the plan) and store it on the phone. */
+export async function downloadSnapshot(org: string, eventId: number): Promise<SnapshotMeta | null> {
+  const s = await api<ScannerSnapshot>(`/scan/${org}/${eventId}/snapshot`, { timeoutMs: 45_000 });
+  await saveSnapshot(s);
+  return snapshotMeta(eventId);
+}
+
+/** Upload queued offline check-ins. Rows leave the queue only once the server has confirmed them. Null when nothing was queued. */
+export async function uploadQueued(org: string, eventId: number): Promise<SyncResult | null> {
+  const items = await queuedScans(eventId);
+  if (!items.length) return null;
+  const body = { deviceId: await deviceId(), items: items.map(({ ref, ticketId, kind, at }) => ({ ref, ticketId, kind, at })) };
+  const r = await api<SyncResult>(`/scan/${org}/${eventId}/sync`, { method: 'POST', body, timeoutMs: 30_000 });
+  await dropQueued(items.map((i) => i.ref));
+  return r;
+}
+
+function uploadNotice(r: SyncResult): string {
+  const n = r.synced;
+  return r.conflicts.length ? `${n} offline check-in${n === 1 ? '' : 's'} uploaded · ${r.conflicts.length} flagged for the organiser to review` : `${n} offline check-in${n === 1 ? '' : 's'} uploaded`;
+}
+
+/**
+ * The ticket list kept on this phone for one event, for the event screen: what is stored, what is
+ * queued, and buttons to download / update the list or upload queued check-ins by hand. The scanner
+ * screen keeps the list fresh on its own (see useOfflineScanner); this hook never polls.
+ */
+export function useOfflineList(org: string, eventId: number, onUploaded?: (r: SyncResult) => void) {
+  const [meta, setMeta] = useState<SnapshotMeta | null>(null);
+  const [queued, setQueued] = useState(0);
+  const [busy, setBusy] = useState<'download' | 'upload' | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const onUploadedRef = useRef(onUploaded);
+  useEffect(() => { onUploadedRef.current = onUploaded; }, [onUploaded]);
+
+  const reload = useCallback(async () => {
+    const [m, q] = await Promise.all([snapshotMeta(eventId), queuedScans(eventId)]);
+    setMeta(m);
+    setQueued(q.length);
+  }, [eventId]);
+  // Re-read whenever the screen comes back (after scanning, the list and queue have usually changed).
+  useFocusEffect(useCallback(() => { void reload(); }, [reload]));
+
+  const download = useCallback(async () => {
+    setBusy('download'); setNotice(null);
+    try {
+      setMeta(await downloadSnapshot(org, eventId));
+      setNotice('Ticket list downloaded.');
+    } catch (e) {
+      setNotice(isNetworkError(e) ? 'No connection. Try again when the phone is online.' : (e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }, [org, eventId]);
+
+  const upload = useCallback(async () => {
+    setBusy('upload'); setNotice(null);
+    try {
+      const r = await uploadQueued(org, eventId);
+      await reload();
+      if (r) { setNotice(uploadNotice(r)); onUploadedRef.current?.(r); }
+    } catch (e) {
+      setNotice(isNetworkError(e) ? 'No connection. Check-ins stay queued until the phone is online.' : (e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }, [org, eventId, reload]);
+
+  return { meta, queued, busy, notice, download, upload, reload };
 }
 
 export function useOfflineScanner(org: string, eventId: number, onCounts: (c: Counts) => void) {
@@ -55,9 +127,7 @@ export function useOfflineScanner(org: string, eventId: number, onCounts: (c: Co
   const download = useCallback(async (): Promise<boolean> => {
     setDownloading(true);
     try {
-      const s = await api<ScannerSnapshot>(`/scan/${org}/${eventId}/snapshot`, { timeoutMs: 45_000 });
-      await saveSnapshot(s);
-      setList(await snapshotMeta(eventId));
+      setList(await downloadSnapshot(org, eventId));
       setReachable(true);
       return true;
     } catch (e) {
@@ -75,14 +145,10 @@ export function useOfflineScanner(org: string, eventId: number, onCounts: (c: Co
     if (!items.length) return true;
     setSyncing(true);
     try {
-      const body = { deviceId: await deviceId(), items: items.map(({ ref, ticketId, kind, at }) => ({ ref, ticketId, kind, at })) };
-      const r = await api<SyncResult>(`/scan/${org}/${eventId}/sync`, { method: 'POST', body, timeoutMs: 30_000 });
-      await dropQueued(items.map((i) => i.ref));
+      const r = await uploadQueued(org, eventId);
       setQueued(0);
-      onCountsRef.current(r.counts);
       setReachable(true);
-      const n = r.synced;
-      showNotice(r.conflicts.length ? `${n} offline check-in${n === 1 ? '' : 's'} uploaded · ${r.conflicts.length} flagged for the organiser to review` : `${n} offline check-in${n === 1 ? '' : 's'} uploaded`);
+      if (r) { onCountsRef.current(r.counts); showNotice(uploadNotice(r)); }
       return true;
     } catch (e) {
       if (isNetworkError(e)) setReachable(false);

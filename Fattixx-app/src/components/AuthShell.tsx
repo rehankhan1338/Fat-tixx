@@ -1,15 +1,15 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { BrandBlock } from '@/components/BrandMark';
+import { Logo } from '@/components/Logo';
 import { Card, Screen, Txt } from '@/components/ui';
 
-/** Centered card layout for sign-in, registration and password pages (the website's AuthShell). */
-export function AuthShell({ title, subtitle, children, footer }: { title: string; subtitle?: string; children: ReactNode; footer?: ReactNode }) {
+/** Centered card layout for the sign-in and password pages (the website's AuthShell: logo, title, white card). */
+export function AuthShell({ title, subtitle, children, footer, back = false }: { title: string; subtitle?: string; children: ReactNode; footer?: ReactNode; back?: boolean }) {
   return (
-    <Screen back keyboard contentStyle={styles.content}>
+    <Screen back={back} keyboard contentStyle={styles.content}>
       <View style={styles.head}>
-        <BrandBlock size={52} />
-        <Txt variant="title" center style={{ marginTop: 16 }}>{title}</Txt>
+        <Logo height={48} />
+        <Txt variant="title" center style={{ marginTop: 22 }}>{title}</Txt>
         {subtitle ? <Txt variant="small" center style={{ marginTop: 6 }}>{subtitle}</Txt> : null}
       </View>
       <Card style={{ gap: 14 }}>{children}</Card>
@@ -18,4 +18,4 @@ export function AuthShell({ title, subtitle, children, footer }: { title: string
   );
 }
 
-const styles = StyleSheet.create({ content: { paddingTop: 24 }, head: { alignItems: 'center', marginBottom: 22 }, footer: { marginTop: 18, alignItems: 'center', gap: 6 } });
+const styles = StyleSheet.create({ content: { paddingTop: 56, flexGrow: 1, justifyContent: 'center' }, head: { alignItems: 'center', marginBottom: 24 }, footer: { marginTop: 18, alignItems: 'center', gap: 6 } });
