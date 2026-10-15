@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, View, type ScrollViewProps } from 'react-native';
+import { Pressable, RefreshControl, StyleSheet, View, type ScrollViewProps } from 'react-native';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native';
@@ -8,7 +9,9 @@ import { Txt } from './Text';
 
 /**
  * Page scaffold: ivory background, safe areas, optional compact header with a back button, keyboard
- * avoidance for forms and pull-to-refresh.
+ * avoidance and pull-to-refresh. Scrolling pages scroll the focused input above the keyboard on both
+ * platforms (Android draws edge-to-edge, so the window no longer shrinks for the keyboard by itself);
+ * `keyboard` makes a non-scrolling page shrink above the keyboard instead.
  */
 export function Screen({ children, title, back, right, refreshing, onRefresh, scroll = true, padded = true, bg = colors.ivory, contentStyle, keyboard, ...rest }: {
   children: ReactNode; title?: string; back?: boolean; right?: ReactNode; refreshing?: boolean; onRefresh?: () => void; scroll?: boolean; padded?: boolean; bg?: string;
@@ -27,7 +30,8 @@ export function Screen({ children, title, back, right, refreshing, onRefresh, sc
     </View>
   ) : null;
   const body = scroll ? (
-    <ScrollView
+    <KeyboardAwareScrollView
+      bottomOffset={24}
       keyboardShouldPersistTaps="handled"
       contentInsetAdjustmentBehavior="never"
       refreshControl={onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={colors.red} colors={[colors.red]} /> : undefined}
@@ -35,12 +39,12 @@ export function Screen({ children, title, back, right, refreshing, onRefresh, sc
       {...rest}
     >
       {children}
-    </ScrollView>
+    </KeyboardAwareScrollView>
   ) : <View style={[styles.fill, padded ? styles.padded : null]}>{children}</View>;
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={[styles.fill, { backgroundColor: bg }]}>
       {header}
-      {keyboard ? <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.fill}>{body}</KeyboardAvoidingView> : body}
+      {keyboard && !scroll ? <KeyboardAvoidingView behavior="padding" style={styles.fill}>{body}</KeyboardAvoidingView> : body}
     </SafeAreaView>
   );
 }

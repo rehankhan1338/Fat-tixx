@@ -4,7 +4,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import { ArrowLeft, CloudOff, CloudUpload, Flashlight, FlashlightOff, Keyboard, RefreshCw } from 'lucide-react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView, KeyboardStickyView } from 'react-native-keyboard-controller';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '@/api/client';
 import type { ScanResult } from '@/api/types';
 import { Button, Spinner, Txt } from '@/components/ui';
@@ -26,6 +27,7 @@ export default function ScannerScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [torch, setTorch] = useState(false);
   const [manual, setManual] = useState(false);
+  const insets = useSafeAreaInsets();
   const [code, setCode] = useState('');
   const [result, setResult] = useState<ScanResult | null>(null);
   const [busy, setBusy] = useState(false);
@@ -97,15 +99,17 @@ export default function ScannerScreen() {
   if (!permission) return <View style={styles.screen} />;
   if (!permission.granted) {
     return (
-      <SafeAreaView style={[styles.screen, { padding: 24, justifyContent: 'center', gap: 14 }]}>
-        <Txt variant="title" color="#fff">Camera access needed</Txt>
-        <Txt variant="body" color="#D4D4D8">Fat Tixx uses the camera only to read ticket QR codes at the door.</Txt>
-        <Button title="Allow camera" onPress={() => requestPermission()} />
-        <Button title="Enter codes by hand instead" variant="outline" onPress={() => setManual(true)} style={{ borderColor: 'rgba(255,255,255,0.4)' }} />
-        <Button title="Back" variant="ghost" onPress={() => router.back()} />
-        <OfflineStrip o={offline} />
-        {manual ? <ManualEntry code={code} setCode={setCode} onSubmit={() => code && submit(code.trim().toUpperCase())} busy={busy} /> : null}
-        {result ? <ResultBanner r={result} /> : null}
+      <SafeAreaView style={styles.screen}>
+        <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.denied}>
+          <Txt variant="title" color="#fff">Camera access needed</Txt>
+          <Txt variant="body" color="#D4D4D8">Fat Tixx uses the camera only to read ticket QR codes at the door.</Txt>
+          <Button title="Allow camera" onPress={() => requestPermission()} />
+          <Button title="Enter codes by hand instead" variant="outline" onPress={() => setManual(true)} style={{ borderColor: 'rgba(255,255,255,0.4)' }} />
+          <Button title="Back" variant="ghost" onPress={() => router.back()} />
+          <OfflineStrip o={offline} />
+          {manual ? <ManualEntry code={code} setCode={setCode} onSubmit={() => code && submit(code.trim().toUpperCase())} busy={busy} /> : null}
+          {result ? <ResultBanner r={result} /> : null}
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     );
   }
@@ -127,12 +131,13 @@ export default function ScannerScreen() {
           <OfflineStrip o={offline} />
         </View>
         <View style={[styles.frame, tone ? { borderColor: tone.bg } : null]} />
-        <View style={styles.bottom}>
+        {/* Rides up with the keyboard so the typed ticket code stays visible above it. */}
+        <KeyboardStickyView offset={{ closed: 0, opened: insets.bottom }} style={styles.bottom}>
           {result ? <ResultBanner r={result} /> : <Txt style={styles.hint}>{busy ? 'Checking…' : offline.online ? 'Point the camera at the ticket QR code' : 'Offline · checking against the list on this phone'}</Txt>}
           {manual ? <ManualEntry code={code} setCode={setCode} onSubmit={() => code && submit(code.trim().toUpperCase())} busy={busy} /> : (
             <Pressable accessibilityRole="button" onPress={() => setManual(true)} style={styles.manualBtn}><Keyboard size={16} color="#fff" /><Txt style={styles.manualText}>Type a ticket code</Txt></Pressable>
           )}
-        </View>
+        </KeyboardStickyView>
       </SafeAreaView>
     </View>
   );
@@ -206,6 +211,7 @@ function ManualEntry({ code, setCode, onSubmit, busy }: { code: string; setCode:
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#000' },
+  denied: { flexGrow: 1, padding: 24, justifyContent: 'center', gap: 14 },
   overlay: { flex: 1, justifyContent: 'space-between' },
   top: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingTop: 6 },
   iconBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },

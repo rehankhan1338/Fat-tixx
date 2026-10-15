@@ -18,6 +18,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'Fat Tixx',
   slug: 'fat-tixx',
+  owner: 'rehanaltafkhaan',
   version: '1.0.0',
   orientation: 'portrait',
   scheme: 'fattixx',
@@ -50,6 +51,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ['expo-camera', { cameraPermission: 'Fat Tixx uses the camera to scan ticket QR codes at the door.' }],
     ['expo-build-properties', { android: { usesCleartextTraffic: isDevApi }, ios: {} }],
   ],
-  extra: apiUrl ? { apiUrl } : {},
+  extra: { ...(apiUrl ? { apiUrl } : {}), eas: { projectId: 'afc01174-daca-42a8-9eae-4263fd8eecb4' } },
   experiments: { typedRoutes: true, reactCompiler: true },
 });

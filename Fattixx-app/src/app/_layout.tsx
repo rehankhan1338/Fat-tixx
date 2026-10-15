@@ -8,6 +8,7 @@ import { BricolageGrotesque_600SemiBold, BricolageGrotesque_700Bold, BricolageGr
 import { IBMPlexSans_400Regular, IBMPlexSans_500Medium, IBMPlexSans_600SemiBold, IBMPlexSans_700Bold } from '@expo-google-fonts/ibm-plex-sans';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { AuthProvider, useAuth } from '@/auth/AuthProvider';
 import { Splash } from '@/components/Splash';
 import { TopProgress } from '@/components/TopProgress';
@@ -29,11 +30,14 @@ const theme = { ...DefaultTheme, colors: { ...DefaultTheme.colors, primary: colo
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.fill}>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <Gate />
-        </AuthProvider>
-      </QueryClientProvider>
+      {/* Tracks the keyboard on both platforms so forms can keep the focused input above it (Screen, scanner). */}
+      <KeyboardProvider>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <Gate />
+          </AuthProvider>
+        </QueryClientProvider>
+      </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }
