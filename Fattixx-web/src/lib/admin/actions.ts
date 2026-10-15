@@ -117,7 +117,7 @@ export async function resendEmail(fd: FormData): Promise<ActionState> {
   const ok = await resendOutboxEmail(id);
   await audit('email.resent', { actorUserId: session.user.id, targetType: 'email', targetId: id, metadata: { ok } });
   revalidatePath('/admin/emails');
-  return ok ? { ok: true } : { error: 'Could not send. Is SMTP_URL configured in .env.local?' };
+  return ok ? { ok: true } : { error: 'Could not send. Is BREVO_API_KEY (or SMTP_URL) configured?' };
 }
 
 // ---------------------------------------------------------------------------

@@ -23,7 +23,7 @@ export default async function EmailsPage() {
       {!isSmtpConfigured() ? (
         <Alert>
           <AlertTitle>No mail server configured</AlertTitle>
-          <AlertDescription>Messages are recorded here with status “logged” but not delivered. Add <code className="font-mono">SMTP_URL</code> and <code className="font-mono">MAIL_FROM</code> to .env.local and restart to send real email.</AlertDescription>
+          <AlertDescription>Messages are recorded here with status “logged” but not delivered. Add <code className="font-mono">BREVO_API_KEY</code> and <code className="font-mono">MAIL_FROM</code> to .env.local and restart to send real email.</AlertDescription>
         </Alert>
       ) : null}
       <Card><CardContent className="pt-6">

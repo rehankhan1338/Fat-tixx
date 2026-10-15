@@ -45,7 +45,7 @@ export default async function MonitoringPage() {
       <Section title="System health">
         <ul className="grid gap-2 sm:grid-cols-2">
           <Health ok={m.dbOk} label="Database" detail="MariaDB connection and queries" />
-          <Health ok={smtp ? m.failedEmails.length === 0 : null} label="Email delivery" detail={smtp ? `${m.failedEmails.length} failed, ${m.queuedEmails} queued` : "SMTP_URL not set — emails are only logged"} />
+          <Health ok={smtp ? m.failedEmails.length === 0 : null} label="Email delivery" detail={smtp ? `${m.failedEmails.length} failed, ${m.queuedEmails} queued` : "BREVO_API_KEY not set — emails are only logged"} />
           <Health ok={stripe ? !webhookStale : null} label="Stripe webhook" detail={stripe ? (m.lastWebhookAt ? `Last event ${formatDate(m.lastWebhookAt)} (${m.lastWebhookType}) · ${m.webhooks24h} in 24h` : "No webhook event received yet") : "Stripe keys not set"} />
           <Health ok={stripe ? stripe.mode === "test" || true : null} label="Stripe mode" detail={stripe ? `${stripe.mode.toUpperCase()} keys active` : "Not connected"} />
         </ul>

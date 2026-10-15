@@ -10,6 +10,7 @@ const tag = randomUUID().slice(0, 8);
 let email: typeof import("@/lib/email");
 
 beforeAll(async () => {
+  delete process.env.BREVO_API_KEY;
   process.env.SMTP_URL = "smtp://127.0.0.1:1"; // nothing listens on port 1: connection refused immediately
   email = await import("@/lib/email");
 });

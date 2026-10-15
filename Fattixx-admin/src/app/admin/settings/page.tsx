@@ -45,7 +45,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/admin/s
           <Section title="Integrations">
             <ul className="space-y-2 text-sm">
               <li className="flex items-center justify-between rounded-lg border p-3"><span>Stripe payments <span className="block text-xs text-muted-foreground">Keys and the test/live switch are under <strong>Payments</strong>.</span></span>{stripeActive ? <Badge variant="outline" className={stripeActive.mode === "live" ? "border-red-500/40 text-red-700" : "border-emerald-500/40 text-emerald-700"}>Connected · {stripeActive.mode.toUpperCase()} mode</Badge> : <Badge variant="outline" className="border-amber-500/40 text-amber-700">Not configured — only free orders work</Badge>}</li>
-              <li className="flex items-center justify-between rounded-lg border p-3"><span>Email delivery (SMTP) <span className="block text-xs text-muted-foreground">SMTP_URL · MAIL_FROM in .env.local</span></span>{isSmtpConfigured() ? <Badge variant="outline" className="border-emerald-500/40 text-emerald-700">Connected</Badge> : <Badge variant="outline" className="border-amber-500/40 text-amber-700">Not configured — emails are logged in the outbox</Badge>}</li>
+              <li className="flex items-center justify-between rounded-lg border p-3"><span>Email delivery (Brevo) <span className="block text-xs text-muted-foreground">BREVO_API_KEY · MAIL_FROM in .env.local</span></span>{isSmtpConfigured() ? <Badge variant="outline" className="border-emerald-500/40 text-emerald-700">Connected</Badge> : <Badge variant="outline" className="border-amber-500/40 text-amber-700">Not configured — emails are logged in the outbox</Badge>}</li>
             </ul>
           </Section>
         </TabsContent>

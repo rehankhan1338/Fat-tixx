@@ -18,5 +18,6 @@ process.env.APP_URL ??= "http://localhost:3000";
 process.env.TICKET_SIGNING_KEY ??= "test-signing-key-test-signing-key-0123456789";
 // Never send real mail or hit Stripe from tests.
 delete process.env.SMTP_URL;
+delete process.env.BREVO_API_KEY;
 delete process.env.STRIPE_SECRET_KEY;
 delete process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
