@@ -1,14 +1,45 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState, type ReactNode } from "react";
+import { PlusIcon, Trash2Icon } from "lucide-react";
 import { saveEventCategories } from "@/lib/site-content/actions";
 import { CATEGORY_ICONS, type Category } from "@/lib/event-categories";
 import { MAX_CATEGORIES } from "@/lib/site-content/categories-limits";
 import { FormStatus, SelectField, TextField } from "@/components/form-fields";
 import { SubmitButton } from "@/components/submit-button";
-import { Rows } from "./rows";
+import { Button } from "@/components/ui/button";
 
 const ICON_OPTIONS = Object.entries(CATEGORY_ICONS).map(([value, i]) => ({ value, label: i.label }));
+
+let seq = 0;
+const key = () => `r${++seq}`;
+
+/**
+ * A list the admin can add to and remove from. Inputs inside use `defaultValue`, so rows keep a stable key: React keeps
+ * their DOM nodes (and what was typed) when another row is removed.
+ */
+function Rows<T>({ items, max, blank, label, render }: { items: T[]; max: number; blank: T; label: string; render: (item: T, index: number) => ReactNode }) {
+  const [rows, setRows] = useState(() => items.map((item) => ({ k: key(), item })));
+  return (
+    <div className="space-y-3">
+      {rows.map((r, i) => (
+        <div key={r.k} className="relative rounded-lg border p-3 pr-12">
+          {render(r.item, i)}
+          {rows.length > 1 && (
+            <Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2" aria-label={`Remove ${label} ${i + 1}`} onClick={() => setRows((rs) => rs.filter((x) => x.k !== r.k))}>
+              <Trash2Icon />
+            </Button>
+          )}
+        </div>
+      ))}
+      {rows.length < max && (
+        <Button type="button" variant="outline" size="sm" onClick={() => setRows((rs) => [...rs, { k: key(), item: blank }])}>
+          <PlusIcon /> Add {label}
+        </Button>
+      )}
+    </div>
+  );
+}
 
 export function CategoriesForm({ categories }: { categories: Category[] }) {
   const [state, action] = useActionState(saveEventCategories, undefined);

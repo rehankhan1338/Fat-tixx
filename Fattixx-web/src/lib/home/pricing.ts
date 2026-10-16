@@ -76,7 +76,7 @@ export function parseDollars(text: string): number {
   return Math.round(Math.min(n, 10000) * 100);
 }
 
-/* Comparison assumes processing on ticket price only. The other platform's rates are set in Super Admin → Website → Pricing. */
+/* Comparison assumes processing on ticket price only. The other platform's rates are set in src/lib/site-content/schema.ts. */
 export type Competitor = { label: string; servicePercent: number; serviceFixedCents: number; processingPercent: number; checked: string };
 
 /** The other platform's fee on one ticket at this price. */

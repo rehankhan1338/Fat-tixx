@@ -1,32 +1,12 @@
 import "server-only";
 import { cache } from "react";
-import { getBranding, getSettings, getSettingValue, setSetting } from "../settings";
+import { getBranding, getSettings } from "../settings";
 import { feeLabel, formatCents, percent, processingLabel } from "../home/pricing";
 import type { FeeConfig } from "../money";
 import { uploadUrl } from "../uploads";
-import { DEFAULTS, withDefaults, type FooterContent, type HomeContent, type PricingContent, type SiteContent, type SitePage } from "./schema";
+import { DEFAULTS, type FooterContent, type HomeContent, type PricingContent } from "./schema";
 
 export * from "./schema";
-
-const KEYS: Record<SitePage, string> = { home: "site_home", pricing: "site_pricing", footer: "site_footer" };
-
-/** The stored documents (with defaults filled in), tokens not yet replaced: what the admin forms edit. */
-export const loadSiteContent = cache(async (): Promise<SiteContent> => {
-  const out = { ...DEFAULTS };
-  for (const page of Object.keys(KEYS) as SitePage[]) {
-    const raw = await getSettingValue(KEYS[page]);
-    let stored: unknown = null;
-    if (raw) {
-      try { stored = JSON.parse(raw); } catch { stored = null; }
-    }
-    out[page] = withDefaults(DEFAULTS[page], stored) as never;
-  }
-  return out;
-});
-
-export async function saveSiteContent(page: SitePage, content: SiteContent[SitePage], userId: number): Promise<void> {
-  await setSetting(KEYS[page], JSON.stringify(content), userId);
-}
 
 // ---------------------------------------------------------------------------
 // Tokens: {fee}, {processing}, … filled in from the live settings so copy always matches checkout.
@@ -34,7 +14,7 @@ export async function saveSiteContent(page: SitePage, content: SiteContent[SiteP
 type Tokens = Record<string, string>;
 
 const tokenContext = cache(async (): Promise<Tokens> => {
-  const [s, brand, content] = await Promise.all([getSettings(), getBranding(), loadSiteContent()]);
+  const [s, brand] = await Promise.all([getSettings(), getBranding()]);
   const fees: FeeConfig = {
     platformFeeBps: Number(s.platform_fee_bps),
     platformFeeFixedCents: Number(s.platform_fee_fixed_cents),
@@ -42,7 +22,7 @@ const tokenContext = cache(async (): Promise<Tokens> => {
     processingFeeFixedCents: Number(s.processing_fee_fixed_cents),
   };
   const processing = processingLabel(fees);
-  const c = content.pricing.compare.competitor;
+  const c = DEFAULTS.pricing.compare.competitor;
   return {
     fee: feeLabel(fees),
     processing: processing ?? "included",
@@ -72,19 +52,16 @@ function fillDeep<T>(value: T, tokens: Tokens): T {
 
 /** Homepage content ready to render: tokens filled in, hero images as URLs. */
 export async function homeContent(): Promise<HomeContent> {
-  const [content, tokens] = await Promise.all([loadSiteContent(), tokenContext()]);
-  const home = fillDeep(content.home, tokens);
+  const home = fillDeep(DEFAULTS.home, await tokenContext());
   home.hero.go.image = uploadUrl(home.hero.go.image);
   home.hero.host.image = uploadUrl(home.hero.host.image);
   return home;
 }
 
 export async function pricingContent(): Promise<PricingContent> {
-  const [content, tokens] = await Promise.all([loadSiteContent(), tokenContext()]);
-  return fillDeep(content.pricing, tokens);
+  return fillDeep(DEFAULTS.pricing, await tokenContext());
 }
 
 export async function footerContent(): Promise<FooterContent> {
-  const [content, tokens] = await Promise.all([loadSiteContent(), tokenContext()]);
-  return fillDeep(content.footer, tokens);
+  return fillDeep(DEFAULTS.footer, await tokenContext());
 }

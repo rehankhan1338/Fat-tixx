@@ -21,7 +21,7 @@ export type AuditAction =
   | 'order.created' | 'order.paid' | 'order.expired' | 'order.cancelled' | 'order.comp_issued' | 'order.box_office'
   | 'order.tickets_resent' | 'order.attendee_updated' | 'order.refunded' | 'order.bulk_refund'
   | 'checkin.scan' | 'checkin.manual' | 'checkin.override' | 'checkin.undo'
-  | 'settings.updated' | 'settings.branding' | 'settings.stripe' | 'settings.website' | 'email.resent' | 'email_template.updated' | 'email_template.reset'
+  | 'settings.updated' | 'settings.branding' | 'settings.stripe' | 'settings.categories' | 'email.resent' | 'email_template.updated' | 'email_template.reset'
   | 'payout.approved' | 'payout.paid' | 'payout.voided' | 'dispute.updated' | 'reconciliation.run'
   | 'checkin.offline_conflict' | 'checkin.conflict_resolved'
   | 'auth.email_verified' | 'user.data_exported' | 'user.self_deleted'

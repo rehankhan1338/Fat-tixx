@@ -7,7 +7,7 @@ import { MAX_CATEGORIES } from "./categories-limits";
 export { MAX_CATEGORIES };
 const KEY = "event_categories";
 
-/** The event categories, as managed in Super Admin → Website → Categories (the design's list until one is saved). */
+/** The event categories, as managed in Super Admin → Fees & Settings → Event categories (the design's list until one is saved). */
 export const listCategories = cache(async (): Promise<Category[]> => {
   const raw = await getSettingValue(KEY);
   if (!raw) return DEFAULT_CATEGORIES;

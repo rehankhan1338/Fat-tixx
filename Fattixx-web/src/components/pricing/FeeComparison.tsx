@@ -19,7 +19,7 @@ const chipOff = "border-fx-red/30 bg-transparent text-fx-red hover:border-fx-red
 
 const short = (c: number) => formatCents(c).replace(".00", "");
 
-/** Copy and the other platform's rates come from Super Admin → Website → Pricing; Fattixx fees from the live fee settings. */
+/** Copy and the other platform's rates come from src/lib/site-content/schema.ts; Fattixx fees from the live fee settings. */
 export default function FeeComparison({ content: c }: { content: PricingContent["compare"] }) {
   const fees = useFees();
   const [price, setPrice] = useState(2500);

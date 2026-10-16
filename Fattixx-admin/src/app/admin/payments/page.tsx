@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requirePlatformStaff, hasPlatformRole } from "@/lib/auth/guard";
-import { listPayments, listReconciliations, paymentsSummary } from "@/lib/admin/finance-queries";
+import { countPayments, listPayments, listReconciliations, paymentsSummary } from "@/lib/admin/finance-queries";
 import { getStripeSettings, maskKey } from "@/lib/settings";
 import { env } from "@/lib/env";
 import { formatCents } from "@/lib/money";
+import { DEFAULT_PER_PAGE, parsePagination } from "@/lib/pagination";
 import { PageHeader, Section, Stat, StatusBadge, formatDate, EmptyState } from "@/components/shared";
+import { TablePagination } from "@/components/table-pagination";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,7 +23,8 @@ export default async function PaymentsPage({ searchParams }: PageProps<"/admin/p
   const sp = await searchParams;
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
   const isSuper = hasPlatformRole(session, "super_admin");
-  const [summary, payments, recon, stripe] = await Promise.all([paymentsSummary(), listPayments(q), listReconciliations(), getStripeSettings()]);
+  const { page, perPage, offset } = parsePagination(sp);
+  const [summary, payments, paymentTotal, recon, stripe] = await Promise.all([paymentsSummary(), listPayments(q, perPage, offset), countPayments(q), listReconciliations(), getStripeSettings()]);
   const active = stripe[stripe.mode];
   const configured = !!(active.secretKey && active.publishableKey);
 
@@ -42,12 +45,13 @@ export default async function PaymentsPage({ searchParams }: PageProps<"/admin/p
         <TabsList><TabsTrigger value="payments">Payments</TabsTrigger><TabsTrigger value="reconcile">Reconciliation</TabsTrigger><TabsTrigger value="stripe">Stripe keys</TabsTrigger></TabsList>
 
         <TabsContent value="payments" className="pt-4">
-          <Card><CardContent className="pt-6">
-            <form className="mb-4 flex gap-2" action="/admin/payments">
+          <Card><CardContent className="space-y-4 pt-6">
+            <form className="flex gap-2" action="/admin/payments">
               <Input name="q" defaultValue={q} placeholder="Order number, buyer email or Stripe payment id" className="max-w-md" />
+              {perPage !== DEFAULT_PER_PAGE ? <input type="hidden" name="per" value={perPage} /> : null}
               <Button type="submit" variant="secondary">Search</Button>
             </form>
-            {payments.length === 0 ? <EmptyState title="No card payments yet" description="Paid orders with a Stripe charge appear here." /> : (
+            {payments.length === 0 ? <EmptyState title={q ? "No matching payments" : paymentTotal === 0 ? "No card payments yet" : "No payments on this page"} description={q ? "Try a different search." : "Paid orders with a Stripe charge appear here."} /> : (
               <Table>
                 <TableHeader><TableRow><TableHead>Paid</TableHead><TableHead>Order</TableHead><TableHead>Event</TableHead><TableHead>Buyer</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Stripe payment</TableHead></TableRow></TableHeader>
                 <TableBody>
@@ -65,6 +69,7 @@ export default async function PaymentsPage({ searchParams }: PageProps<"/admin/p
                 </TableBody>
               </Table>
             )}
+            <TablePagination page={page} perPage={perPage} total={paymentTotal} params={{ q }} />
           </CardContent></Card>
         </TabsContent>
 

@@ -16,7 +16,7 @@ export const GET = handle(async () => {
     name: brand.name, color: brand.color, logoUrl: absoluteUrl(brand.logoUrl), supportEmail: brand.supportEmail, appUrl: env.APP_URL,
     stripe: stripe ? { publishableKey: stripe.publishableKey, mode: stripe.mode } : null,
     smsEnabled: isSmsConfigured(),
-    /** event categories (Super Admin → Website → Categories) with their icon as an SVG path, 24×24 viewBox */
+    /** event categories (Super Admin → Fees & Settings → Event categories) with their icon as an SVG path, 24×24 viewBox */
     categories: categories.map((c) => ({ name: c.name, icon: categoryIconPath(c.icon) })),
     legal: { terms: `${env.APP_URL}/terms`, privacy: `${env.APP_URL}/privacy`, refunds: `${env.APP_URL}/refunds`, ticketing: `${env.APP_URL}/ticketing-terms` },
   });

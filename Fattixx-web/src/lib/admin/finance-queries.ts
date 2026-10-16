@@ -37,36 +37,74 @@ export function dueCents(r: OwedRow): number {
 
 export type PayoutRow = Row & { id: number; organization_id: number; org_name: string; org_slug: string; event_id: number | null; event_title: string | null; amount_cents: number; currency: string; status: string; method: string | null; reference: string | null; notes: string | null; approved_by_name: string | null; approved_at: Date; paid_by_name: string | null; paid_at: Date | null };
 
-export async function listPayouts(limit = 200): Promise<PayoutRow[]> {
+export async function listPayouts(limit = 50, offset = 0): Promise<PayoutRow[]> {
   return query<PayoutRow>(
     `SELECT p.*, g.name AS org_name, g.slug AS org_slug, e.title AS event_title, a.name AS approved_by_name, b.name AS paid_by_name
        FROM payouts p JOIN organizations g ON g.id = p.organization_id LEFT JOIN events e ON e.id = p.event_id
        LEFT JOIN users a ON a.id = p.approved_by LEFT JOIN users b ON b.id = p.paid_by
-      ORDER BY p.id DESC LIMIT ?`, [limit],
+      ORDER BY p.id DESC LIMIT ? OFFSET ?`, [limit, offset],
   );
+}
+
+export async function countPayouts(): Promise<number> {
+  const r = await queryOne<Row & { n: number }>(`SELECT COUNT(*) AS n FROM payouts`);
+  return Number(r?.n ?? 0);
+}
+
+/** Totals across every payout, independent of the paginated history list. */
+export async function payoutTotals(): Promise<{ approvedCents: number; approvedCount: number; paidCents: number; paidCount: number }> {
+  const r = await queryOne<Row & { approved_cents: number; approved_count: number; paid_cents: number; paid_count: number }>(
+    `SELECT COALESCE(SUM(CASE WHEN status = 'approved' THEN amount_cents END),0) AS approved_cents,
+            COUNT(CASE WHEN status = 'approved' THEN 1 END) AS approved_count,
+            COALESCE(SUM(CASE WHEN status = 'paid' THEN amount_cents END),0) AS paid_cents,
+            COUNT(CASE WHEN status = 'paid' THEN 1 END) AS paid_count
+       FROM payouts`,
+  );
+  return { approvedCents: Number(r?.approved_cents ?? 0), approvedCount: Number(r?.approved_count ?? 0), paidCents: Number(r?.paid_cents ?? 0), paidCount: Number(r?.paid_count ?? 0) };
 }
 
 export type DisputeRow = Row & { id: number; order_id: number; order_code: string; buyer_email: string; event_title: string; org_name: string; org_slug: string; stripe_dispute_id: string; amount_cents: number; fee_cents: number; reason: string | null; status: string; notes: string | null; evidence_due_at: Date | null; opened_at: Date; closed_at: Date | null; currency: string; checkins: number };
 
-export async function listDisputes(): Promise<DisputeRow[]> {
+export async function listDisputes(limit = 50, offset = 0): Promise<DisputeRow[]> {
   return query<DisputeRow>(
     `SELECT d.*, o.code AS order_code, o.buyer_email, o.currency, e.title AS event_title, g.name AS org_name, g.slug AS org_slug,
             (SELECT COUNT(*) FROM tickets k WHERE k.order_id = o.id AND k.status = 'used') AS checkins
        FROM disputes d JOIN orders o ON o.id = d.order_id JOIN events e ON e.id = o.event_id JOIN organizations g ON g.id = o.organization_id
-      ORDER BY (d.closed_at IS NULL) DESC, d.opened_at DESC`,
+      ORDER BY (d.closed_at IS NULL) DESC, d.opened_at DESC LIMIT ? OFFSET ?`, [limit, offset],
   );
+}
+
+export async function countDisputes(): Promise<number> {
+  const r = await queryOne<Row & { n: number }>(`SELECT COUNT(*) AS n FROM disputes`);
+  return Number(r?.n ?? 0);
+}
+
+/** Open dispute count and amount at risk, independent of the paginated list. */
+export async function openDisputeTotals(): Promise<{ count: number; cents: number }> {
+  const r = await queryOne<Row & { n: number; cents: number }>(`SELECT COUNT(*) AS n, COALESCE(SUM(amount_cents),0) AS cents FROM disputes WHERE closed_at IS NULL`);
+  return { count: Number(r?.n ?? 0), cents: Number(r?.cents ?? 0) };
 }
 
 export type PaymentRow = Row & { id: number; code: string; buyer_email: string; status: string; total_cents: number; refunded_cents: number; currency: string; paid_at: Date | null; created_at: Date; stripe_payment_intent_id: string | null; event_title: string; org_name: string; org_slug: string; source: string };
 
-export async function listPayments(search = '', limit = 200): Promise<PaymentRow[]> {
+export async function listPayments(search = '', limit = 50, offset = 0): Promise<PaymentRow[]> {
   const like = `%${search}%`;
   return query<PaymentRow>(
     `SELECT o.id, o.code, o.buyer_email, o.status, o.total_cents, o.refunded_cents, o.currency, o.paid_at, o.created_at, o.stripe_payment_intent_id, o.source, e.title AS event_title, g.name AS org_name, g.slug AS org_slug
        FROM orders o JOIN events e ON e.id = o.event_id JOIN organizations g ON g.id = o.organization_id
       WHERE o.total_cents > 0 AND o.status <> 'expired' AND (? = '' OR o.code LIKE ? OR o.buyer_email LIKE ? OR o.stripe_payment_intent_id LIKE ?)
-      ORDER BY o.id DESC LIMIT ?`, [search, like, like, like, limit],
+      ORDER BY o.id DESC LIMIT ? OFFSET ?`, [search, like, like, like, limit, offset],
   );
+}
+
+export async function countPayments(search = ''): Promise<number> {
+  const like = `%${search}%`;
+  const r = await queryOne<Row & { n: number }>(
+    `SELECT COUNT(*) AS n FROM orders o
+      WHERE o.total_cents > 0 AND o.status <> 'expired' AND (? = '' OR o.code LIKE ? OR o.buyer_email LIKE ? OR o.stripe_payment_intent_id LIKE ?)`,
+    [search, like, like, like],
+  );
+  return Number(r?.n ?? 0);
 }
 
 export type ReconRow = Row & { id: number; mode: string; range_start: Date; range_end: Date; stripe_count: number; stripe_cents: number; db_count: number; db_cents: number; discrepancies: string | null; run_by_name: string | null; created_at: Date };

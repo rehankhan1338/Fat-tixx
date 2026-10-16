@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requirePlatformStaff } from "@/lib/auth/guard";
-import { query, type Row } from "@/lib/db";
+import { query, queryOne, type Row } from "@/lib/db";
+import { parsePagination } from "@/lib/pagination";
 import { PageHeader, Section, StatusBadge, EmptyState, formatDate } from "@/components/shared";
+import { TablePagination } from "@/components/table-pagination";
 import { ReviewButtons } from "./review-buttons";
 
 export const metadata: Metadata = { title: "Organizer applications" };
@@ -13,16 +15,20 @@ type App = Row & {
   created_at: Date; org_slug: string | null; ip: string | null; same_email_orgs: number;
 };
 
-export default async function ApplicationsPage() {
-  await requirePlatformStaff(["super_admin", "support"]);
-  const apps = await query<App>(
-    `SELECT a.*, u.name AS reviewer, g.slug AS org_slug,
+const APP_SELECT = `SELECT a.*, u.name AS reviewer, g.slug AS org_slug,
             (SELECT COUNT(*) FROM organizations o WHERE o.contact_email = a.contact_email) AS same_email_orgs
-       FROM organizer_applications a LEFT JOIN users u ON u.id = a.reviewed_by LEFT JOIN organizations g ON g.id = a.organization_id
-      ORDER BY a.status = 'pending' DESC, a.created_at DESC LIMIT 300`,
-  );
-  const pending = apps.filter((a) => a.status === "pending");
-  const done = apps.filter((a) => a.status !== "pending");
+       FROM organizer_applications a LEFT JOIN users u ON u.id = a.reviewed_by LEFT JOIN organizations g ON g.id = a.organization_id`;
+
+export default async function ApplicationsPage({ searchParams }: PageProps<"/admin/applications">) {
+  await requirePlatformStaff(["super_admin", "support"]);
+  const sp = await searchParams;
+  const { page, perPage, offset } = parsePagination(sp);
+  const [pending, done, doneTotalRow] = await Promise.all([
+    query<App>(`${APP_SELECT} WHERE a.status = 'pending' ORDER BY a.created_at DESC`),
+    query<App>(`${APP_SELECT} WHERE a.status <> 'pending' ORDER BY a.reviewed_at DESC, a.created_at DESC LIMIT ? OFFSET ?`, [perPage, offset]),
+    queryOne<Row & { n: number }>(`SELECT COUNT(*) AS n FROM organizer_applications WHERE status <> 'pending'`),
+  ]);
+  const doneTotal = Number(doneTotalRow?.n ?? 0);
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <PageHeader title="Organizer applications" description="Verify identity and business details before an organizer can sell. Approving creates a verified organization with the applicant as its Organization Admin." />
@@ -50,16 +56,19 @@ export default async function ApplicationsPage() {
           </ul>
         )}
       </Section>
-      {done.length ? (
-        <Section title="Reviewed">
-          <ul className="divide-y text-sm">
-            {done.map((a) => (
-              <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                <span>{a.org_slug ? <Link href={`/admin/organizations/${a.org_slug}`} className="font-medium hover:underline">{a.org_name}</Link> : <span className="font-medium">{a.org_name}</span>} · {a.contact_email}{a.review_notes ? <span className="block text-xs text-muted-foreground">{a.review_notes}</span> : null}</span>
-                <span className="flex items-center gap-2 text-xs text-muted-foreground"><StatusBadge status={a.status} /> {a.reviewer ?? ""} · {formatDate(a.reviewed_at)}</span>
-              </li>
-            ))}
-          </ul>
+      {doneTotal > 0 ? (
+        <Section title={`Reviewed (${doneTotal.toLocaleString()})`}>
+          {done.length === 0 ? <p className="text-sm text-muted-foreground">No reviewed applications on this page.</p> : (
+            <ul className="divide-y text-sm">
+              {done.map((a) => (
+                <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                  <span>{a.org_slug ? <Link href={`/admin/organizations/${a.org_slug}`} className="font-medium hover:underline">{a.org_name}</Link> : <span className="font-medium">{a.org_name}</span>} · {a.contact_email}{a.review_notes ? <span className="block text-xs text-muted-foreground">{a.review_notes}</span> : null}</span>
+                  <span className="flex items-center gap-2 text-xs text-muted-foreground"><StatusBadge status={a.status} /> {a.reviewer ?? ""} · {formatDate(a.reviewed_at)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="mt-4"><TablePagination page={page} perPage={perPage} total={doneTotal} /></div>
         </Section>
       ) : null}
     </div>

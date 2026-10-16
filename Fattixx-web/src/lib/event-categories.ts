@@ -1,6 +1,6 @@
 /**
  * Event categories: the homepage category pills, the /events filter, the /create page and the organizer's event form
- * share one list. The list itself is managed in Super Admin → Website → Categories (src/lib/site-content/categories.ts);
+ * share one list. The list itself is managed in Super Admin → Fees & Settings → Event categories (src/lib/site-content/categories.ts);
  * this module holds the icon set and the default list.
  */
 export type Category = { name: string; icon: string };

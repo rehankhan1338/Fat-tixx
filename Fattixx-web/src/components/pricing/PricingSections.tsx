@@ -1,4 +1,4 @@
-/* The fee rules, the FAQ and the closing call to action of /pricing. Copy comes from Super Admin → Website → Pricing; fee figures are filled in from the live platform settings. */
+/* The fee rules, the FAQ and the closing call to action of /pricing. Copy comes from src/lib/site-content/schema.ts; fee figures are filled in from the live platform settings. */
 
 import Link from "next/link";
 import { button, cardShadow, container, cx, eyebrow, sectionTitle } from "@/components/ui/styles";

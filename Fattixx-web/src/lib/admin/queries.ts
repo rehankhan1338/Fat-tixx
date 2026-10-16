@@ -6,7 +6,7 @@ export type OrgListRow = Row & {
   members: number; events: number; gross_cents: number; orders: number;
 };
 
-export async function listOrganizations(search = ''): Promise<OrgListRow[]> {
+export async function listOrganizations(search = '', limit = 50, offset = 0): Promise<OrgListRow[]> {
   const like = `%${search}%`;
   return query<OrgListRow>(
     `SELECT o.id, o.slug, o.name, o.contact_email, o.status, o.created_at,
@@ -16,9 +16,18 @@ export async function listOrganizations(search = ''): Promise<OrgListRow[]> {
             (SELECT COALESCE(SUM(x.subtotal_cents),0) FROM orders x WHERE x.organization_id = o.id AND x.status IN ('paid','partially_refunded')) AS gross_cents
        FROM organizations o
       WHERE (? = '' OR o.name LIKE ? OR o.slug LIKE ? OR o.contact_email LIKE ?)
-      ORDER BY o.created_at DESC`,
+      ORDER BY o.created_at DESC LIMIT ? OFFSET ?`,
+    [search, like, like, like, limit, offset],
+  );
+}
+
+export async function countOrganizations(search = ''): Promise<number> {
+  const like = `%${search}%`;
+  const r = await queryOne<Row & { n: number }>(
+    `SELECT COUNT(*) AS n FROM organizations o WHERE (? = '' OR o.name LIKE ? OR o.slug LIKE ? OR o.contact_email LIKE ?)`,
     [search, like, like, like],
   );
+  return Number(r?.n ?? 0);
 }
 
 export type MemberRow = Row & {
@@ -42,7 +51,7 @@ export type PlatformUserRow = Row & {
   platform_roles: string | null; org_count: number; order_count: number;
 };
 
-export async function listUsers(search = '', limit = 100): Promise<PlatformUserRow[]> {
+export async function listUsers(search = '', limit = 50, offset = 0): Promise<PlatformUserRow[]> {
   const like = `%${search}%`;
   return query<PlatformUserRow>(
     `SELECT u.id, u.email, u.name, u.status, (u.password_hash IS NOT NULL) AS has_password, u.last_login_at, u.created_at,
@@ -51,15 +60,37 @@ export async function listUsers(search = '', limit = 100): Promise<PlatformUserR
             (SELECT COUNT(*) FROM orders o WHERE o.user_id = u.id) AS order_count
        FROM users u
       WHERE (? = '' OR u.email LIKE ? OR u.name LIKE ?)
-      ORDER BY u.created_at DESC LIMIT ?`,
-    [search, like, like, limit],
+      ORDER BY u.created_at DESC LIMIT ? OFFSET ?`,
+    [search, like, like, limit, offset],
   );
+}
+
+export async function countUsers(search = ''): Promise<number> {
+  const like = `%${search}%`;
+  const r = await queryOne<Row & { n: number }>(`SELECT COUNT(*) AS n FROM users u WHERE (? = '' OR u.email LIKE ? OR u.name LIKE ?)`, [search, like, like]);
+  return Number(r?.n ?? 0);
 }
 
 export type EmailRow = Row & { id: number; to_email: string; to_name: string | null; subject: string; status: string; category: string; error: string | null; created_at: Date; sent_at: Date | null };
 
-export async function listEmails(limit = 100): Promise<EmailRow[]> {
-  return query<EmailRow>(`SELECT id, to_email, to_name, subject, status, category, error, created_at, sent_at FROM email_outbox ORDER BY id DESC LIMIT ?`, [limit]);
+export async function listEmails(limit = 50, offset = 0): Promise<EmailRow[]> {
+  return query<EmailRow>(`SELECT id, to_email, to_name, subject, status, category, error, created_at, sent_at FROM email_outbox ORDER BY id DESC LIMIT ? OFFSET ?`, [limit, offset]);
+}
+
+export async function countEmails(): Promise<number> {
+  const r = await queryOne<Row & { n: number }>(`SELECT COUNT(*) AS n FROM email_outbox`);
+  return Number(r?.n ?? 0);
+}
+
+export type SmsRow = Row & { id: number; to_phone: string; body: string; status: string; error: string | null; created_at: Date };
+
+export async function listSms(limit = 50, offset = 0): Promise<SmsRow[]> {
+  return query<SmsRow>(`SELECT id, to_phone, body, status, error, created_at FROM sms_outbox ORDER BY id DESC LIMIT ? OFFSET ?`, [limit, offset]);
+}
+
+export async function countSms(): Promise<number> {
+  const r = await queryOne<Row & { n: number }>(`SELECT COUNT(*) AS n FROM sms_outbox`);
+  return Number(r?.n ?? 0);
 }
 
 export async function getEmail(id: number) {

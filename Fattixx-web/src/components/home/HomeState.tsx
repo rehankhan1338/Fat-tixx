@@ -28,7 +28,7 @@ type HomeCtx = {
   locInputRef: RefObject<HTMLInputElement | null>;
   focusLocation: () => void;
   reduceMotion: boolean;
-  /** the event categories (Super Admin → Website → Categories), for the pills and filters */
+  /** the event categories (Super Admin → Fees & Settings → Event categories), for the pills and filters */
   categories: Category[];
 };
 

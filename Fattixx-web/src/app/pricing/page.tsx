@@ -11,7 +11,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: c.meta.title, description: c.meta.description, robots: { index: true, follow: true } };
 }
 
-/** Every heading, paragraph, FAQ entry and the comparison rates come from Super Admin → Website → Pricing; the fee figures from Fees & Settings. */
+/** Every heading, paragraph, FAQ entry and the comparison rates come from src/lib/site-content/schema.ts; the fee figures from Fees & Settings. */
 export default async function PricingPage() {
   const [c, brand] = await Promise.all([pricingContent(), brandingForLayout()]);
   return (

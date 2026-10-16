@@ -12,6 +12,7 @@ import { PageHeader, Section, StatusBadge, formatDate } from "@/components/share
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { SaveImageButton } from "@/components/save-image-button";
 import { OrderStaffActions, TicketEditRow } from "./order-actions";
 
 export const metadata: Metadata = { title: "Order" };
@@ -32,6 +33,8 @@ export default async function OrgOrderPage({ params }: PageProps<"/org/[slug]/or
     return inn ? `Received from ${inn.from_name ?? inn.from_email ?? "previous holder"} (was ${inn.from_ticket_code})` : null;
   };
   const remaining = Number(order.total_cents) - Number(order.refunded_cents);
+  // Staff access to the receipt image comes from their org membership (see canAccessOrder), so no token is needed.
+  const hasReceipt = ["paid", "partially_refunded", "refunded", "cancelled"].includes(order.status);
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -39,7 +42,7 @@ export default async function OrgOrderPage({ params }: PageProps<"/org/[slug]/or
       <PageHeader
         title={<span className="flex items-center gap-3"><span className="font-mono">{order.code}</span> <StatusBadge status={order.status} />{order.source !== "online" ? <Badge variant="outline">{order.source.replace("_", " ")}</Badge> : null}</span>}
         description={<><Link href={`/org/${slug}/events/${order.event_id}`} className="hover:underline">{order.event_title}</Link> · {formatEventDate(new Date(order.event_starts_at), order.event_timezone)} · placed {formatDate(order.created_at)}</>}
-        actions={<OrderStaffActions orgSlug={slug} code={order.code} status={order.status} remainingCents={remaining} currency={order.currency} canRefund={ctx.perms.canRefund} hasStripe={!!order.stripe_payment_intent_id} isSuperAdmin={ctx.isSuperAdmin} />}
+        actions={<>{hasReceipt ? <SaveImageButton href={`/orders/${order.code}/receipt`} filename={`receipt-${order.code}.jpg`} shareTitle="Receipt" variant="outline" size="default">Download receipt</SaveImageButton> : null}<OrderStaffActions orgSlug={slug} code={order.code} status={order.status} remainingCents={remaining} currency={order.currency} canRefund={ctx.perms.canRefund} hasStripe={!!order.stripe_payment_intent_id} isSuperAdmin={ctx.isSuperAdmin} /></>}
       />
 
       <div className="grid gap-6 lg:grid-cols-3">

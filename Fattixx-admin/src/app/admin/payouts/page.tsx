@@ -1,31 +1,33 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requirePlatformStaff } from "@/lib/auth/guard";
-import { dueCents, listPayouts, listSettlements } from "@/lib/admin/finance-queries";
+import { countPayouts, dueCents, listPayouts, listSettlements, payoutTotals } from "@/lib/admin/finance-queries";
 import { formatCents } from "@/lib/money";
 import { formatEventDate } from "@/lib/tz";
+import { parsePagination } from "@/lib/pagination";
 import { PageHeader, Section, Stat, StatusBadge, formatDate, EmptyState } from "@/components/shared";
+import { TablePagination } from "@/components/table-pagination";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { ApproveSettlementDialog, MarkPaidDialog, VoidPayoutButton } from "./payout-dialogs";
 
 export const metadata: Metadata = { title: "Payouts" };
 
-export default async function PayoutsPage() {
+export default async function PayoutsPage({ searchParams }: PageProps<"/admin/payouts">) {
   await requirePlatformStaff(["super_admin", "finance"]);
-  const [settlements, payouts] = await Promise.all([listSettlements(), listPayouts()]);
+  const sp = await searchParams;
+  const { page, perPage, offset } = parsePagination(sp);
+  const [settlements, payouts, payoutCount, totals] = await Promise.all([listSettlements(), listPayouts(perPage, offset), countPayouts(), payoutTotals()]);
   const due = settlements.map((s) => ({ s, due: dueCents(s) }));
   const totalDue = due.reduce((n, d) => n + d.due, 0);
-  const approvedUnpaid = payouts.filter((p) => p.status === "approved").reduce((n, p) => n + Number(p.amount_cents), 0);
-  const paidTotal = payouts.filter((p) => p.status === "paid").reduce((n, p) => n + Number(p.amount_cents), 0);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <PageHeader title="Organizer payouts" description="What each event owes its organizer after refunds and absorbed fees. Approve a settlement, send the money by bank transfer or check, then record the payout." />
       <div className="grid gap-4 sm:grid-cols-3">
         <Stat label="Awaiting approval" value={formatCents(totalDue)} hint={`${due.filter((d) => d.due > 0).length} event(s) with a balance`} />
-        <Stat label="Approved, not yet paid" value={formatCents(approvedUnpaid)} hint={`${payouts.filter((p) => p.status === "approved").length} payout(s)`} />
-        <Stat label="Paid out to date" value={formatCents(paidTotal)} hint={`${payouts.filter((p) => p.status === "paid").length} payout(s)`} />
+        <Stat label="Approved, not yet paid" value={formatCents(totals.approvedCents)} hint={`${totals.approvedCount} payout(s)`} />
+        <Stat label="Paid out to date" value={formatCents(totals.paidCents)} hint={`${totals.paidCount} payout(s)`} />
       </div>
 
       <Section title="Settlements by event" description="Payout due = ticket revenue − refunds − fees absorbed by the organizer − amounts already approved or paid.">
@@ -56,7 +58,7 @@ export default async function PayoutsPage() {
       </Section>
 
       <Section title="Payout history">
-        {payouts.length === 0 ? <p className="text-sm text-muted-foreground">No payouts approved yet.</p> : (
+        {payouts.length === 0 ? <p className="text-sm text-muted-foreground">{payoutCount === 0 ? "No payouts approved yet." : "No payouts on this page."}</p> : (
           <Table>
             <TableHeader><TableRow><TableHead>Approved</TableHead><TableHead>Organization</TableHead><TableHead>Event</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead><TableHead>Sent</TableHead><TableHead /></TableRow></TableHeader>
             <TableBody>
@@ -74,6 +76,7 @@ export default async function PayoutsPage() {
             </TableBody>
           </Table>
         )}
+        <div className="mt-4"><TablePagination page={page} perPage={perPage} total={payoutCount} /></div>
       </Section>
     </div>
   );

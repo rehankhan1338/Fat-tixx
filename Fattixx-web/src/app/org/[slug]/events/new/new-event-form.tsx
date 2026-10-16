@@ -43,7 +43,7 @@ const FEE_HINT: Record<FeeMode, string> = {
 };
 
 /**
- * `venues`: the organization's venues (Dashboard → Venues); `categories`: Super Admin → Website → Categories;
+ * `venues`: the organization's venues (Dashboard → Venues); `categories`: Super Admin → Fees & Settings → Event categories;
  * `defaultFeeMode`: Admin → Settings; `canFeature`: Super Admin only.
  */
 export function NewEventForm({ orgSlug, venues, categories, defaultFeeMode, canFeature = false }: {

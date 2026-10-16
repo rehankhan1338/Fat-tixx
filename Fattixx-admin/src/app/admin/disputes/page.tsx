@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requirePlatformStaff } from "@/lib/auth/guard";
-import { listDisputes } from "@/lib/admin/finance-queries";
+import { countDisputes, listDisputes, openDisputeTotals } from "@/lib/admin/finance-queries";
 import { getActiveStripe } from "@/lib/payments/stripe";
 import { syncDisputesFromStripe } from "@/lib/admin/finance-actions";
 import { formatCents } from "@/lib/money";
+import { parsePagination } from "@/lib/pagination";
 import { PageHeader, Section, formatDate, EmptyState } from "@/components/shared";
+import { TablePagination } from "@/components/table-pagination";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -14,10 +16,11 @@ import { DisputeDialog } from "./dispute-dialog";
 
 export const metadata: Metadata = { title: "Disputes" };
 
-export default async function DisputesPage() {
+export default async function DisputesPage({ searchParams }: PageProps<"/admin/disputes">) {
   await requirePlatformStaff(["super_admin", "finance"]);
-  const [disputes, active] = await Promise.all([listDisputes(), getActiveStripe()]);
-  const open = disputes.filter((d) => !d.closed_at);
+  const sp = await searchParams;
+  const { page, perPage, offset } = parsePagination(sp);
+  const [disputes, total, open, active] = await Promise.all([listDisputes(perPage, offset), countDisputes(), openDisputeTotals(), getActiveStripe()]);
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <PageHeader
@@ -26,8 +29,8 @@ export default async function DisputesPage() {
         actions={active ? <ConfirmButton action={syncDisputesFromStripe} title="Sync disputes from Stripe?" description={`Pulls open and recent disputes from the ${active.mode} account and updates their status here.`} confirmText="Sync" variant="outline" size="default" successText="Synced">Sync from Stripe</ConfirmButton> : null}
       />
       {!active ? <Alert><AlertTitle>Stripe is not configured</AlertTitle><AlertDescription>Disputes appear here once Stripe keys are added under Payments and the webhook is connected.</AlertDescription></Alert> : null}
-      <Section title={`Open disputes (${open.length})`} description={open.length ? `${formatCents(open.reduce((n, d) => n + Number(d.amount_cents), 0))} under dispute` : undefined}>
-        {disputes.length === 0 ? <EmptyState title="No disputes" description="Nothing has been charged back. Keep check-in records tidy; they win disputes." /> : (
+      <Section title={`Open disputes (${open.count})`} description={open.count ? `${formatCents(open.cents)} under dispute · ${total.toLocaleString()} total` : undefined}>
+        {disputes.length === 0 ? <EmptyState title={total === 0 ? "No disputes" : "No disputes on this page"} description={total === 0 ? "Nothing has been charged back. Keep check-in records tidy; they win disputes." : undefined} /> : (
           <Table>
             <TableHeader><TableRow><TableHead>Opened</TableHead><TableHead>Order</TableHead><TableHead>Event</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Reason</TableHead><TableHead>Status</TableHead><TableHead>Evidence due</TableHead><TableHead>Checked in</TableHead><TableHead /></TableRow></TableHeader>
             <TableBody>
@@ -47,6 +50,7 @@ export default async function DisputesPage() {
             </TableBody>
           </Table>
         )}
+        <div className="mt-4"><TablePagination page={page} perPage={perPage} total={total} /></div>
       </Section>
     </div>
   );

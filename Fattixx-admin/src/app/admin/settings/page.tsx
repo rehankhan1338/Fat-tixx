@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requirePlatformStaff, hasPlatformRole } from "@/lib/auth/guard";
 import { getBranding, getSettings } from "@/lib/settings";
+import { listCategories } from "@/lib/site-content/categories";
 import { isSmtpConfigured } from "@/lib/email";
 import { getActiveStripe } from "@/lib/payments/stripe";
 import { formatCents } from "@/lib/money";
@@ -10,19 +11,28 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SettingsForm } from "./settings-form";
 import { BrandingForm } from "./branding-form";
+import { CategoriesForm } from "./categories-form";
 
 export const metadata: Metadata = { title: "Fees & Settings" };
+
+const TABS = ["fees", "branding", "integrations", "categories"] as const;
 
 export default async function SettingsPage({ searchParams }: PageProps<"/admin/settings">) {
   const session = await requirePlatformStaff(["super_admin", "finance"]);
   const sp = await searchParams;
-  const [s, brand, stripeActive] = await Promise.all([getSettings(), getBranding(), getActiveStripe()]);
+  const [s, brand, stripeActive, categories] = await Promise.all([getSettings(), getBranding(), getActiveStripe(), listCategories()]);
   const isSuper = hasPlatformRole(session, "super_admin");
+  const tab = TABS.find((t) => t === sp.tab) ?? "fees";
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <PageHeader title="Fees & settings" description="Platform-wide defaults and branding. Organizations can be given fee overrides; each event chooses whether the buyer pays fees or the organizer absorbs them." />
-      <Tabs defaultValue={sp.tab === "branding" ? "branding" : sp.tab === "integrations" ? "integrations" : "fees"}>
-        <TabsList><TabsTrigger value="fees">Fees & checkout</TabsTrigger><TabsTrigger value="branding">Branding</TabsTrigger><TabsTrigger value="integrations">Integrations</TabsTrigger></TabsList>
+      <PageHeader title="Fees & settings" description="Platform-wide defaults, branding and event categories. Organizations can be given fee overrides; each event chooses whether the buyer pays fees or the organizer absorbs them." />
+      <Tabs defaultValue={tab}>
+        <TabsList className="no-scrollbar w-full max-w-full flex-nowrap justify-start overflow-x-auto scroll-px-1 snap-x [&>*]:shrink-0 [&>*]:snap-start sm:w-fit sm:overflow-visible">
+          <TabsTrigger value="fees">Fees & checkout</TabsTrigger>
+          <TabsTrigger value="branding">Branding</TabsTrigger>
+          <TabsTrigger value="integrations">Integrations</TabsTrigger>
+          <TabsTrigger value="categories">Event categories</TabsTrigger>
+        </TabsList>
         <TabsContent value="fees" className="pt-4">
           <Section title="Fees, taxes and checkout">
             {isSuper ? <SettingsForm settings={s} /> : (
@@ -47,6 +57,11 @@ export default async function SettingsPage({ searchParams }: PageProps<"/admin/s
               <li className="flex items-center justify-between rounded-lg border p-3"><span>Stripe payments <span className="block text-xs text-muted-foreground">Keys and the test/live switch are under <strong>Payments</strong>.</span></span>{stripeActive ? <Badge variant="outline" className={stripeActive.mode === "live" ? "border-red-500/40 text-red-700" : "border-emerald-500/40 text-emerald-700"}>Connected · {stripeActive.mode.toUpperCase()} mode</Badge> : <Badge variant="outline" className="border-amber-500/40 text-amber-700">Not configured — only free orders work</Badge>}</li>
               <li className="flex items-center justify-between rounded-lg border p-3"><span>Email delivery (Brevo) <span className="block text-xs text-muted-foreground">BREVO_API_KEY · MAIL_FROM in .env.local</span></span>{isSmtpConfigured() ? <Badge variant="outline" className="border-emerald-500/40 text-emerald-700">Connected</Badge> : <Badge variant="outline" className="border-amber-500/40 text-amber-700">Not configured — emails are logged in the outbox</Badge>}</li>
             </ul>
+          </Section>
+        </TabsContent>
+        <TabsContent value="categories" className="pt-4">
+          <Section title="Event categories" description="Used by the homepage pills, the events filter, the create-event page, the organizer's event form and the mobile app.">
+            {isSuper ? <CategoriesForm categories={categories} /> : <p className="text-sm text-muted-foreground">Only a Super Admin can change the event categories.</p>}
           </Section>
         </TabsContent>
       </Tabs>

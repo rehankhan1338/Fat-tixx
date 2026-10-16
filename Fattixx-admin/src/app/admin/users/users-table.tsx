@@ -1,9 +1,11 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { MoreHorizontalIcon, PlusIcon } from "lucide-react";
+import { useActionState, useEffect, useState } from "react";
+import Link from "next/link";
+import { Loader2Icon, MoreHorizontalIcon, PlusIcon } from "lucide-react";
 import { toast } from "sonner";
-import { createPlatformUser, revokePlatformRole, sendPasswordLinkToUser, setUserStatus, type ActionState } from "@/lib/admin/actions";
+import { createPlatformUser, getUserOrders, revokePlatformRole, sendPasswordLinkToUser, setUserStatus, type ActionState, type UserOrderView } from "@/lib/admin/actions";
+import { formatCents } from "@/lib/money";
 import { deleteUser, updateUser } from "@/lib/admin/crud-actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { FormStatus, SelectField, TextField } from "@/components/form-fields";
 import { SubmitButton } from "@/components/submit-button";
 import { InviteLinkNotice } from "@/components/invite-link-notice";
-import { RoleBadge, StatusBadge, EmptyState } from "@/components/shared";
+import { RoleBadge, StatusBadge, EmptyState, formatDate } from "@/components/shared";
 
 export interface UserView { id: number; email: string; name: string; status: string; has_password: number; last_login_at: string | null; created_at: string; platform_roles: string | null; org_count: number; order_count: number }
 
@@ -77,9 +79,55 @@ function EditUserDialog({ user, open, onOpenChange }: { user: UserView; open: bo
   );
 }
 
+function UserOrdersDialog({ user, open, onOpenChange }: { user: UserView; open: boolean; onOpenChange: (o: boolean) => void }) {
+  const [orders, setOrders] = useState<UserOrderView[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getUserOrders(user.id)
+      .then((r) => { if (cancelled) return; if (r.error) setError(r.error); else setOrders(r.orders ?? []); })
+      .catch(() => { if (!cancelled) setError("Could not load orders."); });
+    return () => { cancelled = true; };
+  }, [user.id]);
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Orders by {user.name}</DialogTitle>
+          <DialogDescription>{user.email}{orders ? ` · ${orders.length} order${orders.length === 1 ? "" : "s"}` : ""}</DialogDescription>
+        </DialogHeader>
+        {error ? <p className="text-sm text-destructive">{error}</p>
+          : !orders ? <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground"><Loader2Icon className="size-4 animate-spin" /> Loading orders…</div>
+          : orders.length === 0 ? <EmptyState title="No orders" description="This account has not placed any orders yet." />
+          : (
+            <div className="-mx-4 max-h-[60vh] overflow-auto px-4">
+              <Table>
+                <TableHeader><TableRow><TableHead>Order</TableHead><TableHead>Event</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Tickets</TableHead><TableHead className="text-right">Total</TableHead><TableHead>Date</TableHead><TableHead /></TableRow></TableHeader>
+                <TableBody>
+                  {orders.map((o) => (
+                    <TableRow key={o.id}>
+                      <TableCell><span className="font-mono text-xs">{o.code}</span>{o.source !== "online" ? <Badge variant="outline" className="ml-2 text-[10px]">{o.source.replace("_", " ")}</Badge> : null}</TableCell>
+                      <TableCell className="max-w-56"><span className="block truncate">{o.event_title}</span><span className="block truncate text-xs text-muted-foreground">{o.org_name}</span></TableCell>
+                      <TableCell><StatusBadge status={o.status} /></TableCell>
+                      <TableCell className="text-right tabular-nums">{o.ticket_count}</TableCell>
+                      <TableCell className="text-right font-mono">{formatCents(o.total_cents, o.currency)}{o.refunded_cents ? <span className="block text-xs text-destructive">−{formatCents(o.refunded_cents, o.currency)}</span> : null}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(o.date)}</TableCell>
+                      <TableCell className="text-right"><Button variant="outline" size="sm" render={<Link href={`/org/${o.org_slug}/orders/${o.code}`} />}>View order details</Button></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function UsersTable({ users, currentUserId, canManage = true }: { users: UserView[]; currentUserId: number; canManage?: boolean }) {
   const [link, setLink] = useState<string | null>(null);
   const [editing, setEditing] = useState<UserView | null>(null);
+  const [viewingOrders, setViewingOrders] = useState<UserView | null>(null);
   async function run(fn: (fd: FormData) => Promise<ActionState>, fields: Record<string, string | number>, okText: string) {
     const fd = new FormData();
     for (const [k, v] of Object.entries(fields)) fd.set(k, String(v));
@@ -101,7 +149,11 @@ export function UsersTable({ users, currentUserId, canManage = true }: { users: 
                 <TableCell><span className="font-medium">{u.name}</span>{isSelf ? <Badge variant="outline" className="ml-2 text-[10px]">you</Badge> : null}<span className="block text-xs text-muted-foreground">{u.email}</span></TableCell>
                 <TableCell className="space-x-1">{roles.length ? roles.map((r) => <RoleBadge key={r} role={r} />) : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
                 <TableCell className="tabular-nums">{u.org_count}</TableCell>
-                <TableCell className="tabular-nums">{u.order_count}</TableCell>
+                <TableCell className="tabular-nums">
+                  {Number(u.order_count) > 0
+                    ? <button type="button" onClick={() => setViewingOrders(u)} className="cursor-pointer rounded-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`View ${u.order_count} orders by ${u.name}`}>{u.order_count}</button>
+                    : <span className="text-muted-foreground">0</span>}
+                </TableCell>
                 <TableCell>{u.has_password ? <StatusBadge status={u.status} /> : <Badge variant="outline" className="border-amber-500/40 text-amber-700 dark:text-amber-300">No password yet</Badge>}</TableCell>
                 <TableCell className="text-xs text-muted-foreground">{u.last_login_at ?? "—"}</TableCell>
                 <TableCell className="text-right">
@@ -131,6 +183,7 @@ export function UsersTable({ users, currentUserId, canManage = true }: { users: 
         </TableBody>
       </Table>
       {editing ? <EditUserDialog key={editing.id} user={editing} open onOpenChange={(o) => { if (!o) setEditing(null); }} /> : null}
+      {viewingOrders ? <UserOrdersDialog key={viewingOrders.id} user={viewingOrders} open onOpenChange={(o) => { if (!o) setViewingOrders(null); }} /> : null}
     </div>
   );
 }

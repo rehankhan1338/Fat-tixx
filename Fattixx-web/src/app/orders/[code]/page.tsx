@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { heldByRecipient, holderMayTransfer } from "@/lib/orders/transfer";
 import { AttendeeNameForm, BuyerTransferButton, RefundRequestButton } from "./order-client";
+import { SaveImageButton } from "@/components/save-image-button";
 
 export const metadata: Metadata = { title: "Your order", robots: { index: false } };
 
@@ -34,6 +35,8 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/or
   const qrs = await Promise.all(tickets.map((t) => (["valid", "used"].includes(t.status) && !given(t) ? ticketQrDataUrl(t.code, t.secret) : Promise.resolve(null))));
   const mayRefund = attendeeMayRequestRefund(order);
   const mayTransfer = !holderMayTransfer(order);
+  const hasReceipt = ["paid", "partially_refunded", "refunded", "cancelled"].includes(order.status);
+  const receiptHref = `/orders/${order.code}/receipt${token ? `?t=${encodeURIComponent(token)}` : ""}`;
 
   return (
     <PublicShell wide>
@@ -98,8 +101,9 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/or
                   <span className="min-w-0 break-words">A copy was emailed to <span className="font-medium text-foreground">{order.buyer_email}</span>.</span>
                 </p>
                 <div className="grid gap-2 sm:grid-cols-2">
+                  {hasReceipt ? <SaveImageButton href={receiptHref} filename={`receipt-${order.code}.jpg`} shareTitle="Receipt" variant="outline" size="sm" className={mayRefund ? "w-full sm:col-span-2" : "w-full"}>Download receipt</SaveImageButton> : null}
                   {mayRefund ? <RefundRequestButton code={order.code} token={token} amountLabel={formatCents(Number(order.total_cents), order.currency)} className="w-full" /> : null}
-                  <Button variant="outline" size="sm" className={mayRefund ? "w-full" : "w-full sm:col-span-2"} render={<Link href="/tickets/find" />}>Find my other tickets</Button>
+                  <Button variant="outline" size="sm" className={mayRefund || hasReceipt ? "w-full" : "w-full sm:col-span-2"} render={<Link href="/tickets/find" />}>Find my other tickets</Button>
                 </div>
                 {!mayRefund ? <p className="text-xs text-muted-foreground">Refunds: {order.refund_policy === "no_refunds" ? "not available except if the event is cancelled." : "no longer available for this order."}</p> : null}
               </CardContent>

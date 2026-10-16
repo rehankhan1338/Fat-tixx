@@ -23,7 +23,7 @@ export const viewport: Viewport = { themeColor: "#A8121A" };
 
 /*
  * Public homepage. Section order: nav, photo hero, how it works, featured strip, event browser, organizer band, footer.
- * Every heading, paragraph, button, photo and fee point comes from Super Admin → Website → Homepage; sections can be hidden there.
+ * Every heading, paragraph, button, photo and fee point comes from src/lib/site-content/schema.ts; sections can be switched off there.
  * Events come from the database only; when nothing is published the event grid says so.
  */
 export default async function HomePage() {

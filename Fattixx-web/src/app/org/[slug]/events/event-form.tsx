@@ -15,7 +15,7 @@ export interface EventFormValues {
 }
 export interface VenueOption { id: number; name: string; timezone: string; tax_bps: number }
 
-/** `categories`: the names managed in Super Admin → Website → Categories. */
+/** `categories`: the names managed in Super Admin → Fees & Settings → Event categories. */
 export function EventForm({ orgSlug, venues, values, defaultFeeMode, canFeature = false, categories }: { orgSlug: string; venues: VenueOption[]; values?: EventFormValues; defaultFeeMode: string; canFeature?: boolean; categories: string[] }) {
   const categoryOptions = [...new Set([...(values?.category ? [values.category] : []), ...categories])];
   const isEdit = !!values?.id;

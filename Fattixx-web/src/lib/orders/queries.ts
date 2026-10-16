@@ -158,14 +158,27 @@ export async function listOrgOrders(orgId: number, search = '', eventId?: number
   );
 }
 
-export async function searchAllOrders(search = '', limit = 200): Promise<OrderListRow[]> {
+const ALL_ORDERS_WHERE = `WHERE o.status <> 'expired'
+       AND (? = '' OR o.code LIKE ? OR o.buyer_email LIKE ? OR o.buyer_name LIKE ? OR EXISTS (SELECT 1 FROM tickets k WHERE k.order_id = o.id AND (k.attendee_name LIKE ? OR k.code LIKE ?)))`;
+
+export async function searchAllOrders(search = '', limit = 50, offset = 0): Promise<OrderListRow[]> {
   const like = `%${search}%`;
   return query<OrderListRow>(
-    `${ORDER_LIST} WHERE o.status <> 'expired'
-       AND (? = '' OR o.code LIKE ? OR o.buyer_email LIKE ? OR o.buyer_name LIKE ? OR EXISTS (SELECT 1 FROM tickets k WHERE k.order_id = o.id AND (k.attendee_name LIKE ? OR k.code LIKE ?)))
-     ORDER BY o.id DESC LIMIT ?`,
-    [search, like, like, like, like, like, limit],
+    `${ORDER_LIST} ${ALL_ORDERS_WHERE}
+     ORDER BY o.id DESC LIMIT ? OFFSET ?`,
+    [search, like, like, like, like, like, limit, offset],
   );
+}
+
+export async function countAllOrders(search = ''): Promise<number> {
+  const like = `%${search}%`;
+  const r = await queryOne<Row & { n: number }>(`SELECT COUNT(*) AS n FROM orders o ${ALL_ORDERS_WHERE}`, [search, like, like, like, like, like]);
+  return Number(r?.n ?? 0);
+}
+
+/** Every order placed by an account (all statuses), newest first. Matches the per-user order count on /admin/users. */
+export async function listOrdersForUser(userId: number, limit = 200): Promise<OrderListRow[]> {
+  return query<OrderListRow>(`${ORDER_LIST} WHERE o.user_id = ? ORDER BY o.id DESC LIMIT ?`, [userId, limit]);
 }
 
 /** Orders for a verified email address and/or an account. Pass email = null for an account whose email is not verified yet. */

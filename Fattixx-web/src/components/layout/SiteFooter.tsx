@@ -1,4 +1,4 @@
-/* Shared public footer. Blurb, link columns, social profiles and the legal line come from Super Admin → Website → Footer. */
+/* Shared public footer. Blurb, link columns, social profiles and the legal line come from src/lib/site-content/schema.ts. */
 
 import Link from "next/link";
 import Logo from "@/components/home/Logo";

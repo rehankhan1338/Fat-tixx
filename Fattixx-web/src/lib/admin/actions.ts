@@ -8,6 +8,7 @@ import type { PlatformRole } from '../auth/session';
 import { resendOutboxEmail } from '../email';
 import { setSetting, type SettingKey } from '../settings';
 import { ensureUser, isEmail, sendSetPasswordLink } from '../users';
+import { listOrdersForUser } from '../orders/queries';
 
 export type ActionState = { error?: string; ok?: boolean; message?: string; link?: string } | undefined;
 const str = (fd: FormData, k: string, max = 500) => String(fd.get(k) ?? '').trim().slice(0, max);
@@ -73,6 +74,25 @@ export async function sendPasswordLinkToUser(fd: FormData): Promise<ActionState>
   const link = await sendSetPasswordLink(user as never, { invitedBy: session.user.id, context: 'Fat Tixx', purpose: user.password_hash ? 'reset_password' : 'set_password' });
   await audit('user.invited', { actorUserId: session.user.id, targetType: 'user', targetId: user.id });
   return { ok: true, message: 'Password link created.', link };
+}
+
+export type UserOrderView = { id: number; code: string; status: string; source: string; event_title: string; org_name: string; org_slug: string; ticket_count: number; total_cents: number; refunded_cents: number; currency: string; date: string | null };
+
+/** Orders placed by one account, for the orders popup on /admin/users. */
+export async function getUserOrders(userId: number): Promise<{ error?: string; orders?: UserOrderView[] }> {
+  await assertPlatformRole(['super_admin', 'support']);
+  if (!Number.isInteger(userId) || userId <= 0) return { error: 'Invalid user.' };
+  const rows = await listOrdersForUser(userId);
+  return {
+    orders: rows.map((o) => {
+      const when = o.paid_at ?? o.created_at;
+      return {
+        id: o.id, code: o.code, status: o.status, source: o.source, event_title: o.event_title, org_name: o.org_name, org_slug: o.org_slug,
+        ticket_count: Number(o.ticket_count), total_cents: Number(o.total_cents), refunded_cents: Number(o.refunded_cents), currency: o.currency,
+        date: when ? new Date(when).toISOString() : null,
+      };
+    }),
+  };
 }
 
 // ---------------------------------------------------------------------------

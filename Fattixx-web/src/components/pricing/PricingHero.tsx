@@ -15,7 +15,7 @@ const PRESETS = [0, 1000, 2500, 5000, 10000, 35000];
 
 const pill = "min-h-11 cursor-pointer rounded-full border px-[18px] text-[14px] font-semibold transition-[background-color,color,border-color] duration-200";
 
-/** Copy comes from Super Admin → Website → Pricing; the figures from the live fee settings. */
+/** Copy comes from src/lib/site-content/schema.ts; the figures from the live fee settings. */
 export default function PricingHero({ content: c }: { content: PricingContent["hero"] }) {
   const fees = useFees();
   const [text, setText] = useState("25");

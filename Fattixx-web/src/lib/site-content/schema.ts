@@ -1,10 +1,7 @@
 /*
- * Editable content of the public homepage, the pricing page and the shared footer (Super Admin → Website).
- *
- * Each page is stored as one JSON document in platform_settings (site_home, site_pricing, site_footer). The
- * defaults below are the design handoff's copy; anything missing from the stored document falls back to them, so
- * adding a field here never breaks a saved site. Strings may use tokens such as {fee} that are filled in from the
- * live fee settings and branding when the page renders (see index.ts), so marketing copy always matches checkout.
+ * Content of the public homepage, the pricing page and the shared footer: the design handoff's copy, kept as data so
+ * the components stay presentational. Strings may use tokens such as {fee} that are filled in from the live fee
+ * settings and branding when the page renders (see index.ts), so marketing copy always matches checkout.
  */
 
 import type { SocialNetwork } from "../home/types";
@@ -74,30 +71,6 @@ export type FooterContent = {
 };
 
 export type SiteContent = { home: HomeContent; pricing: PricingContent; footer: FooterContent };
-export type SitePage = keyof SiteContent;
-
-/** Tokens the admin can type into any text; filled in from the live settings when the page renders. */
-export const TOKENS: { token: string; meaning: string }[] = [
-  { token: "{fee}", meaning: "platform fee per paid ticket, e.g. 5% + $0.99" },
-  { token: "{processing}", meaning: "card processing per order, e.g. 2.9% + $0.30 per order (or \"included\" when it is 0)" },
-  { token: "{processing_rate}", meaning: "card processing rate only, e.g. 2.9% + $0.30 (or \"Included\")" },
-  { token: "{processing_clause}", meaning: "\", plus card processing of 2.9% + $0.30 per order\" or \", with card processing included\"" },
-  { token: "{platform_name}", meaning: "the platform name from Branding" },
-  { token: "{support_email}", meaning: "the support email from Branding" },
-  { token: "{year}", meaning: "the current year" },
-  { token: "{competitor}", meaning: "the other platform's name from the pricing comparison" },
-  { token: "{competitor_rate}", meaning: "the other platform's rates as a sentence" },
-  { token: "{competitor_checked}", meaning: "when the other platform's rates were checked" },
-];
-
-export const SOCIAL_OPTIONS: SocialNetwork[] = ["instagram", "tiktok", "facebook", "x", "youtube"];
-
-export const HOW_STEP_COUNT = 4; // the phone mock-up has one screen per step
-export const RULE_COUNT = 3; // the three columns of the fee rules
-export const MAX_STATS = 4;
-export const MAX_FAQ = 12;
-export const MAX_COLUMNS = 4;
-export const MAX_LINKS = 8;
 
 export const DEFAULT_HOME: HomeContent = {
   meta: {
@@ -253,19 +226,3 @@ export const DEFAULT_FOOTER: FooterContent = {
 };
 
 export const DEFAULTS: SiteContent = { home: DEFAULT_HOME, pricing: DEFAULT_PRICING, footer: DEFAULT_FOOTER };
-
-/**
- * Fill a stored document with defaults: objects are merged key by key, arrays and primitives are taken from the
- * stored value when they have the right type. Unknown keys are dropped.
- */
-export function withDefaults<T>(defaults: T, stored: unknown): T {
-  if (Array.isArray(defaults)) return (Array.isArray(stored) ? stored : defaults) as T;
-  if (defaults !== null && typeof defaults === "object") {
-    const src = stored !== null && typeof stored === "object" && !Array.isArray(stored) ? (stored as Record<string, unknown>) : {};
-    const out: Record<string, unknown> = {};
-    for (const [k, d] of Object.entries(defaults as Record<string, unknown>)) out[k] = withDefaults(d, src[k]);
-    return out as T;
-  }
-  if (defaults === null) return (stored === null || typeof stored === "string" ? stored : null) as T;
-  return (typeof stored === typeof defaults ? stored : defaults) as T;
-}
