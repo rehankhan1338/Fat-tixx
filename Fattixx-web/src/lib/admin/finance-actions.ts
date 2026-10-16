@@ -4,7 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { execute, queryOne, type Row } from '../db';
 import { audit } from '../audit';
 import { assertPlatformRole, assertSuperAdmin } from '../auth/guard';
-import { TEMPLATES, fillTemplate, renderEmail, templateDef, type TemplateKey } from '../email-templates';
+import { TEMPLATES, renderEmailDraft, type TemplateKey } from '../email-templates';
+import { BRAND_LOGO_INLINE } from '../brand-logo-inline';
 import { getActiveStripe, stripeClient, testStripeKeys } from '../payments/stripe';
 import { reconcileWithStripe } from '../payments/reconcile';
 import { getBranding, getStripeSettings, saveStripeKeySet, setSetting, setStripeMode, type StripeMode } from '../settings';
@@ -234,11 +235,11 @@ export async function resetEmailTemplate(fd: FormData): Promise<ActionState> {
 export async function previewEmailTemplate(key: string, subject: string, body: string): Promise<{ subject: string; html: string } | { error: string }> {
   await assertSuperAdmin();
   if (!isTemplateKey(key)) return { error: 'Unknown template.' };
-  const def = templateDef(key);
   const brand = await getBranding();
-  const vars = { platform_name: brand.name, support_email: brand.supportEmail, ...def.sample };
-  const rendered = await renderEmail(key, def.sample, { brand });
-  // Replace stored/default body with the unsaved draft.
-  const draftBody = fillTemplate(body, vars);
-  return { subject: fillTemplate(subject, vars), html: rendered.html.replace(/<td style="padding:24px">[\s\S]*?<\/td><\/tr>\n<tr><td style="padding:16px 24px/, `<td style="padding:24px"><h1 style="margin:0 0 12px;font-size:20px">${fillTemplate(subject, vars)}</h1>${draftBody}</td></tr>\n<tr><td style="padding:16px 24px`) };
+  // The preview is shown in a sandboxed iframe on the admin origin, whose CSP only allows images from itself, data: URIs and the
+  // public site (APP_URL). The default wordmark is embedded as a data: URI so the preview never depends on APP_URL being set or
+  // on the public site being up; an uploaded logo (Vercel Blob / public site) is shown from its real URL, as in the sent email.
+  const logo = brand.logoPath ? undefined : BRAND_LOGO_INLINE;
+  const { subject: renderedSubject, html } = await renderEmailDraft(key, subject, body, { brand, logo });
+  return { subject: renderedSubject, html };
 }

@@ -8,15 +8,25 @@ function required(name: string): string {
 
 const LOCALHOST_RE = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)(:\d+)?\/?$/i;
 
+let warnedAdminAppUrl = false;
+
 /**
  * Public origin used for every absolute link the app generates (emails, SMS, embed snippets, share links).
  * Resolution order: explicit APP_URL (ignored if it still points at localhost while running on Vercel),
  * then Vercel's production domain, then the current Vercel deployment URL, then localhost for `next dev`.
+ *
+ * The admin console (Fattixx-admin/) is deployed as its own Vercel project, so the Vercel fallbacks there name the
+ * console, not the public site: every email it sends (refunds, re-sent tickets, approvals) would then carry links and a
+ * logo URL on the console's domain, which serves no /images and no public pages. APP_URL must be set on that project.
  */
 function resolveAppUrl(): string {
   const explicit = process.env.APP_URL?.trim().replace(/\/+$/, '');
   const onVercel = !!process.env.VERCEL;
   if (explicit && !(onVercel && LOCALHOST_RE.test(explicit))) return explicit;
+  if (onVercel && process.env.FX_APP === 'admin' && !warnedAdminAppUrl) {
+    warnedAdminAppUrl = true;
+    console.warn('[env] APP_URL is not set on the admin console deployment; links and the logo in emails sent from the console will point at the console itself. Set APP_URL to the public site, e.g. https://fat-tixx.vercel.app.');
+  }
   if (onVercel) {
     // VERCEL_PROJECT_PRODUCTION_URL is the production/custom domain; VERCEL_URL is the unique deployment URL.
     // Both are bare hosts without a protocol.

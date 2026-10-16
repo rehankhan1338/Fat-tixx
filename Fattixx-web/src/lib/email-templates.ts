@@ -250,13 +250,32 @@ export const EMAIL_THEME = {
   display: "'Bricolage Grotesque', 'IBM Plex Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif",
 } as const;
 
-/** Brand-aware HTML wrapper used by every template, styled like the public site (ivory page, white sheet, red header, yellow pill buttons). */
-export function brandedLayout(title: string, bodyHtml: string, brand: Branding, appUrl: string): string {
-  const T = EMAIL_THEME;
+/** Image shown in the red header band. `width`/`height` are the file's pixel size (0 when unknown, e.g. an uploaded logo). */
+export interface EmailLogo { src: string; width: number; height: number }
+
+/** The Fattixx wordmark the site uses (src/components/home/Logo.tsx): transparent PNG, legible on the red band. */
+const DEFAULT_LOGO = { path: '/images/brand/fattixx-logo.png', width: 800, height: 513 } as const;
+const LOGO_HEIGHT = 48;
+
+/**
+ * Which logo an email shows: the one the Super Admin uploaded (Admin → Settings → Branding) if any, otherwise the default wordmark.
+ * Mail clients only load absolute URLs, so `appUrl` must be the public site's origin (APP_URL), never the admin console's:
+ * the console has no /images and sits behind its own domain. See src/lib/env.ts.
+ */
+export function emailLogo(brand: Branding, appUrl: string): EmailLogo {
   const uploaded = uploadUrl(brand.logoPath);
-  // The Super Admin logo wins; otherwise the Fattixx wordmark the site uses (transparent PNG, legible on the red band).
-  const logoSrc = uploaded ? (/^https?:/.test(uploaded) ? uploaded : appUrl + uploaded) : `${appUrl}/images/brand/fattixx-logo.png`;
-  const logo = `<img src="${logoSrc}" alt="${escapeHtml(brand.name)}" height="40" style="height:40px;width:auto;max-width:220px;display:block;border:0">`;
+  if (uploaded) return { src: /^https?:/.test(uploaded) ? uploaded : appUrl + uploaded, width: 0, height: 0 };
+  return { src: `${appUrl}${DEFAULT_LOGO.path}`, width: DEFAULT_LOGO.width, height: DEFAULT_LOGO.height };
+}
+
+/** Brand-aware HTML wrapper used by every template, styled like the public site (ivory page, white sheet, red header, yellow pill buttons). */
+export function brandedLayout(title: string, bodyHtml: string, brand: Branding, appUrl: string, logoOverride?: EmailLogo): string {
+  const T = EMAIL_THEME;
+  const logoDef = logoOverride ?? emailLogo(brand, appUrl);
+  // Outlook (Word engine) ignores CSS sizing and renders at the width/height attributes, or at the file's natural size when
+  // they are missing; so both attributes are set whenever the file's proportions are known.
+  const logoWidth = logoDef.width && logoDef.height ? Math.round((LOGO_HEIGHT * logoDef.width) / logoDef.height) : 0;
+  const logo = `<img src="${logoDef.src}" alt="${escapeHtml(brand.name)}"${logoWidth ? ` width="${logoWidth}"` : ''} height="${LOGO_HEIGHT}" style="height:${LOGO_HEIGHT}px;width:${logoWidth ? `${logoWidth}px` : 'auto'};max-width:220px;display:block;border:0">`;
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${escapeHtml(title)}</title><style>
     body{margin:0;padding:0;background:${T.ivory};-webkit-font-smoothing:antialiased}
     p{margin:0 0 14px;font-size:15px;line-height:1.55}
@@ -289,15 +308,26 @@ Questions? <a href="mailto:${escapeHtml(brand.supportEmail)}" style="color:${T.i
 
 export interface RenderedEmail { subject: string; html: string; text: string }
 
+export interface RenderOptions { title?: string; brand?: Branding; appUrl?: string; appendHtml?: string; logo?: EmailLogo }
+
 /** Render a template (stored override or default) with variables and the current branding. */
-export async function renderEmail(key: TemplateKey, vars: Record<string, string>, opts: { title?: string; brand?: Branding; appUrl?: string; appendHtml?: string } = {}): Promise<RenderedEmail> {
+export async function renderEmail(key: TemplateKey, vars: Record<string, string>, opts: RenderOptions = {}): Promise<RenderedEmail> {
   const def = templateDef(key);
   const stored = (await listStoredTemplates()).get(key);
+  return renderWith(stored?.subject ?? def.subject, stored?.body_html ?? def.body, vars, opts);
+}
+
+/** Render an unsaved subject/body (the Super Admin editor's live preview) with the template's sample data. */
+export async function renderEmailDraft(key: TemplateKey, subject: string, body: string, opts: RenderOptions = {}): Promise<RenderedEmail> {
+  return renderWith(subject, body, templateDef(key).sample, opts);
+}
+
+async function renderWith(subjectTemplate: string, bodyTemplate: string, vars: Record<string, string>, opts: RenderOptions): Promise<RenderedEmail> {
   const brand = opts.brand ?? (await getBranding());
   const all = { platform_name: brand.name, support_email: brand.supportEmail, ...vars };
-  const subject = fillTemplate(stored?.subject ?? def.subject, all);
-  const bodyHtml = fillTemplate(stored?.body_html ?? def.body, all).replace(/<p class="notice"><\/p>|<p><\/p>/g, '');
+  const subject = fillTemplate(subjectTemplate, all);
+  const bodyHtml = fillTemplate(bodyTemplate, all).replace(/<p class="notice"><\/p>|<p><\/p>/g, '');
   // appendHtml (e.g. the email ad placement) is added outside the editable template and left out of the plain-text part.
-  const html = brandedLayout(opts.title ?? subject, bodyHtml + (opts.appendHtml ?? ''), brand, opts.appUrl ?? env.APP_URL);
+  const html = brandedLayout(opts.title ?? subject, bodyHtml + (opts.appendHtml ?? ''), brand, opts.appUrl ?? env.APP_URL, opts.logo);
   return { subject, html, text: `${subject}\n\n${htmlToText(bodyHtml)}` };
 }
