@@ -130,7 +130,7 @@ export type LockedUserRow = Row & { id: number; email: string; name: string; fai
 
 /** Operational health for the Monitoring page. */
 export async function monitoringSnapshot() {
-  const [locked, failedLogins24h, throttledIps, failedEmails, queuedEmails, lastWebhook, webhooks24h, pendingHolds, expiredHolds24h, overrides24h, disputesOpen, dbOk] = await Promise.all([
+  const [locked, failedLogins24h, throttledIps, failedEmails, queuedEmails, lastWebhook, webhooks24h, pendingHolds, expiredHolds24h, overrides24h, disputesOpen, dbOk, cardPayments7d] = await Promise.all([
     query<LockedUserRow>(`SELECT id, email, name, failed_login_count, locked_until, status FROM users WHERE locked_until > NOW() OR status <> 'active' ORDER BY locked_until DESC LIMIT 50`),
     queryOne<Row & { n: number }>(`SELECT COUNT(*) AS n FROM login_attempts WHERE success = 0 AND created_at > NOW() - INTERVAL 1 DAY`),
     query<Row & { ip: string; n: number }>(`SELECT ip, COUNT(*) AS n FROM login_attempts WHERE success = 0 AND created_at > NOW() - INTERVAL 1 DAY GROUP BY ip HAVING n >= 10 ORDER BY n DESC LIMIT 20`),
@@ -145,11 +145,12 @@ export async function monitoringSnapshot() {
         WHERE c.result IN ('override','undo') AND c.created_at > NOW() - INTERVAL 7 DAY ORDER BY c.id DESC LIMIT 20`),
     queryOne<Row & { n: number }>(`SELECT COUNT(*) AS n FROM disputes WHERE closed_at IS NULL`),
     queryOne<Row & { ok: number }>(`SELECT 1 AS ok`),
+    queryOne<Row & { n: number }>(`SELECT COUNT(*) AS n FROM orders WHERE stripe_payment_intent_id IS NOT NULL AND paid_at > NOW() - INTERVAL 7 DAY`),
   ]);
   const n = (r: (Row & { n: number }) | null) => Number(r?.n ?? 0);
   return {
     locked, failedLogins24h: n(failedLogins24h), throttledIps, failedEmails, queuedEmails: n(queuedEmails),
-    lastWebhookAt: lastWebhook?.at ? new Date(lastWebhook.at) : null, lastWebhookType: lastWebhook?.type ?? null, webhooks24h: n(webhooks24h),
+    lastWebhookAt: lastWebhook?.at ? new Date(lastWebhook.at) : null, lastWebhookType: lastWebhook?.type ?? null, webhooks24h: n(webhooks24h), cardPayments7d: n(cardPayments7d),
     pendingHolds: n(pendingHolds), expiredHolds24h: n(expiredHolds24h), overrides: overrides24h, disputesOpen: n(disputesOpen), dbOk: Number(dbOk?.ok) === 1,
   };
 }

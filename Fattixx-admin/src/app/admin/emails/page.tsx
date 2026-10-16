@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requirePlatformStaff } from "@/lib/auth/guard";
 import { countEmails, countSms, listEmails, listSms } from "@/lib/admin/queries";
-import { isSmtpConfigured } from "@/lib/email";
+import { isEmailConfigured } from "@/lib/email";
 import { isSmsConfigured } from "@/lib/sms";
 import { paginationParams, parsePagination } from "@/lib/pagination";
 import { PageHeader, StatusBadge, formatDate, EmptyState } from "@/components/shared";
@@ -22,19 +22,20 @@ export default async function EmailsPage({ searchParams }: PageProps<"/admin/ema
   const sp = await searchParams;
   const emailPaging = parsePagination(sp);
   const smsPaging = parsePagination(sp, SMS_PREFIX);
-  const [emails, emailTotal, sms, smsTotal] = await Promise.all([
+  const [emails, emailTotal, sms, smsTotal, configured] = await Promise.all([
     listEmails(emailPaging.perPage, emailPaging.offset),
     countEmails(),
     listSms(smsPaging.perPage, smsPaging.offset),
     countSms(),
+    isEmailConfigured(),
   ]);
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <PageHeader title="Email outbox" description="Every message the platform generates: tickets, receipts, invitations, password links, event updates." actions={<Button variant="outline" render={<Link href="/admin/emails/templates" />}>Edit templates</Button>} />
-      {!isSmtpConfigured() ? (
+      {!configured ? (
         <Alert>
-          <AlertTitle>No mail server configured</AlertTitle>
-          <AlertDescription>Messages are recorded here with status “logged” but not delivered. Add <code className="font-mono">BREVO_API_KEY</code> and <code className="font-mono">MAIL_FROM</code> to .env.local and restart to send real email.</AlertDescription>
+          <AlertTitle>No mail delivery configured</AlertTitle>
+          <AlertDescription>Messages are recorded here with status “logged” but not delivered. Save a Brevo API key and sender under <Link href="/admin/settings?tab=integrations" className="underline">Settings → Integrations</Link> to send real email.</AlertDescription>
         </Alert>
       ) : null}
       <Card><CardContent className="space-y-4 pt-6">

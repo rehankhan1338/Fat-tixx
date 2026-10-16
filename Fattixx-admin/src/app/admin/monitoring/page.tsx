@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireSuperAdmin } from "@/lib/auth/guard";
 import { monitoringSnapshot } from "@/lib/admin/finance-queries";
-import { getActiveStripe } from "@/lib/payments/stripe";
-import { isSmtpConfigured } from "@/lib/email";
+import { checkWebhookEndpoint, getActiveStripe, type WebhookEndpointStatus } from "@/lib/payments/stripe";
+import { emailDeliveryStatus } from "@/lib/email";
+import { env } from "@/lib/env";
 import { setUserStatus } from "@/lib/admin/actions";
 import { PageHeader, Section, Stat, formatDate } from "@/components/shared";
 import { Badge } from "@/components/ui/badge";
@@ -12,25 +13,40 @@ import { ConfirmButton } from "@/components/confirm-button";
 
 export const metadata: Metadata = { title: "Monitoring" };
 
-/** No webhook in 7 days while Stripe is configured usually means the endpoint is misconfigured. */
-function isWebhookStale(last: Date | null): boolean {
-  return !last || Date.now() - last.getTime() > 7 * 86_400_000;
+/** Card payments in the last 7 days but no webhook event in that time means Stripe is not reaching us. */
+function isWebhookStale(last: Date | null, cardPayments7d: number): boolean {
+  return cardPayments7d > 0 && (!last || Date.now() - last.getTime() > 7 * 86_400_000);
 }
 
-function Health({ ok, label, detail }: { ok: boolean | null; label: string; detail: string }) {
+/** One line explaining the webhook state, from the endpoint Stripe actually has registered. */
+function webhookDetail(w: WebhookEndpointStatus, m: { lastWebhookAt: Date | null; lastWebhookType: string | null; webhooks24h: number }): string {
+  if (w.error) return `Could not query Stripe: ${w.error}`;
+  if (!w.endpoint) return `No endpoint for ${w.url} in Stripe — register it under Payments → Stripe keys`;
+  const problems: string[] = [];
+  if (w.endpoint.status !== "enabled") problems.push(`endpoint is ${w.endpoint.status}`);
+  if (w.endpoint.missingEvents.length) problems.push(`missing events: ${w.endpoint.missingEvents.join(", ")}`);
+  if (!w.secretSaved) problems.push("signing secret not saved");
+  if (problems.length) return `Registered in Stripe but ${problems.join("; ")}`;
+  return m.lastWebhookAt ? `Registered · last event ${formatDate(m.lastWebhookAt)} (${m.lastWebhookType}) · ${m.webhooks24h} in 24h` : "Registered and enabled in Stripe · no event received yet";
+}
+
+function Health({ ok, label, detail, href }: { ok: boolean | null; label: string; detail: string; href?: string }) {
   return (
-    <li className="flex items-center justify-between rounded-lg border p-3 text-sm">
-      <span>{label}<span className="block text-xs text-muted-foreground">{detail}</span></span>
-      <Badge variant="outline" className={ok === null ? "border-amber-500/40 text-amber-700" : ok ? "border-emerald-500/40 text-emerald-700" : "border-red-500/40 text-red-700"}>{ok === null ? "Not configured" : ok ? "OK" : "Attention"}</Badge>
+    <li className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm">
+      <span className="min-w-0">{label}<span className="block text-xs text-muted-foreground wrap-anywhere">{href ? <Link href={href} className="hover:underline">{detail}</Link> : detail}</span></span>
+      <Badge variant="outline" className={`shrink-0 ${ok === null ? "border-amber-500/40 text-amber-700" : ok ? "border-emerald-500/40 text-emerald-700" : "border-red-500/40 text-red-700"}`}>{ok === null ? "Not configured" : ok ? "OK" : "Attention"}</Badge>
     </li>
   );
 }
 
 export default async function MonitoringPage() {
   await requireSuperAdmin();
-  const [m, stripe] = await Promise.all([monitoringSnapshot(), getActiveStripe()]);
-  const smtp = isSmtpConfigured();
-  const webhookStale = stripe ? isWebhookStale(m.lastWebhookAt) : null;
+  const [m, stripe, email] = await Promise.all([monitoringSnapshot(), getActiveStripe(), emailDeliveryStatus()]);
+  const webhook = stripe ? await checkWebhookEndpoint(stripe, `${env.APP_URL}/api/stripe/webhook`) : null;
+  const webhookOk = webhook ? webhook.ok && !isWebhookStale(m.lastWebhookAt, m.cardPayments7d) : null;
+  const emailDetail = email.configured
+    ? `${email.provider === "brevo" ? "Brevo" : "SMTP"} · ${email.from}${email.source === "env" ? " · key from environment" : ""} · ${m.failedEmails.length} failed, ${m.queuedEmails} queued`
+    : "No Brevo key saved — emails are only logged. Configure under Settings → Integrations";
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -45,9 +61,9 @@ export default async function MonitoringPage() {
       <Section title="System health">
         <ul className="grid gap-2 sm:grid-cols-2">
           <Health ok={m.dbOk} label="Database" detail="MariaDB connection and queries" />
-          <Health ok={smtp ? m.failedEmails.length === 0 : null} label="Email delivery" detail={smtp ? `${m.failedEmails.length} failed, ${m.queuedEmails} queued` : "BREVO_API_KEY not set — emails are only logged"} />
-          <Health ok={stripe ? !webhookStale : null} label="Stripe webhook" detail={stripe ? (m.lastWebhookAt ? `Last event ${formatDate(m.lastWebhookAt)} (${m.lastWebhookType}) · ${m.webhooks24h} in 24h` : "No webhook event received yet") : "Stripe keys not set"} />
-          <Health ok={stripe ? stripe.mode === "test" || true : null} label="Stripe mode" detail={stripe ? `${stripe.mode.toUpperCase()} keys active` : "Not connected"} />
+          <Health ok={email.configured ? m.failedEmails.length === 0 : null} label="Email delivery" detail={emailDetail} href={email.configured ? undefined : "/admin/settings?tab=integrations"} />
+          <Health ok={webhookOk} label="Stripe webhook" detail={webhook ? (webhookOk === false && webhook.ok ? `No event in 7 days despite ${m.cardPayments7d} card payment(s) — check the endpoint in Stripe` : webhookDetail(webhook, m)) : "Stripe keys not set — add them under Payments → Stripe keys"} href={webhook && !webhook.ok ? "/admin/payments?tab=stripe" : undefined} />
+          <Health ok={stripe ? true : null} label="Stripe mode" detail={stripe ? `${stripe.mode.toUpperCase()} keys active` : "Not connected"} />
         </ul>
       </Section>
 
@@ -79,7 +95,7 @@ export default async function MonitoringPage() {
           )}
         </Section>
 
-        <Section title="Failed emails" description="Delivery failures reported by the mail server.">
+        <Section title="Failed emails" description="Delivery failures reported by the mail provider.">
           {m.failedEmails.length === 0 ? <p className="text-sm text-muted-foreground">No failures.</p> : (
             <ul className="space-y-2 text-sm">{m.failedEmails.map((e) => <li key={e.id}><Link href={`/admin/emails/${e.id}`} className="hover:underline">{e.subject}</Link><span className="block text-xs text-muted-foreground">{e.to_email} · {formatDate(e.created_at)} · {e.error}</span></li>)}</ul>
           )}

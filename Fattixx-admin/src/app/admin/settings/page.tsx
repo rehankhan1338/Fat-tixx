@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { requirePlatformStaff, hasPlatformRole } from "@/lib/auth/guard";
 import { getBranding, getSettings } from "@/lib/settings";
 import { listCategories } from "@/lib/site-content/categories";
-import { isSmtpConfigured } from "@/lib/email";
+import { emailDeliveryStatus } from "@/lib/email";
 import { getActiveStripe } from "@/lib/payments/stripe";
+import { getEmailSettings, maskBrevoKey } from "@/lib/settings";
 import { formatCents } from "@/lib/money";
 import { uploadUrl } from "@/lib/uploads";
 import { PageHeader, Section } from "@/components/shared";
@@ -12,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SettingsForm } from "./settings-form";
 import { BrandingForm } from "./branding-form";
 import { CategoriesForm } from "./categories-form";
+import { EmailSettingsForm } from "./email-form";
 
 export const metadata: Metadata = { title: "Fees & Settings" };
 
@@ -20,7 +22,7 @@ const TABS = ["fees", "branding", "integrations", "categories"] as const;
 export default async function SettingsPage({ searchParams }: PageProps<"/admin/settings">) {
   const session = await requirePlatformStaff(["super_admin", "finance"]);
   const sp = await searchParams;
-  const [s, brand, stripeActive, categories] = await Promise.all([getSettings(), getBranding(), getActiveStripe(), listCategories()]);
+  const [s, brand, stripeActive, categories, email, mail] = await Promise.all([getSettings(), getBranding(), getActiveStripe(), listCategories(), emailDeliveryStatus(), getEmailSettings()]);
   const isSuper = hasPlatformRole(session, "super_admin");
   const tab = TABS.find((t) => t === sp.tab) ?? "fees";
   return (
@@ -52,12 +54,14 @@ export default async function SettingsPage({ searchParams }: PageProps<"/admin/s
           </Section>
         </TabsContent>
         <TabsContent value="integrations" className="pt-4">
-          <Section title="Integrations">
-            <ul className="space-y-2 text-sm">
-              <li className="flex items-center justify-between rounded-lg border p-3"><span>Stripe payments <span className="block text-xs text-muted-foreground">Keys and the test/live switch are under <strong>Payments</strong>.</span></span>{stripeActive ? <Badge variant="outline" className={stripeActive.mode === "live" ? "border-red-500/40 text-red-700" : "border-emerald-500/40 text-emerald-700"}>Connected · {stripeActive.mode.toUpperCase()} mode</Badge> : <Badge variant="outline" className="border-amber-500/40 text-amber-700">Not configured — only free orders work</Badge>}</li>
-              <li className="flex items-center justify-between rounded-lg border p-3"><span>Email delivery (Brevo) <span className="block text-xs text-muted-foreground">BREVO_API_KEY · MAIL_FROM in .env.local</span></span>{isSmtpConfigured() ? <Badge variant="outline" className="border-emerald-500/40 text-emerald-700">Connected</Badge> : <Badge variant="outline" className="border-amber-500/40 text-amber-700">Not configured — emails are logged in the outbox</Badge>}</li>
-            </ul>
-          </Section>
+          <div className="space-y-6">
+            <Section title="Stripe payments" description="Keys, the webhook and the test/live switch are under Payments → Stripe keys.">
+              <div className="flex items-center justify-between rounded-lg border p-3 text-sm"><span>Card payments</span>{stripeActive ? <Badge variant="outline" className={stripeActive.mode === "live" ? "border-red-500/40 text-red-700" : "border-emerald-500/40 text-emerald-700"}>Connected · {stripeActive.mode.toUpperCase()} mode</Badge> : <Badge variant="outline" className="border-amber-500/40 text-amber-700">Not configured — only free orders work</Badge>}</div>
+            </Section>
+            <Section title="Email delivery (Brevo)" description="Transactional email for tickets, receipts, invitations and password links. The key is stored encrypted and shared by the public site and this console, so it only has to be entered once.">
+              <EmailSettingsForm canEdit={isSuper} maskedKey={email.provider === "brevo" ? maskBrevoKey(mail.apiKey) : null} source={email.source} smtp={email.provider === "smtp"} from={email.from} />
+            </Section>
+          </div>
         </TabsContent>
         <TabsContent value="categories" className="pt-4">
           <Section title="Event categories" description="Used by the homepage pills, the events filter, the create-event page, the organizer's event form and the mobile app.">

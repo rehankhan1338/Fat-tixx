@@ -1,12 +1,17 @@
 import 'server-only';
 import nodemailer, { type Transporter } from 'nodemailer';
 import { execute, query, queryOne, type Row } from './db';
+import { getEmailSettings } from './settings';
 
 /**
  * Every outgoing email is written to `email_outbox` first (visible under Admin → Emails), then
- * delivered through Brevo's transactional API when BREVO_API_KEY is set (or plain SMTP when only
+ * delivered through Brevo's transactional API when a Brevo key is configured (or plain SMTP when only
  * SMTP_URL is). Without either the message is kept with status "logged" so the whole flow can be
  * exercised on localhost (XAMPP has no mail server).
+ *
+ * The Brevo key and sender live in platform_settings (Admin → Settings → Integrations, encrypted like the Stripe
+ * keys) so the public site and the admin console share them; BREVO_API_KEY / MAIL_FROM in the environment are a
+ * fallback. SMTP_URL is environment-only.
  *
  * Failed sends are retried automatically by the background jobs with exponential backoff
  * (1, 2, 4, 8, 16 minutes … up to MAX_ATTEMPTS), so a provider hiccup during an on-sale does not lose tickets (plan 13.1).
@@ -30,22 +35,46 @@ export const MAX_ATTEMPTS = 8;
 type Message = { to: string; toName: string | null; subject: string; text: string; html: string | null };
 type Sender = (msg: Message) => Promise<void>;
 
-let sender: Sender | null | undefined;
-function getSender(): Sender | null {
-  if (sender !== undefined) return sender;
-  const brevoKey = process.env.BREVO_API_KEY;
-  const smtpUrl = process.env.SMTP_URL;
-  if (brevoKey) {
-    sender = (msg) => sendViaBrevo(brevoKey, msg);
-  } else if (smtpUrl) {
-    const t: Transporter = nodemailer.createTransport(smtpUrl);
-    sender = async (msg) => {
-      await t.sendMail({ from: mailFrom(), to: msg.toName ? `"${msg.toName.replace(/"/g, '')}" <${msg.to}>` : msg.to, subject: msg.subject, text: msg.text, html: msg.html ?? undefined });
-    };
-  } else {
-    sender = null;
+export type EmailProvider = 'brevo' | 'smtp';
+export interface EmailDeliveryStatus {
+  /** True when messages are really delivered (Brevo key or SMTP_URL present). */
+  configured: boolean;
+  provider: EmailProvider | null;
+  /** Sender address used for every message. */
+  from: string;
+  /** Where the Brevo key came from (Admin → Settings or the environment); null for SMTP or when unconfigured. */
+  source: 'settings' | 'env' | null;
+}
+
+/** How outgoing mail is delivered right now. Read on every send so a key saved in Admin → Settings applies immediately. */
+export async function emailDeliveryStatus(): Promise<EmailDeliveryStatus> {
+  const s = await getEmailSettings();
+  if (s.apiKey) return { configured: true, provider: 'brevo', from: s.from, source: s.source };
+  if (process.env.SMTP_URL) return { configured: true, provider: 'smtp', from: s.from, source: null };
+  return { configured: false, provider: null, from: s.from, source: null };
+}
+
+const transports = new Map<string, Transporter>();
+function smtpTransport(url: string): Transporter {
+  let t = transports.get(url);
+  if (!t) { t = nodemailer.createTransport(url); transports.set(url, t); }
+  return t;
+}
+
+async function getSender(): Promise<Sender | null> {
+  const s = await getEmailSettings();
+  if (s.apiKey) {
+    const apiKey = s.apiKey;
+    return (msg) => sendViaBrevo(apiKey, s.from, msg);
   }
-  return sender;
+  const smtpUrl = process.env.SMTP_URL;
+  if (smtpUrl) {
+    const t = smtpTransport(smtpUrl);
+    return async (msg) => {
+      await t.sendMail({ from: s.from, to: msg.toName ? `"${msg.toName.replace(/"/g, '')}" <${msg.to}>` : msg.to, subject: msg.subject, text: msg.text, html: msg.html ?? undefined });
+    };
+  }
+  return null;
 }
 
 /** `Fat Tixx <tickets@fattixx.com>` → { name, email }; a bare address has no name. */
@@ -55,12 +84,12 @@ function parseAddress(s: string): { name?: string; email: string } {
 }
 
 // https://developers.brevo.com/reference/sendtransacemail
-async function sendViaBrevo(apiKey: string, msg: Message): Promise<void> {
+async function sendViaBrevo(apiKey: string, from: string, msg: Message): Promise<void> {
   const res = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: { 'api-key': apiKey, 'content-type': 'application/json', accept: 'application/json' },
     body: JSON.stringify({
-      sender: parseAddress(mailFrom()),
+      sender: parseAddress(from),
       to: [msg.toName ? { email: msg.to, name: msg.toName } : { email: msg.to }],
       subject: msg.subject,
       textContent: msg.text,
@@ -74,8 +103,37 @@ async function sendViaBrevo(apiKey: string, msg: Message): Promise<void> {
   }
 }
 
-export function mailFrom(): string {
-  return process.env.MAIL_FROM ?? 'Fat Tixx <no-reply@fattixx.local>';
+/**
+ * Verify a Brevo API key by reading the account it belongs to (https://developers.brevo.com/reference/getaccount).
+ * Also reports whether the sender address is among the account's verified senders, the usual reason a send is rejected.
+ */
+export async function testBrevoKey(apiKey: string, from: string): Promise<{ ok: true; account: string; senderVerified: boolean | null } | { ok: false; error: string }> {
+  const headers = { 'api-key': apiKey, accept: 'application/json' };
+  try {
+    const res = await fetch('https://api.brevo.com/v3/account', { headers, signal: AbortSignal.timeout(10_000) });
+    if (res.status === 401 || res.status === 403) return { ok: false, error: 'Brevo rejected the API key (unauthorized).' };
+    if (!res.ok) return { ok: false, error: `Brevo answered ${res.status}.` };
+    const acct = (await res.json()) as { email?: string; companyName?: string };
+    const account = [acct.companyName, acct.email].filter(Boolean).join(' · ') || 'Brevo account';
+    let senderVerified: boolean | null = null;
+    try {
+      const sres = await fetch('https://api.brevo.com/v3/senders', { headers, signal: AbortSignal.timeout(10_000) });
+      if (sres.ok) {
+        const list = (await sres.json()) as { senders?: { email: string; active: boolean }[] };
+        const want = parseAddress(from).email.toLowerCase();
+        const match = list.senders?.find((s) => s.email.toLowerCase() === want);
+        senderVerified = !!match?.active;
+      }
+    } catch { /* sender lookup is informational only */ }
+    return { ok: true, account, senderVerified };
+  } catch (e) {
+    return { ok: false, error: `Could not reach Brevo: ${(e as Error).message}` };
+  }
+}
+
+/** Sender used for every message (Admin → Settings, else MAIL_FROM, else a placeholder). */
+export async function mailFrom(): Promise<string> {
+  return (await getEmailSettings()).from;
 }
 
 async function markFailed(id: number, e: unknown): Promise<void> {
@@ -88,7 +146,7 @@ async function markFailed(id: number, e: unknown): Promise<void> {
 }
 
 async function deliver(id: number, msg: Message): Promise<boolean> {
-  const send = getSender();
+  const send = await getSender();
   if (!send) return false;
   try {
     await send(msg);
@@ -108,7 +166,7 @@ export async function sendEmail(msg: OutgoingEmail): Promise<number> {
      msg.related?.type ?? null, msg.related ? String(msg.related.id) : null],
   );
   const id = r.insertId;
-  if (!getSender()) {
+  if (!(await getSender())) {
     await execute(`UPDATE email_outbox SET status = 'logged' WHERE id = ?`, [id]);
     return id;
   }
@@ -130,7 +188,7 @@ export async function resendOutboxEmail(id: number): Promise<boolean> {
  * Each row is claimed with a conditional UPDATE first, so two app instances never send the same message twice.
  */
 export async function retryDueEmails(limit = 50): Promise<{ retried: number; sent: number }> {
-  if (!getSender()) return { retried: 0, sent: 0 };
+  if (!(await getSender())) return { retried: 0, sent: 0 };
   const due = await query<OutboxRow>(
     `SELECT id, to_email, to_name, subject, text_body, html_body FROM email_outbox
       WHERE (status = 'failed' AND next_attempt_at IS NOT NULL AND next_attempt_at <= NOW() AND attempts < ?)
@@ -151,9 +209,9 @@ export async function retryDueEmails(limit = 50): Promise<{ retried: number; sen
   return { retried: due.length, sent };
 }
 
-/** True when real delivery is configured (Brevo API key or SMTP URL). */
-export function isSmtpConfigured(): boolean {
-  return !!(process.env.BREVO_API_KEY || process.env.SMTP_URL);
+/** True when real delivery is configured (Brevo API key in Settings or the environment, or SMTP_URL). */
+export async function isEmailConfigured(): Promise<boolean> {
+  return (await emailDeliveryStatus()).configured;
 }
 
 /** Minimal, safe HTML wrapper for transactional mail. */

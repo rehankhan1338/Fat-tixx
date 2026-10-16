@@ -3,7 +3,8 @@
 import { useActionState, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { CheckCircle2Icon, EyeIcon, EyeOffIcon, Loader2Icon, PlugZapIcon } from "lucide-react";
-import { revealStripeKey, runReconciliation, saveStripeKeys, switchStripeMode, testStripeConnection, type ActionState } from "@/lib/admin/finance-actions";
+import { registerStripeWebhook, revealStripeKey, runReconciliation, saveStripeKeys, switchStripeMode, testStripeConnection, type ActionState } from "@/lib/admin/finance-actions";
+import type { WebhookEndpointStatus } from "@/lib/payments/stripe";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -15,11 +16,21 @@ import { CopyButton } from "@/components/copy-button";
 
 type Masked = { secret: string | null; publishable: string | null; webhook: string | null };
 
-export function StripeSettingsPanel({ canEdit, mode, webhookUrl, test, live }: { canEdit: boolean; mode: "test" | "live"; webhookUrl: string; test: Masked; live: Masked }) {
+export function StripeSettingsPanel({ canEdit, mode, webhookUrl, webhook, appUrlMissing, test, live }: {
+  canEdit: boolean; mode: "test" | "live"; webhookUrl: string;
+  /** Endpoint state looked up in Stripe for the active mode; null when the active keys are not saved. */
+  webhook: WebhookEndpointStatus | null;
+  /** The console has no APP_URL, so `webhookUrl` points at the console itself and must not be registered. */
+  appUrlMissing: boolean;
+  test: Masked; live: Masked;
+}) {
   const [pending, start] = useTransition();
   const run = (fn: (fd: FormData) => Promise<ActionState>, fields: Record<string, string>) => start(async () => {
     const fd = new FormData(); for (const [k, v] of Object.entries(fields)) fd.set(k, v);
     const r = await fn(fd); if (r?.error) toast.error(r.error); else toast.success(r?.message ?? "Done");
+  });
+  const register = () => start(async () => {
+    const r = await registerStripeWebhook(); if (r?.error) toast.error(r.error); else toast.success(r?.message ?? "Done");
   });
 
   return (
@@ -36,12 +47,19 @@ export function StripeSettingsPanel({ canEdit, mode, webhookUrl, test, live }: {
         </CardContent>
       </Card>
 
-      <Alert>
+      <Alert variant={webhook && !webhook.ok ? "destructive" : "default"}>
         <PlugZapIcon />
-        <AlertTitle>Webhook endpoint</AlertTitle>
+        <AlertTitle className="flex flex-wrap items-center gap-2">Webhook endpoint ({mode} mode) <WebhookBadge webhook={webhook} /></AlertTitle>
         <AlertDescription className="space-y-2">
-          <p>In the Stripe Dashboard add a webhook pointing at this URL and paste its signing secret below. Events: <code className="text-xs">payment_intent.succeeded</code>, <code className="text-xs">charge.refunded</code>, <code className="text-xs">charge.dispute.*</code>. For local testing run <code className="text-xs wrap-anywhere">stripe listen --forward-to localhost:3000/api/stripe/webhook</code> and use the <code className="text-xs">whsec_</code> it prints.</p>
+          <p>Stripe calls this URL to confirm payments, dashboard refunds and disputes. <strong>Register</strong> creates the endpoint in Stripe with the right events (<code className="text-xs">payment_intent.succeeded</code>, <code className="text-xs">charge.refunded</code>, <code className="text-xs">charge.dispute.*</code>) and stores its signing secret here, so nothing has to be pasted. For local testing run <code className="text-xs wrap-anywhere">stripe listen --forward-to localhost:3000/api/stripe/webhook</code> and paste the <code className="text-xs">whsec_</code> it prints below instead.</p>
           <div className="flex items-center gap-2"><code className="block flex-1 truncate rounded bg-muted px-2 py-1 font-mono text-xs">{webhookUrl}</code><CopyButton value={webhookUrl} /></div>
+          {webhook ? <p className="text-xs">{webhookStatusText(webhook)}</p> : null}
+          {appUrlMissing ? <p className="text-xs font-medium">APP_URL is not set on this console deployment, so the URL above points at the console. Set APP_URL to the public site before registering.</p> : null}
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant={webhook?.ok ? "outline" : "default"} disabled={!canEdit || !webhook || appUrlMissing || pending} onClick={() => { if (webhook?.endpoint && !webhook.secretSaved && !confirm("The existing endpoint will be replaced so Stripe issues a new signing secret. Continue?")) return; register(); }}>
+              {pending ? <Loader2Icon className="animate-spin" /> : null} {webhook?.ok ? "Re-check / repair in Stripe" : webhook?.endpoint ? "Repair webhook in Stripe" : "Register webhook in Stripe"}
+            </Button>
+          </div>
         </AlertDescription>
       </Alert>
 
@@ -51,6 +69,22 @@ export function StripeSettingsPanel({ canEdit, mode, webhookUrl, test, live }: {
       </div>
     </div>
   );
+}
+
+function WebhookBadge({ webhook }: { webhook: WebhookEndpointStatus | null }) {
+  if (!webhook) return <Badge variant="outline">keys not saved</Badge>;
+  if (webhook.ok) return <Badge variant="outline" className="border-emerald-500/40 text-emerald-700"><CheckCircle2Icon className="size-3" /> registered</Badge>;
+  return <Badge variant="outline" className="border-amber-500/40 text-amber-700">{webhook.error ? "could not check" : webhook.endpoint ? "needs attention" : "not registered"}</Badge>;
+}
+
+function webhookStatusText(w: WebhookEndpointStatus): string {
+  if (w.error) return `Stripe could not be queried: ${w.error}`;
+  if (!w.endpoint) return "Stripe has no endpoint for this URL yet.";
+  const problems: string[] = [];
+  if (w.endpoint.status !== "enabled") problems.push(`it is ${w.endpoint.status}`);
+  if (w.endpoint.missingEvents.length) problems.push(`it is missing ${w.endpoint.missingEvents.join(", ")}`);
+  if (!w.secretSaved) problems.push("its signing secret is not saved here");
+  return problems.length ? `Endpoint ${w.endpoint.id} exists in Stripe but ${problems.join(", and ")}.` : `Endpoint ${w.endpoint.id} is enabled in Stripe with all events and its secret is saved.`;
 }
 
 function KeySetForm({ mode, current, canEdit, onTest, pending }: { mode: "test" | "live"; current: Masked; canEdit: boolean; onTest: () => void; pending: boolean }) {

@@ -5,7 +5,7 @@ import { ArrowLeftIcon } from "lucide-react";
 import { requirePlatformStaff } from "@/lib/auth/guard";
 import { getEmail } from "@/lib/admin/queries";
 import { resendEmail } from "@/lib/admin/actions";
-import { isSmtpConfigured } from "@/lib/email";
+import { isEmailConfigured } from "@/lib/email";
 import { PageHeader, Section, StatusBadge, formatDate } from "@/components/shared";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,7 +16,7 @@ export const metadata: Metadata = { title: "Email" };
 export default async function EmailPage({ params }: PageProps<"/admin/emails/[id]">) {
   await requirePlatformStaff(["super_admin", "support"]);
   const { id } = await params;
-  const email = await getEmail(Number(id));
+  const [email, configured] = await Promise.all([getEmail(Number(id)), isEmailConfigured()]);
   if (!email) notFound();
 
   return (
@@ -25,7 +25,7 @@ export default async function EmailPage({ params }: PageProps<"/admin/emails/[id
       <PageHeader
         title={email.subject}
         description={<>To {email.to_name ? `${email.to_name} <${email.to_email}>` : email.to_email} · {formatDate(email.created_at)} · <StatusBadge status={email.status} /></>}
-        actions={isSmtpConfigured() ? <ConfirmButton action={resendEmail} fields={{ id: email.id }} title="Resend this email?" confirmText="Resend" variant="outline" successText="Sent">Resend</ConfirmButton> : null}
+        actions={configured ? <ConfirmButton action={resendEmail} fields={{ id: email.id }} title="Resend this email?" confirmText="Resend" variant="outline" successText="Sent">Resend</ConfirmButton> : null}
       />
       {email.error ? <p className="text-sm text-destructive">Last error: {email.error}</p> : null}
       <Section>

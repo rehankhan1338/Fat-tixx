@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requirePlatformStaff, hasPlatformRole } from "@/lib/auth/guard";
 import { countPayments, listPayments, listReconciliations, paymentsSummary } from "@/lib/admin/finance-queries";
 import { getStripeSettings, maskKey } from "@/lib/settings";
+import { checkWebhookEndpoint } from "@/lib/payments/stripe";
 import { env } from "@/lib/env";
 import { formatCents } from "@/lib/money";
 import { DEFAULT_PER_PAGE, parsePagination } from "@/lib/pagination";
@@ -27,6 +28,10 @@ export default async function PaymentsPage({ searchParams }: PageProps<"/admin/p
   const [summary, payments, paymentTotal, recon, stripe] = await Promise.all([paymentsSummary(), listPayments(q, perPage, offset), countPayments(q), listReconciliations(), getStripeSettings()]);
   const active = stripe[stripe.mode];
   const configured = !!(active.secretKey && active.publishableKey);
+  const webhookUrl = `${env.APP_URL}/api/stripe/webhook`;
+  const webhook = configured && sp.tab === "stripe"
+    ? await checkWebhookEndpoint({ mode: stripe.mode, secretKey: active.secretKey!, publishableKey: active.publishableKey!, webhookSecret: active.webhookSecret }, webhookUrl)
+    : null;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -119,7 +124,9 @@ export default async function PaymentsPage({ searchParams }: PageProps<"/admin/p
           <StripeSettingsPanel
             canEdit={isSuper}
             mode={stripe.mode}
-            webhookUrl={`${env.APP_URL}/api/stripe/webhook`}
+            webhookUrl={webhookUrl}
+            webhook={webhook}
+            appUrlMissing={env.IS_ADMIN_APP && !process.env.APP_URL?.trim()}
             test={{ secret: maskKey(stripe.test.secretKey), publishable: stripe.test.publishableKey, webhook: maskKey(stripe.test.webhookSecret) }}
             live={{ secret: maskKey(stripe.live.secretKey), publishable: stripe.live.publishableKey, webhook: maskKey(stripe.live.webhookSecret) }}
           />

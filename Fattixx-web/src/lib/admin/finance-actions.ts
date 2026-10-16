@@ -6,7 +6,8 @@ import { audit } from '../audit';
 import { assertPlatformRole, assertSuperAdmin } from '../auth/guard';
 import { TEMPLATES, renderEmailDraft, type TemplateKey } from '../email-templates';
 import { BRAND_LOGO_INLINE } from '../brand-logo-inline';
-import { getActiveStripe, stripeClient, testStripeKeys } from '../payments/stripe';
+import { getActiveStripe, registerWebhookEndpoint, stripeClient, testStripeKeys } from '../payments/stripe';
+import { env } from '../env';
 import { reconcileWithStripe } from '../payments/reconcile';
 import { getBranding, getStripeSettings, saveStripeKeySet, setSetting, setStripeMode, type StripeMode } from '../settings';
 import { deleteUpload, saveImageUpload } from '../uploads';
@@ -165,6 +166,29 @@ export async function switchStripeMode(fd: FormData): Promise<ActionState> {
   revalidatePath('/admin/payments');
   revalidatePath('/admin/settings');
   return { ok: true, message: mode === 'live' ? 'LIVE mode: real cards will be charged.' : 'Test mode: sandbox payments only.' };
+}
+
+/**
+ * Create the webhook endpoint in Stripe for the active mode (or complete its event list) and store the signing secret,
+ * so the Stripe Dashboard never has to be visited. The URL is the public site's, so APP_URL must be right on this deployment.
+ */
+export async function registerStripeWebhook(): Promise<ActionState> {
+  const session = await assertSuperAdmin();
+  const active = await getActiveStripe();
+  if (!active) return { error: 'Add the Stripe keys for the active mode first.' };
+  if (env.IS_ADMIN_APP && !process.env.APP_URL?.trim()) return { error: 'APP_URL is not set on the admin console deployment, so the webhook URL would point at the console. Set APP_URL to the public site first.' };
+  const url = `${env.APP_URL}/api/stripe/webhook`;
+  if (!/^https:\/\//.test(url) && env.IS_PROD) return { error: `Stripe only calls https URLs; APP_URL is ${env.APP_URL}.` };
+  try {
+    const r = await registerWebhookEndpoint(active, url);
+    if (r.secret) await saveStripeKeySet(active.mode, { webhookSecret: r.secret }, session.user.id);
+    await audit('settings.stripe', { actorUserId: session.user.id, metadata: { mode: active.mode, webhook: r.created ? 'registered' : 'updated', endpoint: r.id, url } });
+    revalidatePath('/admin/payments');
+    revalidatePath('/admin/monitoring');
+    return { ok: true, message: r.created ? `Webhook registered in Stripe (${active.mode} mode) and its signing secret saved.` : `Webhook endpoint in Stripe (${active.mode} mode) is up to date.` };
+  } catch (e) {
+    return { error: `Stripe refused: ${(e as Error).message}` };
+  }
 }
 
 export async function testStripeConnection(fd: FormData): Promise<ActionState> {

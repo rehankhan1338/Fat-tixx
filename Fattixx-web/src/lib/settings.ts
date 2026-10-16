@@ -105,6 +105,41 @@ export async function setStripeMode(mode: StripeMode, userId: number): Promise<v
   await setSetting('stripe_mode', mode, userId);
 }
 
+// ---------------------------------------------------------------------------
+// Email delivery (Brevo): the API key is stored encrypted next to the Stripe keys so the public site and the admin
+// console (separate deployments) share one configuration. BREVO_API_KEY / MAIL_FROM in the environment remain a
+// fallback so existing .env.local setups keep working; a value saved here wins.
+// ---------------------------------------------------------------------------
+export const DEFAULT_MAIL_FROM = 'Fat Tixx <no-reply@fattixx.local>';
+
+export interface EmailSettings {
+  /** Brevo transactional API key, or null when email delivery is not configured. */
+  apiKey: string | null;
+  /** Sender, e.g. `Fat Tixx <tickets@fattixx.com>`; must be a sender verified in Brevo. */
+  from: string;
+  /** Where the key came from: saved in Admin → Settings, the BREVO_API_KEY environment variable, or nowhere. */
+  source: 'settings' | 'env' | null;
+}
+
+export async function getEmailSettings(): Promise<EmailSettings> {
+  const rows = await allRows();
+  const saved = readSecret(rows, 'brevo_api_key');
+  const apiKey = saved || process.env.BREVO_API_KEY?.trim() || null;
+  const from = rows.mail_from?.trim() || process.env.MAIL_FROM?.trim() || DEFAULT_MAIL_FROM;
+  return { apiKey, from, source: saved ? 'settings' : apiKey ? 'env' : null };
+}
+
+export async function saveEmailSettings(set: { apiKey?: string; from?: string }, userId: number): Promise<void> {
+  if (set.apiKey !== undefined) await setSetting('brevo_api_key', set.apiKey ? encryptSecret(set.apiKey, 'setting:brevo_api_key') : '', userId);
+  if (set.from !== undefined) await setSetting('mail_from', set.from, userId);
+}
+
+/** Masked display of a Brevo key, e.g. "xkeysib-••••••••1a2b". */
+export function maskBrevoKey(key: string | null): string | null {
+  if (!key) return null;
+  return `${key.startsWith('xkeysib-') ? 'xkeysib-' : key.slice(0, 3)}••••••••${key.slice(-4)}`;
+}
+
 /** Masked display, e.g. "sk_test_••••••••1a2b". */
 export function maskKey(key: string | null): string | null {
   if (!key) return null;

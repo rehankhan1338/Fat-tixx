@@ -5,8 +5,8 @@ import { execute, queryOne, type Row } from '../db';
 import { audit } from '../audit';
 import { assertPlatformRole, assertSuperAdmin } from '../auth/guard';
 import type { PlatformRole } from '../auth/session';
-import { resendOutboxEmail } from '../email';
-import { setSetting, type SettingKey } from '../settings';
+import { emailDeliveryStatus, htmlLayout, escapeHtml, resendOutboxEmail, sendEmail, testBrevoKey } from '../email';
+import { getEmailSettings, saveEmailSettings as persistEmailSettings, setSetting, type SettingKey } from '../settings';
 import { ensureUser, isEmail, sendSetPasswordLink } from '../users';
 import { listOrdersForUser } from '../orders/queries';
 
@@ -128,6 +128,51 @@ export async function updatePlatformSettings(_prev: ActionState, fd: FormData): 
 }
 
 // ---------------------------------------------------------------------------
+// Email delivery (Brevo) — key stored encrypted in platform_settings, shared by the site and the console
+// ---------------------------------------------------------------------------
+export async function saveEmailSettings(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const session = await assertSuperAdmin();
+  const apiKey = str(fd, 'brevo_api_key', 200);
+  const from = str(fd, 'mail_from', 254);
+  const fromEmail = from.match(/<([^>]+)>\s*$/)?.[1]?.trim() ?? from;
+  if (!from || !isEmail(fromEmail)) return { error: 'Enter the sender as an address or "Name <address>", e.g. Fat Tixx <tickets@fattixx.com>.' };
+  if (apiKey && apiKey !== 'clear' && !/^xkeysib-/.test(apiKey)) return { error: 'A Brevo API key starts with xkeysib-. Create one under Brevo → Settings → SMTP & API → API keys.' };
+  const current = await getEmailSettings();
+  // Blank keeps the saved key; the literal word "clear" removes it (the environment fallback then applies).
+  const nextKey = apiKey === 'clear' ? '' : apiKey || (current.source === 'settings' ? current.apiKey ?? '' : '');
+  let verified = '';
+  if (nextKey) {
+    const t = await testBrevoKey(nextKey, from);
+    if (!t.ok) return { error: `Brevo rejected the key: ${t.error}` };
+    verified = ` Verified with Brevo (${t.account}).${t.senderVerified === false ? ` Warning: ${fromEmail} is not a verified sender in that account, so sends will be rejected until you verify it in Brevo → Senders.` : ''}`;
+  }
+  await persistEmailSettings({ apiKey: nextKey, from }, session.user.id);
+  await audit('settings.email', { actorUserId: session.user.id, metadata: { key: nextKey ? 'saved' : 'cleared', from } });
+  revalidatePath('/admin/settings');
+  revalidatePath('/admin/monitoring');
+  revalidatePath('/admin/emails');
+  return { ok: true, message: `Email settings saved.${verified}` };
+}
+
+/** Sends a short message to the signed-in admin so delivery can be confirmed end to end. */
+export async function sendTestEmail(): Promise<ActionState> {
+  const session = await assertSuperAdmin();
+  const status = await emailDeliveryStatus();
+  if (!status.configured) return { error: 'Email delivery is not configured yet: save a Brevo API key first.' };
+  const id = await sendEmail({
+    to: session.user.email, toName: session.user.name, subject: 'Fat Tixx test email',
+    text: `This is a test message from Fat Tixx. Delivery via ${status.provider} as ${status.from} works.`,
+    html: htmlLayout('Test email', `<p>This is a test message from Fat Tixx. Delivery via ${escapeHtml(status.provider ?? '')} as <strong>${escapeHtml(status.from)}</strong> works.</p>`),
+    related: { type: 'test', id: session.user.id },
+  });
+  const row = await queryOne<Row & { status: string; error: string | null }>(`SELECT status, error FROM email_outbox WHERE id = ?`, [id]);
+  await audit('email.test', { actorUserId: session.user.id, targetType: 'email', targetId: id, metadata: { status: row?.status } });
+  revalidatePath('/admin/emails');
+  if (row?.status !== 'sent') return { error: `Send failed: ${row?.error ?? 'unknown error'}. The message is in Admin → Emails.` };
+  return { ok: true, message: `Test email sent to ${session.user.email}.` };
+}
+
+// ---------------------------------------------------------------------------
 // Email outbox
 // ---------------------------------------------------------------------------
 export async function resendEmail(fd: FormData): Promise<ActionState> {
@@ -137,7 +182,7 @@ export async function resendEmail(fd: FormData): Promise<ActionState> {
   const ok = await resendOutboxEmail(id);
   await audit('email.resent', { actorUserId: session.user.id, targetType: 'email', targetId: id, metadata: { ok } });
   revalidatePath('/admin/emails');
-  return ok ? { ok: true } : { error: 'Could not send. Is BREVO_API_KEY (or SMTP_URL) configured?' };
+  return ok ? { ok: true } : { error: 'Could not send. Is a Brevo API key saved under Settings → Integrations (or SMTP_URL set)?' };
 }
 
 // ---------------------------------------------------------------------------

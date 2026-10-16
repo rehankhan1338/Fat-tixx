@@ -60,8 +60,8 @@ Re-running `npm run db:setup` applies any new migration in `db/migrations/`. `np
 | Variable | Purpose |
 |---|---|
 | `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Card, Apple Pay and Google Pay payments. Without them only free / complimentary / box-office orders work. |
-| `STRIPE_WEBHOOK_SECRET` | From `stripe listen --forward-to localhost:3000/api/stripe/webhook`. Makes payment confirmation, dashboard refunds and disputes flow back automatically. |
-| `SMTP_URL`, `MAIL_FROM` | Real email delivery, e.g. `smtp://user:pass@smtp.example.com:587`. Without it, emails are recorded under **Admin → Emails** and invitation links are shown on screen. |
+| `STRIPE_WEBHOOK_SECRET` | From `stripe listen --forward-to localhost:3000/api/stripe/webhook`. In production use **Admin → Payments → Stripe keys → Register webhook in Stripe** instead; it creates the endpoint and stores the secret. |
+| `BREVO_API_KEY`, `MAIL_FROM` | Fallback only: the Brevo key and sender are normally saved under **Admin → Settings → Integrations** (encrypted, shared by the site and the console). `SMTP_URL` is an alternative transport. Without any of these, emails are recorded under **Admin → Emails** and invitation links are shown on screen. |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` | SMS ticket links and reminders for buyers who opt in. Without them texts are only logged under **Admin → Emails**. |
 | `CRON_SECRET` | Bearer token for `GET /api/cron` when an external scheduler runs the background jobs. Generated per process if unset. |
 | `JOBS_DISABLED=true` | Turn off the built-in every-minute job scheduler (use with an external cron, e.g. on Vercel). |
