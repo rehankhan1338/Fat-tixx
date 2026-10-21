@@ -37,7 +37,7 @@ export default async function PaymentsPage({ searchParams }: PageProps<"/admin/p
     <div className="mx-auto max-w-7xl space-y-6">
       <PageHeader
         title={<span className="flex items-center gap-3">Payments & Stripe {configured ? <Badge variant="outline" className={stripe.mode === "live" ? "border-red-500/40 text-red-700" : "border-emerald-500/40 text-emerald-700"}>{stripe.mode === "live" ? "LIVE MODE" : "TEST MODE"}</Badge> : <Badge variant="outline" className="border-amber-500/40 text-amber-700">Not connected</Badge>}</span>}
-        description="Card payments, Stripe keys with a sandbox/live switch, and daily reconciliation between Stripe and Fat Tixx orders."
+        description="Card payments, Stripe keys with a sandbox/live switch, and daily reconciliation between Stripe and Fattixx orders."
       />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Card payments" value={summary.paid} hint="paid orders with a charge" />
@@ -79,7 +79,7 @@ export default async function PaymentsPage({ searchParams }: PageProps<"/admin/p
         </TabsContent>
 
         <TabsContent value="reconcile" className="pt-4 space-y-4">
-          <Section title="Run a reconciliation" description="Compares every succeeded Stripe payment in the period with paid orders in Fat Tixx: missing on either side, amount or refund mismatches. It also runs automatically every day for the last 2 days; Finance is emailed when it finds discrepancies.">
+          <Section title="Run a reconciliation" description="Compares every succeeded Stripe payment in the period with paid orders in Fattixx: missing on either side, amount or refund mismatches. It also runs automatically every day for the last 2 days; Finance is emailed when it finds discrepancies.">
             <ReconcileForm configured={configured} />
           </Section>
           <Section title="Accounting & tax exports" description="CSV files for your accountant. Dates are UTC and inclusive; leave them empty for the last 31 days.">
@@ -108,7 +108,7 @@ export default async function PaymentsPage({ searchParams }: PageProps<"/admin/p
                     <div key={r.id} className="rounded-lg border p-3 text-sm">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <span>{formatDate(r.created_at)} · {r.mode} · {formatDate(r.range_start)} → {formatDate(r.range_end)} · by {r.run_by_name ?? "—"}</span>
-                        <span className="font-mono text-xs">Stripe {r.stripe_count} / {formatCents(Number(r.stripe_cents))} · Fat Tixx {r.db_count} / {formatCents(Number(r.db_cents))}</span>
+                        <span className="font-mono text-xs">Stripe {r.stripe_count} / {formatCents(Number(r.stripe_cents))} · Fattixx {r.db_count} / {formatCents(Number(r.db_cents))}</span>
                         {issues.length ? <Badge variant="destructive">{issues.length} discrepancies</Badge> : <Badge variant="outline" className="border-emerald-500/40 text-emerald-700">Balanced</Badge>}
                       </div>
                       {issues.length ? <ul className="mt-2 space-y-1 text-xs text-muted-foreground">{issues.slice(0, 20).map((i, n) => <li key={n}><span className="font-mono">{i.ref}</span> · {i.kind.replace(/_/g, " ")} · {i.detail}</li>)}</ul> : null}

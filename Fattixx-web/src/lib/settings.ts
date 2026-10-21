@@ -12,7 +12,7 @@ export type Settings = Record<SettingKey, string>;
 
 const DEFAULTS: Settings = {
   platform_fee_bps: '500', platform_fee_fixed_cents: '99', processing_fee_bps: '290', processing_fee_fixed_cents: '30',
-  default_fee_mode: 'buyer_pays', default_currency: 'USD', hold_minutes: '10', platform_name: 'Fat Tixx', support_email: 'support@fattixx.com',
+  default_fee_mode: 'buyer_pays', default_currency: 'USD', hold_minutes: '10', platform_name: 'Fattixx', support_email: 'support@fattixx.com',
   brand_color: '#f59e0b', brand_logo_path: '', stripe_mode: 'test',
 };
 
@@ -60,7 +60,7 @@ export interface Branding { name: string; color: string; logoPath: string | null
 
 export async function getBranding(): Promise<Branding> {
   const s = await getSettings();
-  return { name: s.platform_name, color: /^#[0-9a-f]{6}$/i.test(s.brand_color) ? s.brand_color : '#f59e0b', logoPath: s.brand_logo_path || null, supportEmail: s.support_email };
+  return { name: s.platform_name.replace(/fat[\s-]*tixx/gi, 'Fattixx'), color: /^#[0-9a-f]{6}$/i.test(s.brand_color) ? s.brand_color : '#f59e0b', logoPath: s.brand_logo_path || null, supportEmail: s.support_email };
 }
 
 // ---------------------------------------------------------------------------
@@ -110,12 +110,12 @@ export async function setStripeMode(mode: StripeMode, userId: number): Promise<v
 // console (separate deployments) share one configuration. BREVO_API_KEY / MAIL_FROM in the environment remain a
 // fallback so existing .env.local setups keep working; a value saved here wins.
 // ---------------------------------------------------------------------------
-export const DEFAULT_MAIL_FROM = 'Fat Tixx <no-reply@fattixx.local>';
+export const DEFAULT_MAIL_FROM = 'Fattixx <no-reply@fattixx.local>';
 
 export interface EmailSettings {
   /** Brevo transactional API key, or null when email delivery is not configured. */
   apiKey: string | null;
-  /** Sender, e.g. `Fat Tixx <tickets@fattixx.com>`; must be a sender verified in Brevo. */
+  /** Sender, e.g. `Fattixx <tickets@fattixx.com>`; must be a sender verified in Brevo. */
   from: string;
   /** Where the key came from: saved in Admin → Settings, the BREVO_API_KEY environment variable, or nowhere. */
   source: 'settings' | 'env' | null;

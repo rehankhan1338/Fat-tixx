@@ -13,7 +13,7 @@ export function ShareLink({ orgSlug, eventId, url, visibility, canEdit }: { orgS
       <LinkIcon />
       <AlertTitle>{visibility === "private" ? "Private event — share this link" : "Unlisted event — share this link"}</AlertTitle>
       <AlertDescription className="space-y-2">
-        <p>{visibility === "private" ? "Only people with this exact link (it contains a secret key) can open the event page or buy tickets. It is not listed or indexed." : "Not listed on Fat Tixx or indexed by search engines; anyone with the link can buy."}</p>
+        <p>{visibility === "private" ? "Only people with this exact link (it contains a secret key) can open the event page or buy tickets. It is not listed or indexed." : "Not listed on Fattixx or indexed by search engines; anyone with the link can buy."}</p>
         <div className="flex flex-wrap items-center gap-2">
           <code className="max-w-full truncate rounded bg-muted px-2 py-1 text-xs">{url}</code>
           <CopyButton value={url} label="Copy link" />

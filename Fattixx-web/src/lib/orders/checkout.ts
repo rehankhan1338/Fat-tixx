@@ -357,7 +357,7 @@ export async function sendOrderConfirmation(orderId: number, opts: { resend?: bo
   // SMS ticket delivery (Phase 2) for buyers who asked for it at checkout.
   if (!opts.resend && order.sms_opt_in && order.buyer_phone && mine.length) {
     const link = mine.length === 1 ? ticketUrl(mine[0].code, mine[0].secret) : `${env.APP_URL}/tickets/find`;
-    await sendSms(order.buyer_phone, `Fat Tixx: ${mine.length} ticket${mine.length === 1 ? '' : 's'} for ${order.event_title} (${when}). Order ${order.code}. ${mine.length === 1 ? 'Your ticket' : 'Find your tickets'}: ${link}`, { type: 'order', id: order.id });
+    await sendSms(order.buyer_phone, `Fattixx: ${mine.length} ticket${mine.length === 1 ? '' : 's'} for ${order.event_title} (${when}). Order ${order.code}. ${mine.length === 1 ? 'Your ticket' : 'Find your tickets'}: ${link}`, { type: 'order', id: order.id });
   }
 }
 

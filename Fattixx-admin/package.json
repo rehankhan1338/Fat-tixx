@@ -2,7 +2,7 @@
   "name": "fattixx-admin",
   "version": "0.1.0",
   "private": true,
-  "description": "Fat Tixx admin console for platform staff (Super Admin, Support, Finance). Shares src/lib, src/components and node_modules with the public site in ../Fattixx-web; only the routes live here.",
+  "description": "Fattixx admin console for platform staff (Super Admin, Support, Finance). Shares src/lib, src/components and node_modules with the public site in ../Fattixx-web; only the routes live here.",
   "scripts": {
     "dev": "node ../Fattixx-web/node_modules/next/dist/bin/next dev -p 3100",
     "build": "node ../Fattixx-web/node_modules/next/dist/bin/next build",

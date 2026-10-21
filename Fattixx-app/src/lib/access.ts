@@ -14,4 +14,4 @@ export function hasAppAccess(account: Account | null | undefined): boolean {
   return !!account?.memberships.some((m) => !m.suspended);
 }
 
-export const NO_ACCESS_MESSAGE = 'This app is for organization admins, organizers and door staff. Attendees can see their tickets on the Fat Tixx website.';
+export const NO_ACCESS_MESSAGE = 'This app is for organization admins, organizers and door staff. Attendees can see their tickets on the Fattixx website.';

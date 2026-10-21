@@ -14,7 +14,7 @@ export default async function SellPage({ searchParams }: PageProps<"/sell">) {
     <PublicShell>
       <div className="mx-auto max-w-2xl space-y-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Sell tickets with Fat Tixx</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Sell tickets with Fattixx</h1>
           {fromCreate ? <p className="mt-2 rounded-lg border border-primary/40 bg-primary/5 p-3 text-sm">Events are created by approved organizers. Apply below; once your organization is verified you can create and publish events.</p> : null}
           {pro ? <p className="mt-2 rounded-lg border border-primary/40 bg-primary/5 p-3 text-sm">Fattixx Pro is not available yet. Apply as an organizer and mention Pro below; we will contact you when it launches.</p> : null}
           <p className="mt-2 text-muted-foreground">Tell us who you are. We verify every organizer before they can sell, which protects buyers and you. Most reviews take one to two business days.</p>

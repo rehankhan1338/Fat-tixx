@@ -107,7 +107,7 @@ export async function saveCampaign(_prev: ActionState, fd: FormData): Promise<Ac
   await execute(`DELETE FROM ad_campaign_placements WHERE campaign_id = ?`, [campaignId]);
   for (const p of placements) await execute(`INSERT INTO ad_campaign_placements (campaign_id, placement) VALUES (?, ?)`, [campaignId, p]);
   revalidate(auth, campaignId);
-  return { ok: true, id: campaignId, message: auth.isSuper ? 'Campaign saved.' : 'Saved. A Fat Tixx admin reviews sponsor ads before they go live.' };
+  return { ok: true, id: campaignId, message: auth.isSuper ? 'Campaign saved.' : 'Saved. A Fattixx admin reviews sponsor ads before they go live.' };
 }
 
 export async function addCreative(_prev: ActionState, fd: FormData): Promise<ActionState> {
@@ -151,7 +151,7 @@ export async function setCampaignStatus(fd: FormData): Promise<ActionState> {
   if (!c) return { error: 'Campaign not found.' };
   const status = str(fd, 'status', 10);
   if (!['draft', 'active', 'paused'].includes(status)) return { error: 'Unknown status.' };
-  if (!auth.isSuper && status === 'active') return { error: 'A Fat Tixx admin activates sponsor ads after review.' };
+  if (!auth.isSuper && status === 'active') return { error: 'A Fattixx admin activates sponsor ads after review.' };
   if (status === 'active') {
     const n = await queryOne<Row & { n: number }>(`SELECT COUNT(*) AS n FROM ad_creatives WHERE campaign_id = ?`, [c.id]);
     if (!Number(n?.n)) return { error: 'Add at least one creative before activating.' };

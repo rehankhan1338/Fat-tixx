@@ -102,7 +102,7 @@ export default function ScannerScreen() {
       <SafeAreaView style={styles.screen}>
         <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.denied}>
           <Txt variant="title" color="#fff">Camera access needed</Txt>
-          <Txt variant="body" color="#D4D4D8">Fat Tixx uses the camera only to read ticket QR codes at the door.</Txt>
+          <Txt variant="body" color="#D4D4D8">Fattixx uses the camera only to read ticket QR codes at the door.</Txt>
           <Button title="Allow camera" onPress={() => requestPermission()} />
           <Button title="Enter codes by hand instead" variant="outline" onPress={() => setManual(true)} style={{ borderColor: 'rgba(255,255,255,0.4)' }} />
           <Button title="Back" variant="ghost" onPress={() => router.back()} />

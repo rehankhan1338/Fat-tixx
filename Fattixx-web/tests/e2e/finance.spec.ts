@@ -85,18 +85,18 @@ test.describe.serial("finance, monitoring, branding & templates", () => {
   test("branding: change name and colour, see it on the public site", async ({ page }) => {
     await login(page);
     await page.goto("/admin/settings?tab=branding");
-    await page.fill("#platform_name", `Fat Tixx ${id}`);
+    await page.fill("#platform_name", `Fattixx ${id}`);
     await page.fill("#brand_color", "#1e3a8a");
     await page.click('button:has-text("Save branding")');
     await expect(page.locator("body")).toContainText("Branding saved");
     // The homepage carries the FATTIXX design wordmark; other public pages use the configurable branding.
     await page.goto("/terms");
-    await expect(page.locator("header")).toContainText(`Fat Tixx ${id}`);
+    await expect(page.locator("header")).toContainText(`Fattixx ${id}`);
     const primary = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--primary").trim());
     expect(primary).toBe("#1e3a8a");
     // restore
     await page.goto("/admin/settings?tab=branding");
-    await page.fill("#platform_name", "Fat Tixx");
+    await page.fill("#platform_name", "Fattixx");
     await page.fill("#brand_color", "#f59e0b");
     await page.click('button:has-text("Save branding")');
     await expect(page.locator("body")).toContainText("Branding saved");
@@ -117,7 +117,7 @@ test.describe.serial("finance, monitoring, branding & templates", () => {
     await page.click("[data-slot=dialog-content] button[type=submit]");
     await page.click('[data-slot=dialog-content] button:has-text("Done")');
     await page.goto("/admin/emails");
-    await expect(page.locator("body")).toContainText(`Welcome aboard ${id}: the Fat Tixx platform team`);
+    await expect(page.locator("body")).toContainText(`Welcome aboard ${id}: the Fattixx platform team`);
     // reset
     await page.goto("/admin/emails/templates");
     await page.click('button:has-text("Team invitation")');

@@ -1,7 +1,7 @@
 import type { ConfigContext, ExpoConfig } from 'expo/config';
 
 /**
- * Fat Tixx mobile app (Android + iOS). Native behaviour is configured here and generated at build time
+ * Fattixx mobile app (Android + iOS). Native behaviour is configured here and generated at build time
  * (Continuous Native Generation); the ios/ and android/ folders are never edited by hand.
  *
  * API_URL: where the Next.js backend runs. Unset in development, the app uses the machine that runs
@@ -16,7 +16,7 @@ const BRAND_RED = '#A8121A';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: 'Fat Tixx',
+  name: 'Fattixx',
   slug: 'fat-tixx',
   owner: 'rehanaltafkhaan',
   version: '1.0.0',
@@ -48,7 +48,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // in-app src/components/Splash.tsx draws the same screen while the session is restored).
     ['expo-splash-screen', { backgroundColor: BRAND_RED, image: './assets/images/splash-icon.png', imageWidth: 220, resizeMode: 'contain', dark: { backgroundColor: BRAND_RED, image: './assets/images/splash-icon.png' } }],
     ['expo-secure-store', { configureAndroidBackup: false }],
-    ['expo-camera', { cameraPermission: 'Fat Tixx uses the camera to scan ticket QR codes at the door.' }],
+    ['expo-camera', { cameraPermission: 'Fattixx uses the camera to scan ticket QR codes at the door.' }],
     ['expo-build-properties', { android: { usesCleartextTraffic: isDevApi }, ios: {} }],
   ],
   extra: { ...(apiUrl ? { apiUrl } : {}), eas: { projectId: 'afc01174-daca-42a8-9eae-4263fd8eecb4' } },

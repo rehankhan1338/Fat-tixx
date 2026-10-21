@@ -22,7 +22,7 @@ export type AuditAction =
   | 'order.tickets_resent' | 'order.attendee_updated' | 'order.refunded' | 'order.bulk_refund'
   | 'checkin.scan' | 'checkin.manual' | 'checkin.override' | 'checkin.undo'
   | 'settings.updated' | 'settings.branding' | 'settings.stripe' | 'settings.email' | 'settings.categories' | 'email.resent' | 'email.test' | 'email_template.updated' | 'email_template.reset'
-  | 'payout.approved' | 'payout.paid' | 'payout.voided' | 'dispute.updated' | 'reconciliation.run'
+  | 'payout.approved' | 'payout.paid' | 'payout.voided' | 'dispute.opened' | 'dispute.updated' | 'reconciliation.run'
   | 'checkin.offline_conflict' | 'checkin.conflict_resolved'
   | 'auth.email_verified' | 'user.data_exported' | 'user.self_deleted'
   | 'promo.created' | 'promo.updated' | 'promo.deleted'

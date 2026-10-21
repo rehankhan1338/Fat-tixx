@@ -1,16 +1,16 @@
 /*
- * Fat Tixx embeddable checkout widget.
+ * Fattixx embeddable checkout widget.
  *
- *   <script src="https://YOUR-FAT-TIXX-HOST/embed.js" data-event="event-slug" async></script>
+ *   <script src="https://YOUR-FATTIXX-HOST/embed.js" data-event="event-slug" async></script>
  *
  * Optional attributes: data-ref="promoterCode" (tracking link code), data-key="..." (private events).
- * The widget shows ticket selection in an iframe; payment continues on Fat Tixx in a new tab.
+ * The widget shows ticket selection in an iframe; payment continues on Fattixx in a new tab.
  */
 (function () {
   var script = document.currentScript;
   if (!script) return;
   var slug = script.getAttribute("data-event");
-  if (!slug) { console.error("Fat Tixx embed: missing data-event"); return; }
+  if (!slug) { console.error("Fattixx embed: missing data-event"); return; }
   var origin = new URL(script.src).origin;
   var params = new URLSearchParams();
   ["ref", "key", "utm_source", "utm_medium", "utm_campaign"].forEach(function (k) {

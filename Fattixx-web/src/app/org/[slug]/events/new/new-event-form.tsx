@@ -32,7 +32,7 @@ const FIELD_SECTION: Record<string, string> = {
 };
 
 const VISIBILITY_HINT: Record<Visibility, string> = {
-  public: "Listed on Fat Tixx: the homepage, the events page and search.",
+  public: "Listed on Fattixx: the homepage, the events page and search.",
   unlisted: "Not listed. Anyone with the link can find it.",
   private: "Only via a secret link (a key in the URL). You get the link once the event is created and can change it from the event page.",
 };

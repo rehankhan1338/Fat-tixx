@@ -51,7 +51,7 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
   } catch (e) {
     clearTimeout(timer);
     const aborted = (e as Error)?.name === 'AbortError';
-    throw new ApiError(0, aborted ? 'The request timed out. Check your connection and try again.' : 'Could not reach Fat Tixx. Check your connection and try again.');
+    throw new ApiError(0, aborted ? 'The request timed out. Check your connection and try again.' : 'Could not reach Fattixx. Check your connection and try again.');
   }
   clearTimeout(timer);
   const text = await res.text();

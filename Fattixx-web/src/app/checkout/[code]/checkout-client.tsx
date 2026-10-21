@@ -87,7 +87,7 @@ function PaymentForm({ code, amountLabel }: { code: string; amountLabel: string 
       <PaymentElement options={{ layout: "tabs", wallets: { applePay: "auto", googlePay: "auto" } }} />
       {error ? <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert> : null}
       <Button type="submit" size="lg" className="w-full" disabled={!stripe || busy}>{busy ? <Loader2Icon className="animate-spin" /> : <LockIcon />} {busy ? "Processing…" : `Pay ${amountLabel}`}</Button>
-      <p className="text-center text-xs text-muted-foreground">Secured by Stripe. Fat Tixx never sees or stores your card number.</p>
+      <p className="text-center text-xs text-muted-foreground">Secured by Stripe. Fattixx never sees or stores your card number.</p>
     </form>
   );
 }

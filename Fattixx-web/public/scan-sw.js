@@ -1,5 +1,5 @@
 /*
- * Fat Tixx scanner service worker (plan 8.2 / 10.3).
+ * Fattixx scanner service worker (plan 8.2 / 10.3).
  * Only the check-in scanner uses it: the scanner page is cached when it loads online, so a door device
  * can reopen it with no connection. Ticket data itself lives in IndexedDB (see offline-scan-store.ts).
  * Nothing else on the site is served from this cache.

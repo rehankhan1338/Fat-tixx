@@ -90,7 +90,7 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/or
                 <div className="flex justify-between font-semibold"><span>Total paid</span><span className="font-mono">{formatCents(Number(order.total_cents), order.currency)}</span></div>
                 {Number(order.refunded_cents) ? <div className="flex justify-between text-destructive"><span>Refunded</span><span className="font-mono">−{formatCents(Number(order.refunded_cents), order.currency)}</span></div> : null}
                 {addons.length ? <p className="pt-2 text-xs text-muted-foreground">Add-ons have no QR code: show your order number <span className="font-mono">{order.code}</span> at the venue to collect them.</p> : null}
-                <p className="pt-2 text-xs text-muted-foreground">Sold by {order.org_name} via Fat Tixx.</p>
+                <p className="pt-2 text-xs text-muted-foreground">Sold by {order.org_name} via Fattixx.</p>
               </CardContent>
             </Card>
             <Card>

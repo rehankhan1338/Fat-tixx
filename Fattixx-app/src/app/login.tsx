@@ -29,7 +29,7 @@ export default function LoginScreen() {
   }
 
   return (
-    <AuthShell title="Sign in" subtitle="Organization admins, organizers and door staff." footer={<Txt variant="caption" center>Looking for your tickets? They are on the Fat Tixx website.</Txt>}>
+    <AuthShell title="Sign in" subtitle="Organization admins, organizers and door staff." footer={<Txt variant="caption" center>Looking for your tickets? They are on the Fattixx website.</Txt>}>
       {error ? <Notice tone="error">{error}</Notice> : null}
       <Field label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" textContentType="username" returnKeyType="next" onSubmitEditing={() => pwRef.current?.focus()} maxLength={254} />
       <Field ref={pwRef} label="Password" value={password} onChangeText={setPassword} secure autoComplete="current-password" textContentType="password" returnKeyType="go" onSubmitEditing={submit} maxLength={128} />

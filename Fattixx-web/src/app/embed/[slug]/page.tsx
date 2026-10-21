@@ -14,9 +14,9 @@ import { EmbedResizer } from "./embed-resizer";
 export const metadata: Metadata = { title: "Tickets", robots: { index: false, follow: false } };
 
 /**
- * Embeddable checkout widget (plan 5.2): organizers put Fat Tixx ticket selection on their own website
+ * Embeddable checkout widget (plan 5.2): organizers put Fattixx ticket selection on their own website
  * with <script src="/embed.js" data-event="slug">. Selection happens here, inside the iframe; payment
- * always continues on the Fat Tixx site in a new tab, so card fields are never inside someone else's page.
+ * always continues on the Fattixx site in a new tab, so card fields are never inside someone else's page.
  */
 export default async function EmbedPage({ params, searchParams }: PageProps<"/embed/[slug]">) {
   const { slug } = await params;
@@ -59,7 +59,7 @@ export default async function EmbedPage({ params, searchParams }: PageProps<"/em
       )}
       <p className="text-xs text-muted-foreground">
         {event.fee_mode === "buyer_pays" ? `Prices include the service fee${taxBps ? " and tax" : ""}; a processing fee of ${(fees.processingFeeBps / 100).toFixed(1)}% + ${formatCents(fees.processingFeeFixedCents, event.currency)} is added at checkout.` : "Prices include all fees."}
-        {" "}Secure checkout by <Link href={fullUrl} target="_blank" rel="noopener" className="underline">Fat Tixx</Link>.
+        {" "}Secure checkout by <Link href={fullUrl} target="_blank" rel="noopener" className="underline">Fattixx</Link>.
       </p>
     </main>
   );

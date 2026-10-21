@@ -45,7 +45,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
         <div style={{ width: "100%", display: "flex", flexDirection: "column", background: "#ffffff", borderRadius: 48, overflow: "hidden" }}>
           <div style={{ display: "flex", flexDirection: "column", background: "#18181b", color: "#ffffff", padding: "36px 48px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontSize: 18, fontWeight: 700, color: "#fbbf24", textTransform: "uppercase", letterSpacing: 3 }}>{`Fat Tixx · ${order.org_name}`}</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "#fbbf24", textTransform: "uppercase", letterSpacing: 3 }}>{`Fattixx · ${order.org_name}`}</div>
               <div style={{ fontSize: 16, fontWeight: 700, color: "#18181b", background: refunded ? "#fde68a" : "#a7f3d0", borderRadius: 999, padding: "6px 14px", textTransform: "uppercase", letterSpacing: 2 }}>{STATUS_LABEL[order.status]}</div>
             </div>
             <div style={{ fontSize: 44, fontWeight: 700, marginTop: 10, lineHeight: 1.15 }}>Receipt</div>
@@ -82,7 +82,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", padding: "28px 48px 40px", fontSize: 18, color: "#71717a" }}>
-            <div>{`Sold by ${order.org_name} via Fat Tixx. Prices in ${order.currency}.`}</div>
+            <div>{`Sold by ${order.org_name} via Fattixx. Prices in ${order.currency}.`}</div>
             {addons.length ? <div style={{ marginTop: 6 }}>Add-ons have no QR code: show this order number at the venue to collect them.</div> : null}
           </div>
         </div>

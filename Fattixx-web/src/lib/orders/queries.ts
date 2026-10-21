@@ -148,32 +148,53 @@ const ORDER_LIST = `
          (SELECT COUNT(*) FROM tickets k WHERE k.order_id = o.id) AS ticket_count
     FROM orders o JOIN events e ON e.id = o.event_id JOIN organizations g ON g.id = o.organization_id`;
 
-export async function listOrgOrders(orgId: number, search = '', eventId?: number, limit = 200): Promise<OrderListRow[]> {
+export const ORDER_SORTS = {
+  newest: { label: 'Date: newest first', sql: 'COALESCE(o.paid_at, o.created_at) DESC, o.id DESC' },
+  oldest: { label: 'Date: oldest first', sql: 'COALESCE(o.paid_at, o.created_at) ASC, o.id ASC' },
+  name_asc: { label: 'Buyer name: A–Z', sql: 'COALESCE(NULLIF(o.buyer_name, \'\'), o.buyer_email) ASC, o.id DESC' },
+  name_desc: { label: 'Buyer name: Z–A', sql: 'COALESCE(NULLIF(o.buyer_name, \'\'), o.buyer_email) DESC, o.id DESC' },
+} as const;
+export type OrderSort = keyof typeof ORDER_SORTS;
+
+export interface OrgOrderFilters { search?: string; eventId?: number; from?: string; to?: string; sort?: OrderSort; limit?: number }
+
+/** `from` / `to` are YYYY-MM-DD, inclusive, matched against the paid date (or created date for unpaid orders). */
+/** Shared WHERE builder. `from` / `to` are YYYY-MM-DD, inclusive, matched against the paid date (or created date for unpaid orders). */
+function orderWhere(f: OrgOrderFilters, orgId?: number): { sql: string; params: (string | number)[] } {
+  const search = f.search ?? '';
   const like = `%${search}%`;
-  return query<OrderListRow>(
-    `${ORDER_LIST} WHERE o.organization_id = ? AND o.status <> 'expired' ${eventId ? 'AND o.event_id = ?' : ''}
-       AND (? = '' OR o.code LIKE ? OR o.buyer_email LIKE ? OR o.buyer_name LIKE ? OR EXISTS (SELECT 1 FROM tickets k WHERE k.order_id = o.id AND (k.attendee_name LIKE ? OR k.code LIKE ?)))
-     ORDER BY o.id DESC LIMIT ?`,
-    eventId ? [orgId, eventId, search, like, like, like, like, like, limit] : [orgId, search, like, like, like, like, like, limit],
-  );
+  const conds = [`o.status <> 'expired'`];
+  const params: (string | number)[] = [];
+  if (orgId) { conds.push('o.organization_id = ?'); params.push(orgId); }
+  if (f.eventId) { conds.push('o.event_id = ?'); params.push(f.eventId); }
+  if (f.from) { conds.push('COALESCE(o.paid_at, o.created_at) >= ?'); params.push(f.from); }
+  if (f.to) { conds.push('COALESCE(o.paid_at, o.created_at) < ? + INTERVAL 1 DAY'); params.push(f.to); }
+  conds.push(`(? = '' OR o.code LIKE ? OR o.buyer_email LIKE ? OR o.buyer_name LIKE ? OR EXISTS (SELECT 1 FROM tickets k WHERE k.order_id = o.id AND (k.attendee_name LIKE ? OR k.code LIKE ?)))`);
+  params.push(search, like, like, like, like, like);
+  return { sql: `WHERE ${conds.join(' AND ')}`, params };
 }
 
-const ALL_ORDERS_WHERE = `WHERE o.status <> 'expired'
-       AND (? = '' OR o.code LIKE ? OR o.buyer_email LIKE ? OR o.buyer_name LIKE ? OR EXISTS (SELECT 1 FROM tickets k WHERE k.order_id = o.id AND (k.attendee_name LIKE ? OR k.code LIKE ?)))`;
-
-export async function searchAllOrders(search = '', limit = 50, offset = 0): Promise<OrderListRow[]> {
-  const like = `%${search}%`;
-  return query<OrderListRow>(
-    `${ORDER_LIST} ${ALL_ORDERS_WHERE}
-     ORDER BY o.id DESC LIMIT ? OFFSET ?`,
-    [search, like, like, like, like, like, limit, offset],
-  );
+export async function listOrgOrders(orgId: number, f: OrgOrderFilters = {}): Promise<OrderListRow[]> {
+  const w = orderWhere(f, orgId);
+  return query<OrderListRow>(`${ORDER_LIST} ${w.sql} ORDER BY ${ORDER_SORTS[f.sort ?? 'newest'].sql} LIMIT ?`, [...w.params, f.limit ?? 200]);
 }
 
-export async function countAllOrders(search = ''): Promise<number> {
-  const like = `%${search}%`;
-  const r = await queryOne<Row & { n: number }>(`SELECT COUNT(*) AS n FROM orders o ${ALL_ORDERS_WHERE}`, [search, like, like, like, like, like]);
+export async function searchAllOrders(f: OrgOrderFilters = {}, limit = 50, offset = 0): Promise<OrderListRow[]> {
+  const w = orderWhere(f);
+  return query<OrderListRow>(`${ORDER_LIST} ${w.sql} ORDER BY ${ORDER_SORTS[f.sort ?? 'newest'].sql} LIMIT ? OFFSET ?`, [...w.params, limit, offset]);
+}
+
+export async function countAllOrders(f: OrgOrderFilters = {}): Promise<number> {
+  const w = orderWhere(f);
+  const r = await queryOne<Row & { n: number }>(`SELECT COUNT(*) AS n FROM orders o ${w.sql}`, w.params);
   return Number(r?.n ?? 0);
+}
+
+/** Every event on the platform, for the admin order filter. */
+export async function listEventsForFilter(): Promise<{ id: number; title: string; org_name: string }[]> {
+  return query<Row & { id: number; title: string; org_name: string }>(
+    `SELECT e.id, e.title, g.name AS org_name FROM events e JOIN organizations g ON g.id = e.organization_id ORDER BY e.starts_at DESC LIMIT 500`,
+  );
 }
 
 /** Every order placed by an account (all statuses), newest first. Matches the per-user order count on /admin/users. */

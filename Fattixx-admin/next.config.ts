@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 /**
- * Fat Tixx admin console (platform staff only).
+ * Fattixx admin console (platform staff only).
  *
  * It lives next to the public site (../Fattixx-web) and shares its `src/lib`, `src/components` and `node_modules`
  * (the public site's `npm install` links <repo root>/node_modules to Fattixx-web/node_modules, so packages resolve from here);

@@ -5,7 +5,7 @@ import { sha256 } from '@/lib/security/crypto';
 /**
  * Hand-off from the embeddable checkout widget: the widget opens this URL in a new top-level tab.
  * The order token is verified, stored in the buyer's first-party order cookie, and the buyer lands on
- * the normal Fat Tixx checkout page (payment fields are never shown inside a third-party iframe).
+ * the normal Fattixx checkout page (payment fields are never shown inside a third-party iframe).
  */
 export const dynamic = 'force-dynamic';
 

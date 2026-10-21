@@ -5,9 +5,10 @@ import { getActiveStripe, stripeClient } from '@/lib/payments/stripe';
 import { finalizePaidOrder } from '@/lib/orders/checkout';
 import { getOrderById } from '@/lib/orders/queries';
 import { handleOversoldAfterPayment } from '@/lib/orders/access';
+import { notifyStaffOfNewDispute } from '@/lib/payments/dispute-alerts';
 
 /**
- * Stripe → Fat Tixx. Signature-verified, idempotent (stripe_events table), and the source of truth
+ * Stripe → Fattixx. Signature-verified, idempotent (stripe_events table), and the source of truth
  * for payment state: even if the buyer closes the tab, the order is marked paid and tickets issued.
  */
 export async function POST(req: Request) {
@@ -55,7 +56,7 @@ export async function POST(req: Request) {
         if (!piId) break;
         const order = await queryOne<Row & { id: number; total_cents: number; refunded_cents: number }>(`SELECT id, total_cents, refunded_cents FROM orders WHERE stripe_payment_intent_id = ?`, [piId]);
         if (!order) break;
-        // Refunds issued from the Stripe dashboard (not through Fat Tixx) are reflected here.
+        // Refunds issued from the Stripe dashboard (not through Fattixx) are reflected here.
         if (charge.amount_refunded > Number(order.refunded_cents)) {
           const full = charge.amount_refunded >= Number(order.total_cents);
           await execute(`UPDATE orders SET refunded_cents = ?, status = ? WHERE id = ?`, [charge.amount_refunded, full ? 'refunded' : 'partially_refunded', order.id]);
@@ -74,11 +75,17 @@ export async function POST(req: Request) {
         const order = await queryOne<Row & { id: number }>(`SELECT id FROM orders WHERE stripe_payment_intent_id = ?`, [piId]);
         if (!order) break;
         const fee = d.balance_transactions?.reduce((n, bt) => n + Math.abs(bt.fee ?? 0), 0) ?? 0;
-        await execute(
-          `INSERT INTO disputes (order_id, stripe_dispute_id, amount_cents, fee_cents, reason, status, closed_at) VALUES (?, ?, ?, ?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE status = VALUES(status), fee_cents = VALUES(fee_cents), closed_at = VALUES(closed_at)`,
-          [order.id, d.id, d.amount, fee, d.reason ?? null, d.status, event.type === 'charge.dispute.closed' ? new Date() : null],
+        const evidenceDueAt = d.evidence_details?.due_by ? new Date(d.evidence_details.due_by * 1000) : null;
+        const r = await execute(
+          `INSERT INTO disputes (order_id, stripe_dispute_id, amount_cents, fee_cents, reason, status, evidence_due_at, closed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE status = VALUES(status), fee_cents = VALUES(fee_cents), evidence_due_at = COALESCE(VALUES(evidence_due_at), evidence_due_at), closed_at = VALUES(closed_at)`,
+          [order.id, d.id, d.amount, fee, d.reason ?? null, d.status, evidenceDueAt, event.type === 'charge.dispute.closed' ? new Date() : null],
         );
+        // affectedRows is 1 for a new row and 2 for an update, so staff are alerted once per dispute (plan 7.4).
+        if (r.affectedRows === 1) {
+          await audit('dispute.opened', { targetType: 'order', targetId: order.id, metadata: { via: 'webhook', dispute: d.id, amount: d.amount } });
+          await notifyStaffOfNewDispute({ orderId: order.id, stripeDisputeId: d.id, amountCents: d.amount, currency: d.currency?.toUpperCase(), reason: d.reason ?? null, evidenceDueAt });
+        }
         break;
       }
       default:

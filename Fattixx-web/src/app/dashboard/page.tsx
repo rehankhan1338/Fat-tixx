@@ -23,7 +23,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
     <AuthShell title="Your organizations" subtitle={`Signed in as ${session.user.email}`} footer={<form action={logout}><Button variant="link" type="submit">Sign out</Button></form>}>
       <div className="space-y-4">
         {sp.denied ? <Alert variant="destructive"><AlertDescription>You do not have access to that organization.</AlertDescription></Alert> : null}
-        {sp.suspended ? <Alert variant="destructive"><AlertDescription>That organization is suspended. Contact Fat Tixx support.</AlertDescription></Alert> : null}
+        {sp.suspended ? <Alert variant="destructive"><AlertDescription>That organization is suspended. Contact Fattixx support.</AlertDescription></Alert> : null}
         {session.user.roles.length ? <Button className="w-full" nativeButton={false} render={<a href={`${env.ADMIN_URL}/admin`} />}>Open {session.user.roles.includes("super_admin") ? "Super Admin" : "platform staff"} console</Button> : null}
         {memberships.length === 0 ? <p className="text-center text-sm text-muted-foreground">You are not a member of any organization yet.</p> : (
           <ItemGroup>

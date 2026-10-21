@@ -18,7 +18,8 @@ const APP = env.APP_URL;
 export type TemplateKey =
   | 'order_confirmation' | 'tickets_resent' | 'refund_issued' | 'order_cancelled' | 'event_cancelled' | 'event_postponed'
   | 'organizer_update' | 'invitation' | 'password_reset' | 'tickets_link' | 'waitlist_available' | 'ticket_transferred'
-  | 'event_reminder' | 'verify_email' | 'application_received' | 'application_approved' | 'application_rejected' | 'reconciliation_alert';
+  | 'event_reminder' | 'verify_email' | 'application_received' | 'application_approved' | 'application_rejected' | 'reconciliation_alert'
+  | 'dispute_opened';
 
 export interface TemplateDef { key: TemplateKey; name: string; description: string; variables: string[]; subject: string; body: string; sample: Record<string, string> }
 
@@ -111,7 +112,7 @@ ${BUTTON('{{url}}', 'Open your ticket')}
     body: `<p>You have been given access to {{context}} on {{platform_name}}. Set your password to get started. The link expires in 7 days.</p>
 ${BUTTON('{{url}}', 'Set your password')}
 <p class="muted">{{url}}</p>`,
-    sample: { context: 'Demo Organization on Fat Tixx', url: `${APP}/set-password/example` },
+    sample: { context: 'Demo Organization on Fattixx', url: `${APP}/set-password/example` },
   },
   {
     key: 'password_reset', name: 'Password reset', description: 'Sent from “Forgot password” and when staff send a reset link.',
@@ -194,9 +195,27 @@ ${BUTTON('{{url}}', 'Open your organizer dashboard')}`,
     key: 'reconciliation_alert', name: 'Reconciliation alert (staff)', description: 'Sent to Finance staff when the daily Stripe reconciliation finds discrepancies.',
     variables: ['count', 'range', 'url'],
     subject: 'Reconciliation: {{count}} discrepancy(ies) found',
-    body: `<p>The daily reconciliation between Fat Tixx orders and Stripe found <strong>{{count}}</strong> discrepancy(ies) for {{range}}.</p>
+    body: `<p>The daily reconciliation between Fattixx orders and Stripe found <strong>{{count}}</strong> discrepancy(ies) for {{range}}.</p>
 ${BUTTON('{{url}}', 'Review in Payments')}`,
     sample: { count: '2', range: 'the last 2 days', url: `${APP}/admin/payments` },
+  },
+  {
+    key: 'dispute_opened', name: 'Dispute alert (staff)', description: 'Sent to Finance staff and Super Admins when a chargeback / dispute is opened on an order (plan 7.4).',
+    variables: ['order_code', 'event_title', 'buyer_email', 'amount', 'reason', 'evidence_due', 'checked_in', 'url'],
+    subject: 'Dispute opened: {{amount}} on order {{order_code}}',
+    body: `<p>A buyer has disputed a payment with their card issuer.</p>
+<table class="receipt">
+<tr><td>Order</td><td align="right"><code>{{order_code}}</code></td></tr>
+<tr><td>Event</td><td align="right">{{event_title}}</td></tr>
+<tr><td>Buyer</td><td align="right">{{buyer_email}}</td></tr>
+<tr><td>Amount</td><td align="right">{{amount}}</td></tr>
+<tr><td>Reason given</td><td align="right">{{reason}}</td></tr>
+<tr><td>Evidence due</td><td align="right">{{evidence_due}}</td></tr>
+<tr><td>Ticket scanned at the door</td><td align="right">{{checked_in}}</td></tr>
+</table>
+<p>Check-in records (time, staff member, device) and the order details are kept as evidence. Respond before the deadline or the dispute is lost by default.</p>
+${BUTTON('{{url}}', 'Manage in Disputes')}`,
+    sample: { order_code: 'FTX-7K2M9Q', event_title: 'Demo Night Live', buyer_email: 'jane@example.com', amount: '$29.62', reason: 'fraudulent', evidence_due: 'Fri, Nov 27, 2026', checked_in: 'Yes, 8:14 PM by Sam', url: `${APP}/admin/disputes` },
   },
 ];
 

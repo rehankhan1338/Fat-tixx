@@ -9,6 +9,7 @@ import { BRAND_LOGO_INLINE } from '../brand-logo-inline';
 import { getActiveStripe, registerWebhookEndpoint, stripeClient, testStripeKeys } from '../payments/stripe';
 import { env } from '../env';
 import { reconcileWithStripe } from '../payments/reconcile';
+import { notifyStaffOfNewDispute } from '../payments/dispute-alerts';
 import { getBranding, getStripeSettings, saveStripeKeySet, setSetting, setStripeMode, type StripeMode } from '../settings';
 import { deleteUpload, saveImageUpload } from '../uploads';
 import { isEmail } from '../users';
@@ -92,12 +93,18 @@ export async function syncDisputesFromStripe(): Promise<ActionState> {
     const order = await queryOne<Row & { id: number }>(`SELECT id FROM orders WHERE stripe_payment_intent_id = ?`, [piId]);
     if (!order) continue;
     const fee = d.balance_transactions?.reduce((n, bt) => n + Math.abs(bt.fee ?? 0), 0) ?? 0;
+    const evidenceDueAt = d.evidence_details?.due_by ? new Date(d.evidence_details.due_by * 1000) : null;
     const r = await execute(
       `INSERT INTO disputes (order_id, stripe_dispute_id, amount_cents, fee_cents, reason, status, evidence_due_at, closed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE status = VALUES(status), fee_cents = VALUES(fee_cents), evidence_due_at = VALUES(evidence_due_at), closed_at = VALUES(closed_at)`,
-      [order.id, d.id, d.amount, fee, d.reason ?? null, d.status, d.evidence_details?.due_by ? new Date(d.evidence_details.due_by * 1000) : null, ['won', 'lost', 'charge_refunded'].includes(d.status) ? new Date() : null],
+      [order.id, d.id, d.amount, fee, d.reason ?? null, d.status, evidenceDueAt, ['won', 'lost', 'charge_refunded'].includes(d.status) ? new Date() : null],
     );
     if (r.affectedRows) imported++;
+    // A dispute first seen here (webhook missed or not configured) alerts Finance / Super Admins just like the webhook does.
+    if (r.affectedRows === 1 && !['won', 'lost', 'charge_refunded'].includes(d.status)) {
+      await audit('dispute.opened', { actorUserId: session.user.id, targetType: 'order', targetId: order.id, metadata: { via: 'sync', dispute: d.id, amount: d.amount } });
+      await notifyStaffOfNewDispute({ orderId: order.id, stripeDisputeId: d.id, amountCents: d.amount, currency: d.currency?.toUpperCase(), reason: d.reason ?? null, evidenceDueAt });
+    }
   }
   revalidatePath('/admin/disputes');
   await audit('dispute.updated', { actorUserId: session.user.id, metadata: { sync: true, touched: imported } });
@@ -113,7 +120,7 @@ export async function runReconciliation(_prev: ActionState, fd: FormData): Promi
   if (!r) return { error: 'Stripe is not configured. Add keys under Payments → Stripe keys.' };
   await audit('reconciliation.run', { actorUserId: session.user.id, targetType: 'reconciliation', targetId: r.id, metadata: { days: r.days, discrepancies: r.discrepancies } });
   revalidatePath('/admin/payments');
-  return { ok: true, message: r.discrepancies ? `${r.discrepancies} discrepancy(ies) found.` : 'Stripe and Fat Tixx agree for this range.' };
+  return { ok: true, message: r.discrepancies ? `${r.discrepancies} discrepancy(ies) found.` : 'Stripe and Fattixx agree for this range.' };
 }
 
 // ---------------------------------------------------------------------------
