@@ -25,7 +25,7 @@ export type NavAccount = { href: string; label: string; canCreateEvents?: boolea
 
 /**
  * `overHero`: the homepage. The nav starts transparent over the hero photos and an ivory background fades in once the
- * hero scrolls away (the text turns red to stay legible). Every other page shows the solid red nav from the start.
+ * hero scrolls away (the text turns red to stay legible). Every other page shows that same ivory nav from the start.
  * The bar (background and yellow strip) runs edge to edge; its content sits on the hero content's gutters
  * (same --pad / 1920px frame as Hero.module.css) in every look.
  */
@@ -57,8 +57,8 @@ export default function SiteNav({ account = null, overHero = false }: { account?
     };
   }, [overHero]);
 
-  // the three looks: solid red (every page), transparent over the hero, ivory once the homepage scrolls
-  const look: "red" | "clear" | "ivory" = !overHero ? "red" : scrolled ? "ivory" : "clear";
+  // two looks: transparent over the homepage hero, ivory everywhere else (other pages, and the homepage once it scrolls)
+  const look: "clear" | "ivory" = overHero && !scrolled ? "clear" : "ivory";
   const onIvory = look === "ivory";
   const [q, setQ] = useState("");
   const [locText, setLocText] = useState("");
@@ -204,7 +204,6 @@ export default function SiteNav({ account = null, overHero = false }: { account?
       className={cx(
         // same full-width bar in every look; only the background and text colour change
         "fixed inset-x-0 top-0 z-50 flex h-[84px] items-center pt-1 pb-1 justify-between gap-[18px] border-b-2 px-[max(var(--pad),calc(50%-960px+var(--pad)))] transition-[background-color,border-color,color,box-shadow] duration-500 ease-fx max-[901px]:gap-[10px]",
-        look === "red" && "border-b-transparent bg-fx-red/86 text-fx-ivory backdrop-blur-[16px] backdrop-saturate-[1.4]",
         look === "clear" && "border-b-transparent bg-transparent text-fx-ivory",
         look === "ivory" && "border-b-fx-yellow bg-fx-ivory text-fx-red shadow-[0_10px_30px_-22px_rgba(168,18,26,.45)]",
       )}
