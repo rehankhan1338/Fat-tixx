@@ -1,4 +1,4 @@
-# Fat Tixx admin console
+# Fattixx admin console
 
 The platform staff console (Super Admin, Support, Finance) as its own Next.js app. The public site never shows a
 staff sign-in: its `/login` turns platform staff away, and every `/admin/*` link on it redirects here.

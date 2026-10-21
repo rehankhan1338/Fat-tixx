@@ -22,7 +22,7 @@ export default async function TicketPage({ params, searchParams }: PageProps<"/t
     <main className="flex min-h-screen flex-col items-center justify-center bg-zinc-100 p-6 text-center">
       <div className="w-full max-w-sm overflow-hidden rounded-3xl bg-white text-zinc-900 shadow-2xl">
         <div className="bg-zinc-900 px-6 py-4 text-left text-white">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400">Fat Tixx · {t.org_name}</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400">Fattixx · {t.org_name}</p>
           <h1 className="mt-1 text-xl font-bold leading-tight">{t.event_title}</h1>
           <p className="mt-1 text-sm text-zinc-300">{formatEventDate(new Date(t.event_starts_at), t.event_timezone)}</p>
           {t.venue_name ? <p className="text-sm text-zinc-300">{t.venue_name}{t.venue_city ? `, ${t.venue_city}` : ""}</p> : null}

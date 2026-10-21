@@ -152,7 +152,7 @@ export function MarketingPanel({ ctx, currency, ticketTypes, promos, sponsors, s
         )}
       </Section>
 
-      <Section title="Sponsor ads" description="Promote a sponsor with an image ad on this event's page and order confirmations. A Fat Tixx admin reviews every sponsor ad before it goes live; impressions and clicks are reported here.">
+      <Section title="Sponsor ads" description="Promote a sponsor with an image ad on this event's page and order confirmations. A Fattixx admin reviews every sponsor ad before it goes live; impressions and clicks are reported here.">
         <div className="space-y-6">
           {sponsorAds.map((a) => (
             <div key={a.values.id} className="space-y-4 rounded-xl border p-4">
@@ -176,7 +176,7 @@ export function MarketingPanel({ ctx, currency, ticketTypes, promos, sponsors, s
         <OnSaleForm ctx={ctx} enabled={queue.enabled} rate={queue.rate} stats={queue.stats} />
       </Section>
 
-      <Section title="Embed on your website" description="Paste this where tickets should appear. Buyers choose tickets on your site; payment continues securely on Fat Tixx.">
+      <Section title="Embed on your website" description="Paste this where tickets should appear. Buyers choose tickets on your site; payment continues securely on Fattixx.">
         <div className="space-y-2">
           <Textarea readOnly value={embedSnippet} rows={2} className="font-mono text-xs" aria-label="Embed code" />
           <div className="flex flex-wrap gap-2"><CopyButton value={embedSnippet} label="Copy embed code" /><Button variant="outline" size="sm" nativeButton={false} render={<a href={embedUrl} target="_blank" rel="noopener" />}>Preview widget</Button></div>

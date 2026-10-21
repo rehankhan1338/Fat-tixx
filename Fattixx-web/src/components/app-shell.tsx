@@ -8,7 +8,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   BuildingIcon, CalendarIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, HomeIcon, LogOutIcon, MailIcon, MapPinIcon, ReceiptIcon, ScanLineIcon,
   SettingsIcon, ShieldIcon, TicketIcon, UsersIcon, ListIcon, ExternalLinkIcon, MegaphoneIcon, ChartColumnIcon, ClipboardCheckIcon, LinkIcon, TagIcon, GlobeIcon, type LucideIcon,
@@ -101,7 +101,7 @@ function PanelNav({ items }: { items: NavItem[] }) {
   const arrow = "pointer-events-auto grid size-8 shrink-0 cursor-pointer place-items-center rounded-full border border-fx-red/20 bg-white text-fx-red shadow-[0_2px_8px_rgba(168,18,26,0.12)] transition-colors hover:border-fx-red hover:bg-fx-yellow";
 
   return (
-    <nav aria-label="Panel" className="relative min-w-0 flex-1">
+    <nav aria-label="Panel" className="relative min-w-0 flex-1 max-[641px]:hidden">
       <ul ref={listRef} className="no-scrollbar flex items-center gap-1 overflow-x-auto py-2">
         {items.map((item) => {
           const Icon = ICONS[item.icon];
@@ -153,7 +153,9 @@ export function AppShell({
   const name = displayName(user.name) || user.name;
   const email = user.email.toLowerCase();
   const initials = name.split(/\s+/).map((p) => p[0]).join("").slice(0, 2).toUpperCase() || "?";
+  const pathname = usePathname();
   const items = groups.flatMap((g) => g.items);
+  const isActive = (item: NavItem) => (item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(item.href + "/"));
 
   return (
     <div className="fx-home fx-app min-h-dvh bg-fx-ivory text-fx-ink">
@@ -164,6 +166,7 @@ export function AppShell({
           </Link>
 
           <PanelNav items={items} />
+          <div className="hidden flex-1 max-[641px]:block" />
 
           <div className="flex shrink-0 items-center gap-2">
             {headerRight}
@@ -173,13 +176,35 @@ export function AppShell({
                 <span className="max-w-[160px] truncate max-[641px]:hidden">{name}</span>
                 <ChevronDownIcon className="size-4 shrink-0 text-fx-red/78" />
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-64">
+              <DropdownMenuContent align="end" className="max-h-[min(80dvh,720px)] min-w-64 overflow-y-auto">
                 <DropdownMenuGroup>
                   <DropdownMenuLabel data-plain="" className="font-normal">
                     <span className="block truncate text-[14px] font-semibold text-fx-red">{name}</span>
                     <span className="block truncate text-[12px] text-fx-red/78">{email}</span>
                   </DropdownMenuLabel>
                 </DropdownMenuGroup>
+                {/* phones: the panel's pages live here, since the link row in the header is hidden */}
+                <div className="hidden max-[641px]:block">
+                  {groups.filter((g) => g.items.length).map((g, i) => (
+                    <Fragment key={g.label ?? i}>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuGroup>
+                        {g.label ? <DropdownMenuLabel>{g.label}</DropdownMenuLabel> : null}
+                        {g.items.map((item) => {
+                          const Icon = ICONS[item.icon];
+                          const active = isActive(item);
+                          return (
+                            <DropdownMenuItem key={item.href} className={cx(menuItem, active && "bg-fx-yellow/60 text-fx-red")} render={<Link href={item.href} aria-current={active ? "page" : undefined} />}>
+                              <Icon aria-hidden="true" />
+                              <span className="flex-1 truncate">{item.label}</span>
+                              {item.badge != null ? <Badge variant="outline" className="ml-2 text-[10px]">{item.badge}</Badge> : null}
+                            </DropdownMenuItem>
+                          );
+                        })}
+                      </DropdownMenuGroup>
+                    </Fragment>
+                  ))}
+                </div>
                 {orgSwitcher && orgSwitcher.items.length > 1 ? (
                   <>
                     <DropdownMenuSeparator />

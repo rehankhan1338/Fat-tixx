@@ -7,6 +7,7 @@ import Hero from "@/components/home/Hero";
 import HostBand from "@/components/home/HostBand";
 import HowItWorks from "@/components/home/HowItWorks";
 import { PublicPage } from "@/components/layout/PublicPage";
+import { AdSlot } from "@/components/ad-slot";
 
 export async function generateMetadata(): Promise<Metadata> {
   const c = await homeContent();
@@ -34,6 +35,8 @@ export default async function HomePage() {
         <Hero content={c.hero} />
         {c.how.show && <HowItWorks content={c.how} />}
         {c.featured.show && <FeaturedStrip />}
+        {/* Plan 14.3 "Event listing pages": between the featured strip and the event grid; renders nothing when no campaign matches. */}
+        <div className="px-(--pad)"><AdSlot placement="event_list" className="mx-auto max-w-5xl" /></div>
         {c.browse.show && <EventBrowser content={c.browse} />}
         {c.host.show && <HostBand content={c.host} />}
       </main>

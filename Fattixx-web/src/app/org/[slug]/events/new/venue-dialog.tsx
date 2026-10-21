@@ -48,7 +48,7 @@ export function VenueDialog({ open, onClose, onCreated, orgSlug, defaultTimezone
       onClose={onClose}
       onCancel={onClose}
       onClick={(e) => e.target === e.currentTarget && onClose()} // a click on the blurred backdrop lands on the dialog itself
-      className="m-auto w-[min(640px,calc(100vw-32px))] rounded-[28px] border-0 bg-fx-white p-0 text-fx-red shadow-[0_40px_80px_-30px_rgba(78,7,11,.6)] backdrop:bg-fx-red-deep/45 backdrop:backdrop-blur-[3px]"
+      className="m-auto max-h-none w-[min(640px,calc(100vw-32px))] overflow-hidden rounded-[28px] border-0 bg-fx-white p-0 text-fx-red shadow-[0_40px_80px_-30px_rgba(78,7,11,.6)] backdrop:bg-fx-red-deep/45 backdrop:backdrop-blur-[3px]"
     >
       <div className="relative max-h-[calc(100dvh-32px)] overflow-y-auto p-7 max-[641px]:p-5">
         <button type="button" onClick={onClose} aria-label="Close" className="absolute top-4 right-4 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full text-fx-red/78 hover:bg-fx-sand">

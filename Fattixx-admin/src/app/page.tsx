@@ -23,7 +23,7 @@ export default async function AdminLoginPage({ searchParams }: PageProps<"/">) {
   return (
     <AdminAuthShell
       title="Admin sign in"
-      subtitle="Fat Tixx platform staff only."
+      subtitle="Fattixx platform staff only."
       footer={<>Not platform staff? <a href={`${site}/login`} className="text-primary underline-offset-4 hover:underline">Sign in on the main site</a></>}
     >
       <div className="space-y-4">

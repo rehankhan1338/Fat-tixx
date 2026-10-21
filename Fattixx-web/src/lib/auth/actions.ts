@@ -42,7 +42,7 @@ function safeNext(raw: unknown): string | null {
 type LoginPortal = 'public' | 'admin';
 
 // Not exported: a 'use server' module may only export async functions.
-const STAFF_ONLY_PORTAL_ERROR = 'This sign-in page is for Fat Tixx platform staff. Please use the regular sign-in page.';
+const STAFF_ONLY_PORTAL_ERROR = 'This sign-in page is for Fattixx platform staff. Please use the regular sign-in page.';
 
 async function signIn(portal: LoginPortal, formData: FormData): Promise<ActionState> {
   const email = String(formData.get('email') ?? '');
@@ -94,7 +94,7 @@ export async function requestPasswordReset(_prev: ActionState, formData: FormDat
   if (!isEmail(email)) return done;
   const user = await findUserByEmail(email);
   if (!user || user.status !== 'active') return done;
-  await sendSetPasswordLink(user, { invitedBy: null, context: 'Fat Tixx', purpose: 'reset_password' });
+  await sendSetPasswordLink(user, { invitedBy: null, context: 'Fattixx', purpose: 'reset_password' });
   await audit('auth.password.reset_requested', { actorUserId: user.id });
   return done;
 }

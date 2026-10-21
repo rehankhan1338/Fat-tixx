@@ -44,7 +44,7 @@ export async function createOrganization(_prev: ActionState, fd: FormData): Prom
     const { user, created } = await ensureUser(adminEmail, adminName);
     await execute(`INSERT IGNORE INTO organization_members (organization_id, user_id, role, invited_by) VALUES (?, ?, 'org_admin', ?)`, [orgId, user.id, session.user.id]);
     await audit('org.member.added', { actorUserId: session.user.id, targetType: 'organization', targetId: orgId, metadata: { userId: user.id, role: 'org_admin' } });
-    if (!user.password_hash) link = await sendSetPasswordLink(user, { invitedBy: session.user.id, context: `${name} on Fat Tixx` });
+    if (!user.password_hash) link = await sendSetPasswordLink(user, { invitedBy: session.user.id, context: `${name} on Fattixx` });
     if (created) await audit('user.created', { actorUserId: session.user.id, targetType: 'user', targetId: user.id, metadata: { email: adminEmail } });
   }
   revalidatePath('/admin/organizations');
@@ -118,7 +118,7 @@ export async function addOrgMember(_prev: ActionState, fd: FormData): Promise<Ac
 
   let link: string | undefined;
   if (!user.password_hash) {
-    link = await sendSetPasswordLink(user, { invitedBy: ctx.session.user.id, context: `${ctx.org.name} on Fat Tixx` });
+    link = await sendSetPasswordLink(user, { invitedBy: ctx.session.user.id, context: `${ctx.org.name} on Fattixx` });
     await audit('user.invited', { actorUserId: ctx.session.user.id, targetType: 'user', targetId: user.id });
   }
   revalidatePath(`/org/${orgSlug}/team`);
@@ -167,7 +167,7 @@ export async function resendMemberInvite(fd: FormData): Promise<ActionState> {
     `SELECT u.* FROM users u JOIN organization_members m ON m.user_id = u.id WHERE u.id = ? AND m.organization_id = ?`, [userId, ctx.org.id],
   );
   if (!user) return { error: 'Member not found.' };
-  const link = await sendSetPasswordLink(user as never, { invitedBy: ctx.session.user.id, context: `${ctx.org.name} on Fat Tixx`, purpose: user.password_hash ? 'reset_password' : 'set_password' });
+  const link = await sendSetPasswordLink(user as never, { invitedBy: ctx.session.user.id, context: `${ctx.org.name} on Fattixx`, purpose: user.password_hash ? 'reset_password' : 'set_password' });
   await audit('user.invited', { actorUserId: ctx.session.user.id, targetType: 'user', targetId: user.id });
   return { ok: true, message: 'Link sent.', link };
 }

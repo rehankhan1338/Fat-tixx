@@ -33,7 +33,7 @@ export async function createPlatformUser(_prev: ActionState, fd: FormData): Prom
   await audit('user.role.granted', { actorUserId: session.user.id, targetType: 'user', targetId: user.id, metadata: { role } });
 
   let link: string | undefined;
-  if (!user.password_hash) link = await sendSetPasswordLink(user, { invitedBy: session.user.id, context: 'the Fat Tixx platform team' });
+  if (!user.password_hash) link = await sendSetPasswordLink(user, { invitedBy: session.user.id, context: 'the Fattixx platform team' });
   revalidatePath('/admin/users');
   return { ok: true, message: link ? `${user.name} was added as ${role.replace('_', ' ')}. Share this link if email is not configured.` : `${role.replace('_', ' ')} role granted to ${user.name}.`, link };
 }
@@ -71,7 +71,7 @@ export async function sendPasswordLinkToUser(fd: FormData): Promise<ActionState>
   const userId = Number(fd.get('user_id'));
   const user = await queryOne<Row & { id: number; email: string; name: string; password_hash: string | null; status: string }>(`SELECT * FROM users WHERE id = ?`, [userId]);
   if (!user) return { error: 'User not found.' };
-  const link = await sendSetPasswordLink(user as never, { invitedBy: session.user.id, context: 'Fat Tixx', purpose: user.password_hash ? 'reset_password' : 'set_password' });
+  const link = await sendSetPasswordLink(user as never, { invitedBy: session.user.id, context: 'Fattixx', purpose: user.password_hash ? 'reset_password' : 'set_password' });
   await audit('user.invited', { actorUserId: session.user.id, targetType: 'user', targetId: user.id });
   return { ok: true, message: 'Password link created.', link };
 }
@@ -119,7 +119,7 @@ export async function updatePlatformSettings(_prev: ActionState, fd: FormData): 
   const pairs: [SettingKey, string][] = [
     ['platform_fee_bps', String(platformFeeBps)], ['platform_fee_fixed_cents', String(platformFeeFixed)],
     ['processing_fee_bps', String(processingBps)], ['processing_fee_fixed_cents', String(processingFixed)],
-    ['hold_minutes', String(holdMinutes)], ['default_fee_mode', feeMode], ['platform_name', platformName || 'Fat Tixx'], ['support_email', supportEmail],
+    ['hold_minutes', String(holdMinutes)], ['default_fee_mode', feeMode], ['platform_name', platformName || 'Fattixx'], ['support_email', supportEmail],
   ];
   for (const [k, v] of pairs) await setSetting(k, v, session.user.id);
   await audit('settings.updated', { actorUserId: session.user.id, metadata: Object.fromEntries(pairs) });
@@ -135,7 +135,7 @@ export async function saveEmailSettings(_prev: ActionState, fd: FormData): Promi
   const apiKey = str(fd, 'brevo_api_key', 200);
   const from = str(fd, 'mail_from', 254);
   const fromEmail = from.match(/<([^>]+)>\s*$/)?.[1]?.trim() ?? from;
-  if (!from || !isEmail(fromEmail)) return { error: 'Enter the sender as an address or "Name <address>", e.g. Fat Tixx <tickets@fattixx.com>.' };
+  if (!from || !isEmail(fromEmail)) return { error: 'Enter the sender as an address or "Name <address>", e.g. Fattixx <tickets@fattixx.com>.' };
   if (apiKey && apiKey !== 'clear' && !/^xkeysib-/.test(apiKey)) return { error: 'A Brevo API key starts with xkeysib-. Create one under Brevo → Settings → SMTP & API → API keys.' };
   const current = await getEmailSettings();
   // Blank keeps the saved key; the literal word "clear" removes it (the environment fallback then applies).
@@ -160,9 +160,9 @@ export async function sendTestEmail(): Promise<ActionState> {
   const status = await emailDeliveryStatus();
   if (!status.configured) return { error: 'Email delivery is not configured yet: save a Brevo API key first.' };
   const id = await sendEmail({
-    to: session.user.email, toName: session.user.name, subject: 'Fat Tixx test email',
-    text: `This is a test message from Fat Tixx. Delivery via ${status.provider} as ${status.from} works.`,
-    html: htmlLayout('Test email', `<p>This is a test message from Fat Tixx. Delivery via ${escapeHtml(status.provider ?? '')} as <strong>${escapeHtml(status.from)}</strong> works.</p>`),
+    to: session.user.email, toName: session.user.name, subject: 'Fattixx test email',
+    text: `This is a test message from Fattixx. Delivery via ${status.provider} as ${status.from} works.`,
+    html: htmlLayout('Test email', `<p>This is a test message from Fattixx. Delivery via ${escapeHtml(status.provider ?? '')} as <strong>${escapeHtml(status.from)}</strong> works.</p>`),
     related: { type: 'test', id: session.user.id },
   });
   const row = await queryOne<Row & { status: string; error: string | null }>(`SELECT status, error FROM email_outbox WHERE id = ?`, [id]);

@@ -129,7 +129,7 @@ export async function registerAttendeeAccount(input: { email: string; name: stri
   const existing = await findUserByEmail(email);
   if (existing?.password_hash) {
     // Do not reveal that the account exists: behave as if registration succeeded and send a reset link.
-    await sendSetPasswordLink(existing, { invitedBy: null, context: 'Fat Tixx', purpose: 'reset_password' });
+    await sendSetPasswordLink(existing, { invitedBy: null, context: 'Fattixx', purpose: 'reset_password' });
     return { kind: 'existing', message: 'Check your email to finish setting up your account.' };
   }
   const hash = await hashPassword(password);

@@ -3,7 +3,7 @@ import { audit } from '@/lib/audit';
 import { getSession } from '@/lib/auth/session';
 
 /**
- * "Download my data" (plan 11.5): everything Fat Tixx holds about the signed-in person, as JSON.
+ * "Download my data" (plan 11.5): everything Fattixx holds about the signed-in person, as JSON.
  * Orders bought with the email are included only once the email is verified.
  */
 export const dynamic = 'force-dynamic';

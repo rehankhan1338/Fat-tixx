@@ -26,7 +26,7 @@ export default async function OrganizationsPage({ searchParams }: PageProps<"/ad
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <PageHeader title="Organizations" description="Companies, promoters and venues that sell tickets on Fat Tixx." actions={isSuper ? <NewOrganizationDialog defaultOpen={sp.new === "1"} /> : null} />
+      <PageHeader title="Organizations" description="Companies, promoters and venues that sell tickets on Fattixx." actions={isSuper ? <NewOrganizationDialog defaultOpen={sp.new === "1"} /> : null} />
       {sp.deleted === "1" ? <p role="status" className="rounded-md border bg-muted/50 px-4 py-3 text-sm">Organization deleted.</p> : null}
       <Card>
         <CardContent className="space-y-4 pt-6">

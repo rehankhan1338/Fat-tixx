@@ -18,7 +18,7 @@ import { getEmailSettings } from './settings';
  *
  *   BREVO_API_KEY=xkeysib-...                        (MAIL_FROM must be a sender verified in Brevo)
  *   SMTP_URL=smtp://user:pass@smtp.example.com:587   (fallback; or smtps://... for port 465)
- *   MAIL_FROM="Fat Tixx <tickets@fattixx.com>"
+ *   MAIL_FROM="Fattixx <tickets@fattixx.com>"
  */
 export interface OutgoingEmail {
   to: string;
@@ -77,7 +77,7 @@ async function getSender(): Promise<Sender | null> {
   return null;
 }
 
-/** `Fat Tixx <tickets@fattixx.com>` → { name, email }; a bare address has no name. */
+/** `Fattixx <tickets@fattixx.com>` → { name, email }; a bare address has no name. */
 function parseAddress(s: string): { name?: string; email: string } {
   const m = s.match(/^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/);
   return m ? { name: m[1] || undefined, email: m[2].trim() } : { email: s.trim() };
@@ -219,9 +219,9 @@ export function htmlLayout(title: string, bodyHtml: string): string {
   return `<!doctype html><html><body style="margin:0;background:#f4f4f5;font-family:Arial,Helvetica,sans-serif;color:#18181b">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:24px">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:12px;overflow:hidden">
-<tr><td style="background:#18181b;color:#fbbf24;padding:18px 24px;font-size:20px;font-weight:bold">FAT TIXX</td></tr>
+<tr><td style="background:#18181b;color:#fbbf24;padding:18px 24px;font-size:20px;font-weight:bold">FATTIXX</td></tr>
 <tr><td style="padding:24px"><h1 style="margin:0 0 12px;font-size:20px">${escapeHtml(title)}</h1>${bodyHtml}</td></tr>
-<tr><td style="padding:16px 24px;color:#71717a;font-size:12px">You received this email because of a purchase or account on Fat Tixx.</td></tr>
+<tr><td style="padding:16px 24px;color:#71717a;font-size:12px">You received this email because of a purchase or account on Fattixx.</td></tr>
 </table></td></tr></table></body></html>`;
 }
 

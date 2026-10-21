@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Fat Tixx — create (or reset) the Super Admin account from the command line.
+ * Fattixx — create (or reset) the Super Admin account from the command line.
  *
  *   npm run admin:create
  *   npm run admin:create -- --email owner@example.com --name "Owner"
@@ -99,7 +99,7 @@ async function pwnedCount(password) {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 4000);
     const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
-      headers: { 'Add-Padding': 'true', 'User-Agent': 'FatTixx-Setup' }, signal: ctrl.signal,
+      headers: { 'Add-Padding': 'true', 'User-Agent': 'Fattixx-Setup' }, signal: ctrl.signal,
     });
     clearTimeout(t);
     if (!res.ok) return null;

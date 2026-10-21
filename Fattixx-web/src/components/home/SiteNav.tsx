@@ -26,6 +26,8 @@ export type NavAccount = { href: string; label: string; canCreateEvents?: boolea
 /**
  * `overHero`: the homepage. The nav starts transparent over the hero photos and an ivory background fades in once the
  * hero scrolls away (the text turns red to stay legible). Every other page shows the solid red nav from the start.
+ * The bar (background and yellow strip) runs edge to edge; its content sits on the hero content's gutters
+ * (same --pad / 1920px frame as Hero.module.css) in every look.
  */
 export default function SiteNav({ account = null, overHero = false }: { account?: NavAccount; overHero?: boolean }) {
   const { upcoming, filters, setFilters, place, applyPlace, searchOpen, setSearchOpen, locInputRef } = useHome();
@@ -200,10 +202,11 @@ export default function SiteNav({ account = null, overHero = false }: { account?
       id="nav"
       data-look={look}
       className={cx(
-        "fixed top-4 left-[clamp(12px,3vw,40px)] right-[clamp(12px,3vw,40px)] z-50 mx-auto max-w-[1840px] flex h-16 items-center justify-between gap-[18px] rounded-full border pr-[10px] pl-[22px] transition-[background-color,border-color,color,box-shadow] duration-500 ease-fx max-[901px]:gap-[10px] max-[901px]:pl-[18px]",
-        look === "red" && "border-fx-ivory/12 bg-fx-red/86 text-fx-ivory backdrop-blur-[16px] backdrop-saturate-[1.4]",
-        look === "clear" && "border-transparent bg-transparent text-fx-ivory",
-        look === "ivory" && "border-fx-red/12 bg-fx-ivory/92 text-fx-red shadow-[0_18px_40px_-30px_rgba(168,18,26,.45)] backdrop-blur-[16px] backdrop-saturate-[1.4]",
+        // same full-width bar in every look; only the background and text colour change
+        "fixed inset-x-0 top-0 z-50 flex h-[84px] items-center pt-1 pb-1 justify-between gap-[18px] border-b-2 px-[max(var(--pad),calc(50%-960px+var(--pad)))] transition-[background-color,border-color,color,box-shadow] duration-500 ease-fx max-[901px]:gap-[10px]",
+        look === "red" && "border-b-transparent bg-fx-red/86 text-fx-ivory backdrop-blur-[16px] backdrop-saturate-[1.4]",
+        look === "clear" && "border-b-transparent bg-transparent text-fx-ivory",
+        look === "ivory" && "border-b-fx-yellow bg-fx-ivory text-fx-red shadow-[0_10px_30px_-22px_rgba(168,18,26,.45)]",
       )}
     >
       <Link href="/" className="flex shrink-0 items-center py-2" aria-label="Fattixx home">

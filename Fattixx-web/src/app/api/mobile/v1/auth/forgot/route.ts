@@ -17,7 +17,7 @@ export const POST = handle(async (req) => {
   if (!isEmail(email)) return json(done);
   const user = await findUserByEmail(email);
   if (!user || user.status !== 'active') return json(done);
-  await sendSetPasswordLink(user, { invitedBy: null, context: 'Fat Tixx', purpose: 'reset_password' });
+  await sendSetPasswordLink(user, { invitedBy: null, context: 'Fattixx', purpose: 'reset_password' });
   await audit('auth.password.reset_requested', { actorUserId: user.id, metadata: { client: 'mobile' } });
   return json(done);
 });

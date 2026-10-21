@@ -39,7 +39,7 @@ export function CampaignForm({ values, scope, afterCreateHref }: { values: Campa
       {scope ? <><input type="hidden" name="org" value={scope.org} /><input type="hidden" name="event" value={scope.event} /></> : null}
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField label="Campaign name" id="c-name" name="name" required maxLength={160} defaultValue={values.name} />
-        {!scope ? <SelectField label="Type" id="c-kind" name="kind" defaultValue={values.kind} options={[{ value: "platform", label: "Platform ad (Fat Tixx promotion)" }, { value: "sponsored", label: "Sponsored (brand / partner)" }, { value: "contextual", label: "Contextual (targeted)" }]} /> : null}
+        {!scope ? <SelectField label="Type" id="c-kind" name="kind" defaultValue={values.kind} options={[{ value: "platform", label: "Platform ad (Fattixx promotion)" }, { value: "sponsored", label: "Sponsored (brand / partner)" }, { value: "contextual", label: "Contextual (targeted)" }]} /> : null}
         <TextField label="Sponsor / advertiser" id="c-adv" name="advertiser_name" maxLength={160} defaultValue={values.advertiser_name} hint="Shown next to the Sponsored label" />
         <TextField label="Advertiser contact" id="c-contact" name="advertiser_contact" maxLength={255} defaultValue={values.advertiser_contact} hint="Internal only" />
         <TextField label="Destination URL" id="c-url" name="destination_url" type="url" required placeholder="https://" defaultValue={values.destination_url} className="sm:col-span-2" />

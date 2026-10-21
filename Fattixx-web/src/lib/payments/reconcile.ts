@@ -3,7 +3,7 @@ import { execute, query, type Row } from '../db';
 import { getActiveStripe, stripeClient } from './stripe';
 
 /**
- * Compare Stripe payments with Fat Tixx orders for the last `days` days (plan 7.5). Used by the
+ * Compare Stripe payments with Fattixx orders for the last `days` days (plan 7.5). Used by the
  * Finance "Run reconciliation" button and by the daily job. Returns null when Stripe is not configured.
  */
 export async function reconcileWithStripe(days: number, runBy: number | null): Promise<{ id: number; days: number; discrepancies: number } | null> {

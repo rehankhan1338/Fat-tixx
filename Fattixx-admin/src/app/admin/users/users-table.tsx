@@ -100,7 +100,7 @@ function UserOrdersDialog({ user, open, onOpenChange }: { user: UserView; open: 
           : !orders ? <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground"><Loader2Icon className="size-4 animate-spin" /> Loading orders…</div>
           : orders.length === 0 ? <EmptyState title="No orders" description="This account has not placed any orders yet." />
           : (
-            <div className="-mx-4 max-h-[60vh] overflow-auto px-4">
+            <div className="-mx-4 px-4">
               <Table>
                 <TableHeader><TableRow><TableHead>Order</TableHead><TableHead>Event</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Tickets</TableHead><TableHead className="text-right">Total</TableHead><TableHead>Date</TableHead><TableHead /></TableRow></TableHeader>
                 <TableBody>

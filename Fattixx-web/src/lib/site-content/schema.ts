@@ -115,8 +115,8 @@ export const DEFAULT_HOME: HomeContent = {
     lead: "Build your event page, set your ticket tiers and check guests in at the door, with one simple fee.",
     cta: { label: "Create an event", href: "/create" },
     stats: [
-      { big: "{fee}", text: "Platform fee per paid ticket{processing_clause}. Pass it to buyers or absorb it, per event." },
-      { big: "All-in", text: "Buyers see the full price, fees and tax included, before they check out." },
+      { big: "6.5% + $1.29", text: "One flat fee per paid ticket, with card processing included." },
+      { big: "$19.95", text: "The most you’ll ever pay in fees on a single ticket." },
       { big: "$0", text: "To create an event or list free tickets." },
     ],
     pricingLink: { label: "See the full pricing breakdown", href: "/pricing" },

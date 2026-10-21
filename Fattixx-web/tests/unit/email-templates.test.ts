@@ -10,7 +10,7 @@ describe("email templates", () => {
 
   it("every default template renders its sample without leftover placeholders", () => {
     for (const t of TEMPLATES) {
-      const vars = { platform_name: "Fat Tixx", support_email: "help@fattixx.com", ...t.sample };
+      const vars = { platform_name: "Fattixx", support_email: "help@fattixx.com", ...t.sample };
       const body = fillTemplate(t.body, vars);
       const subject = fillTemplate(t.subject, vars);
       expect(body, t.key).not.toMatch(/\{\{/);

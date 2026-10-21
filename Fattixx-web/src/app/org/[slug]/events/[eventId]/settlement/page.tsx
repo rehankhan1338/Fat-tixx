@@ -21,7 +21,7 @@ export default async function SettlementPage({ params }: PageProps<"/org/[slug]/
   return (
     <main className="mx-auto max-w-2xl bg-white p-10 text-black print:p-0" style={{ colorScheme: "light" }}>
       <header className="mb-8 flex items-start justify-between border-b pb-4">
-        <div><p className="text-xs uppercase tracking-widest text-neutral-500">Fat Tixx · Settlement statement</p><h1 className="mt-1 text-2xl font-bold">{event.title}</h1><p className="text-sm text-neutral-600">{formatEventDate(new Date(event.starts_at), event.timezone)}{event.venue_name ? ` · ${event.venue_name}` : ""}</p></div>
+        <div><p className="text-xs uppercase tracking-widest text-neutral-500">Fattixx · Settlement statement</p><h1 className="mt-1 text-2xl font-bold">{event.title}</h1><p className="text-sm text-neutral-600">{formatEventDate(new Date(event.starts_at), event.timezone)}{event.venue_name ? ` · ${event.venue_name}` : ""}</p></div>
         <div className="text-right text-sm"><p className="font-semibold">{ctx.org.legal_name ?? ctx.org.name}</p><p className="text-neutral-600">{ctx.org.contact_email}</p><p className="text-neutral-500">Generated {new Date().toLocaleDateString()}</p></div>
       </header>
       <table className="w-full text-sm"><tbody>

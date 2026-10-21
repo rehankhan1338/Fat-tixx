@@ -1,13 +1,13 @@
-# Fat Tixx Scan Manager (mobile app)
+# Fattixx Scan Manager (mobile app)
 
-The Fat Tixx door-staff app for Android and iOS, built with Expo (React Native). It is a client of the
-Fat Tixx website in the parent folder: every screen talks to `/api/mobile/v1/*` on the Next.js server,
+The Fattixx door-staff app for Android and iOS, built with Expo (React Native). It is a client of the
+Fattixx website in the parent folder: every screen talks to `/api/mobile/v1/*` on the Next.js server,
 which reuses the same database, ticket and check-in code as the web.
 
 The app does one job, the plan's **Scan Manager**: download tickets, scan, manual check-in, override,
 undo a check-in, and live counts. Everything else (creating events, orders, refunds, analytics, marketing,
 team, settings, payouts, the admin console) is website-only and is not linked from the app at all.
-Attendees are not in the app: they buy and view their tickets on the Fat Tixx website, and an attendee
+Attendees are not in the app: they buy and view their tickets on the Fattixx website, and an attendee
 account is refused at sign-in (server and app both check) with a pointer to the site.
 
 ## Who sees what

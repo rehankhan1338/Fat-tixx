@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Fat Tixx database backup with a tested restore (plan 13.1).
+ * Fattixx database backup with a tested restore (plan 13.1).
  *
  *   npm run db:backup                 → backups/fattixx-YYYYMMDD-HHMMSS.sql.gz (keeps the newest BACKUP_KEEP, default 14)
  *   npm run db:backup -- --verify     → backup, then restore it into a scratch database and compare row counts

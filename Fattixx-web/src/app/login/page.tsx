@@ -18,7 +18,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   return (
     <AuthShell
       title="Sign in"
-      subtitle="Welcome back to Fat Tixx."
+      subtitle="Welcome back to Fattixx."
       footer={<>New here? <Link href="/register" className="text-primary underline-offset-4 hover:underline">Create an account</Link> · <Link href="/tickets/find" className="text-primary underline-offset-4 hover:underline">Find my tickets</Link></>}
     >
       <div className="space-y-4">

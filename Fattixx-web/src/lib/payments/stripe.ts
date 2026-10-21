@@ -5,7 +5,7 @@ import { getStripeSettings, type StripeMode } from '../settings';
 /**
  * Stripe client built from the keys stored in Admin → Payments (encrypted in the database).
  * The Super Admin switches between the **test** (sandbox) and **live** key sets with one toggle.
- * Phase 1: a single Fat Tixx account (Fat Tixx is seller of record); Connect comes in Phase 2/3.
+ * Phase 1: a single Fattixx account (Fattixx is seller of record); Connect comes in Phase 2/3.
  */
 export interface ActiveStripe { mode: StripeMode; secretKey: string; publishableKey: string; webhookSecret: string | null }
 
@@ -23,7 +23,7 @@ export async function isStripeConfigured(): Promise<boolean> {
 const clients = new Map<string, Stripe>();
 export function stripeClient(secretKey: string): Stripe {
   let c = clients.get(secretKey);
-  if (!c) { c = new Stripe(secretKey, { appInfo: { name: 'Fat Tixx', version: '0.1.0' } }); clients.set(secretKey, c); }
+  if (!c) { c = new Stripe(secretKey, { appInfo: { name: 'Fattixx', version: '0.1.0' } }); clients.set(secretKey, c); }
   return c;
 }
 
@@ -89,7 +89,7 @@ export async function registerWebhookEndpoint(active: ActiveStripe, url: string)
     return { id: current.endpoint.id, secret: null, created: false };
   }
   if (current.endpoint) await stripe.webhookEndpoints.del(current.endpoint.id);
-  const ep = await stripe.webhookEndpoints.create({ url, enabled_events: events, description: 'Fat Tixx (payments, refunds, disputes)' });
+  const ep = await stripe.webhookEndpoints.create({ url, enabled_events: events, description: 'Fattixx (payments, refunds, disputes)' });
   return { id: ep.id, secret: ep.secret ?? null, created: true };
 }
 

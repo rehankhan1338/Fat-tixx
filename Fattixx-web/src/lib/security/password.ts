@@ -68,7 +68,7 @@ export async function pwnedPasswordCount(password: string): Promise<number | nul
   const suffix = sha1.slice(5);
   try {
     const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
-      headers: { 'Add-Padding': 'true', 'User-Agent': 'FatTixx' },
+      headers: { 'Add-Padding': 'true', 'User-Agent': 'Fattixx' },
       signal: AbortSignal.timeout(4000),
       cache: 'no-store',
     });

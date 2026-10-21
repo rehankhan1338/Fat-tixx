@@ -71,7 +71,7 @@ export default function AccountScreen() {
               <View key={s.id} style={styles.row}>
                 {s.kind === 'app' ? <Smartphone size={18} color={red(0.6)} /> : <Globe size={18} color={red(0.6)} />}
                 <View style={{ flex: 1 }}>
-                  <Txt variant="small" style={{ color: colors.red }} numberOfLines={1}>{s.device || (s.kind === 'app' ? 'Fat Tixx app' : 'Web browser')}{s.current ? ' · this device' : ''}</Txt>
+                  <Txt variant="small" style={{ color: colors.red }} numberOfLines={1}>{s.device || (s.kind === 'app' ? 'Fattixx app' : 'Web browser')}{s.current ? ' · this device' : ''}</Txt>
                   <Txt variant="caption">Last active {new Date(s.lastSeenAt).toLocaleString()}</Txt>
                 </View>
                 {!s.current ? <Button title="Sign out" variant="ghost" size="sm" onPress={() => revoke(s.id)} /> : null}
@@ -91,7 +91,7 @@ export default function AccountScreen() {
         </Card>
         <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center', marginTop: 8 }}>
           <ShieldCheck size={14} color={red(0.5)} />
-          <Txt variant="caption">Fat Tixx {APP_VERSION} · {config?.supportEmail ?? 'support@fattixx.com'}</Txt>
+          <Txt variant="caption">Fattixx {APP_VERSION} · {config?.supportEmail ?? 'support@fattixx.com'}</Txt>
         </View>
       </View>
     </Screen>

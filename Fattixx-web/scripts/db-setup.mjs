@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Fat Tixx — database bootstrap.
+ * Fattixx — database bootstrap.
  *
  *   npm run db:setup
  *

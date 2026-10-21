@@ -97,7 +97,7 @@ export async function scanTicket(orgSlug: string, eventId: number, payload: stri
   const parsed = verifyTicketPayload(payload);
   // Fall back to a bare ticket code typed manually (12 chars) — verified against the DB, not the signature.
   const code = parsed?.code ?? (/^[A-Z0-9]{12}$/i.test(payload.trim()) ? payload.trim().toUpperCase() : null);
-  if (!code) { await log(event.id, null, ctx.session.user.id, 'invalid', 'bad_payload'); return { result: 'invalid', counts: await counts(), message: 'Not a Fat Tixx ticket.' }; }
+  if (!code) { await log(event.id, null, ctx.session.user.id, 'invalid', 'bad_payload'); return { result: 'invalid', counts: await counts(), message: 'Not a Fattixx ticket.' }; }
   const t = await lookupTicket('k.code = ?', [code]);
   if (!t || (parsed && t.secret !== parsed.secret)) { await log(event.id, null, ctx.session.user.id, 'invalid', 'unknown_code'); return { result: 'invalid', counts: await counts(), message: 'Ticket not found or signature mismatch.' }; }
   if (Number(t.event_id) !== event.id) { await log(event.id, Number(t.id), ctx.session.user.id, 'wrong_event', null); return { result: 'wrong_event', ticket: view(t), counts: await counts(), message: 'This ticket is for a different event.' }; }
