@@ -192,5 +192,3 @@ Run from `Fattixx-web/`.
 | `npm run lint`         | ESLint                                              |
 | `npm run build`        | production build                                    |
 | `npm run admin:dev`    | admin console on http://localhost:3100 (also `admin:build`, `admin:start`, `admin:typecheck`, `admin:lint`) |
-#   F a t - t i x x  
- 
