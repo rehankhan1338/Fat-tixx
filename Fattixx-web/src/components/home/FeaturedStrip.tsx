@@ -7,7 +7,7 @@ import Link from "next/link";
 import { clock, DOW, eventHref, isPro, money, MON, organizerName, priceText, whenText } from "@/lib/home/events";
 import ProBadge from "@/components/events/ProBadge";
 import EventArt from "@/components/ui/EventArt";
-import { container, cx } from "@/components/ui/styles";
+import { cx } from "@/components/ui/styles";
 import { useHome } from "./HomeState";
 
 const SPEED = 32; // drift, pixels per second
@@ -55,14 +55,14 @@ export default function FeaturedStrip() {
   /* keep the details lined up under the open photo, inside the screen */
   const place = () => {
     const el = s.current.activeEl;
-    const view = viewRef.current;
+    const sec = secRef.current;
     const info = infoRef.current;
-    if (!el || !view || !info) return;
+    if (!el || !sec || !info) return;
     const r = el.getBoundingClientRect();
-    const vr = view.getBoundingClientRect();
-    // the details sit in the same column as the strip, so they stay within its edges
-    const left = Math.min(Math.max(r.left - vr.left, 0), vr.width - info.offsetWidth);
-    info.style.transform = `translateX(${Math.max(0, left).toFixed(1)}px)`;
+    const sr = sec.getBoundingClientRect();
+    const pad = Math.max(16, Math.min(80, sr.width * 0.055));
+    const left = Math.min(Math.max(r.left - sr.left, pad), sr.width - info.offsetWidth - pad);
+    info.style.transform = `translateX(${Math.max(pad, left).toFixed(1)}px)`;
   };
 
   const deactivate = useCallback(() => {
@@ -80,11 +80,12 @@ export default function FeaturedStrip() {
     // slide the strip so the opened photo sits fully on screen
     const sec = secRef.current!;
     const r = el.getBoundingClientRect();
-    const vr = viewRef.current!.getBoundingClientRect();
+    const vw = document.documentElement.clientWidth;
     const wOn = parseFloat(getComputedStyle(sec).getPropertyValue("--fw-on")) || r.width;
+    const pad = Math.max(16, Math.min(80, vw * 0.055));
     st.shift = 0;
-    if (r.left + wOn > vr.right) st.shift = vr.right - (r.left + wOn);
-    if (r.left + st.shift < vr.left) st.shift = vr.left - r.left;
+    if (r.left + wOn > vw - pad) st.shift = vw - pad - (r.left + wOn);
+    if (r.left + st.shift < pad) st.shift = pad - r.left;
   };
 
   /** move by `dir` tiles (arrows / keyboard), eased */
@@ -93,7 +94,7 @@ export default function FeaturedStrip() {
     const sec = secRef.current;
     if (!sec) return;
     const w = parseFloat(getComputedStyle(sec).getPropertyValue("--fw")) || 224;
-    const vw = viewRef.current?.clientWidth ?? document.documentElement.clientWidth;
+    const vw = document.documentElement.clientWidth;
     const tiles = Math.max(1, Math.floor((vw * 0.6) / (w + 12)));
     deactivate();
     st.vel = 0;
@@ -265,7 +266,6 @@ export default function FeaturedStrip() {
         }
       }}
     >
-      <div className={container}>
       <div className="relative">
         <div
           className="f-view"
@@ -342,7 +342,7 @@ export default function FeaturedStrip() {
             className={cx(
               "absolute top-[calc(var(--fh)/2)] z-[2] flex h-12 w-12 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full bg-white/95 text-fx-red shadow-[0_12px_28px_-12px_rgba(78,7,11,.55)] transition-[opacity,transform] duration-300 hover:scale-105 focus-visible:opacity-100",
               "opacity-0 group-hover/strip:opacity-100 [@media(hover:none)]:hidden",
-              dir === "prev" ? "left-3" : "right-3",
+              dir === "prev" ? "left-[clamp(12px,3vw,40px)]" : "right-[clamp(12px,3vw,40px)]",
             )}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -390,7 +390,6 @@ export default function FeaturedStrip() {
             </>
           )}
         </div>
-      </div>
       </div>
     </section>
   );
