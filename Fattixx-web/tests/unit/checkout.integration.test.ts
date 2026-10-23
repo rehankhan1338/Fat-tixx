@@ -56,8 +56,9 @@ describe("inventory holds & oversell protection", () => {
     const order = (await getOrderByCode(row!.code))!;
     expect(Number(order.subtotal_cents)).toBe(2500);
     expect(Number(order.tax_cents)).toBe(125);
-    expect(Number(order.platform_fee_cents)).toBe(125 + 99); // 5% + $0.99 defaults
-    expect(Number(order.total_cents)).toBe(2500 + 224 + 125 + Number(order.processing_fee_cents));
+    expect(Number(order.platform_fee_cents)).toBe(163 + 129); // 6.5% + $1.29 defaults
+    expect(Number(order.processing_fee_cents)).toBe(0); // card processing included
+    expect(Number(order.total_cents)).toBe(2500 + 292 + 125);
     expect(order.hold_expires_at).not.toBeNull();
   });
 

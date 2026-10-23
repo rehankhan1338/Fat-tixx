@@ -11,8 +11,10 @@ import type { EventPageData, SponsorView } from "@/lib/home/event-page";
 import { listUpcoming, organizerHref, parseStart } from "@/lib/home/events";
 import type { ListedEvent } from "@/lib/home/events";
 import { formatCents } from "@/lib/home/pricing";
+import { RichText } from "@/components/rich-text";
 import type { CalendarInfo } from "./EventActions";
 import ReadMore from "./ReadMore";
+import VideoEmbed from "./VideoEmbed";
 import { DoorIcon, FlagIcon, IdIcon, PinIcon, RefundIcon, TagIcon } from "./icons";
 
 /* dates are venue-local strings; format them without converting time zones */
@@ -61,7 +63,7 @@ export function eventView(data: EventPageData) {
   const endIso = isoLocal(end.date, end.time, data.timeZone);
   const tz = zoneAbbr(startIso, data.timeZone);
   const place = [data.address, e.city !== "Online" ? e.city : ""].filter(Boolean).join(", ");
-  const online = e.city === "Online" && !data.address;
+  const online = data.online || (e.city === "Online" && !data.address);
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${e.venue}, ${place}`)}`;
 
   const lowest = data.lowestCents;
@@ -89,7 +91,8 @@ export function eventView(data: EventPageData) {
 
   // multi-day events list every date
   const days = data.days && data.days.length > 1 ? data.days.map((d) => d.date) : null;
-  const timeLine = `${clock24(e.time)} to ${clock24(end.time)} ${tz}${days ? " each day" : ""}`.replace(/\s+/g, " ").trim();
+  // the organizer's "Show end time" switch: off shows the start only (calendars still get an end)
+  const timeLine = `${clock24(e.time)}${data.showEndTime ? ` to ${clock24(end.time)}` : ""} ${tz}${days ? " each day" : ""}`.replace(/\s+/g, " ").trim();
   const short = (d: string) => {
     const [y, m, dd] = d.split("-").map(Number);
     return new Date(Date.UTC(y, m - 1, dd)).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
@@ -98,7 +101,7 @@ export function eventView(data: EventPageData) {
   /** "Friday, October 9, 2026", or "Sunday, October 25 and Monday, October 26, 2026" */
   const dateText = days ? joinDates(days) : longDate(e.date);
 
-  return { e, org, listed, startIso, endIso, end, tz, place, online, mapsUrl, lowest, cta, cal, more, moreFromOrg: data.moreFromOrg, timeLine, shortDate, dateText };
+  return { e, org, listed, startIso, endIso, end, tz, place, online, mapsUrl, lowest, cta, cal, more, moreFromOrg: data.moreFromOrg, timeLine, shortDate, dateText, brand: data.brand ?? null };
 }
 
 /* ---------- small shared bits ---------- */
@@ -146,17 +149,26 @@ export function EventJsonLd({ data, v }: { data: EventPageData; v: EventView }) 
   return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(json).replace(/</g, "\\u003c") }} />;
 }
 
-export function Breadcrumb({ category, preview }: { category: string; preview?: boolean }) {
+export function Breadcrumb({ category, preview, organizer }: { category: string; preview?: boolean; organizer?: { name: string; href: string } | null }) {
   const link = "hover:text-fx-red";
   return (
     <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-2 text-[13px] text-fx-red/78">
-      <Link href="/events" className={link}>
-        Events
-      </Link>
-      <span aria-hidden="true">/</span>
-      <Link href={`/events?cat=${encodeURIComponent(category)}`} className={link}>
-        {category}
-      </Link>
+      {organizer ? (
+        // a Pro organizer's page stays on their own pages
+        <Link href={organizer.href} className={link}>
+          {organizer.name}
+        </Link>
+      ) : (
+        <>
+          <Link href="/events" className={link}>
+            Events
+          </Link>
+          <span aria-hidden="true">/</span>
+          <Link href={`/events?cat=${encodeURIComponent(category)}`} className={link}>
+            {category}
+          </Link>
+        </>
+      )}
       {preview && <span className="ml-2 rounded-full bg-fx-red/8 px-2 py-[2px] text-[11px] font-semibold tracking-[.06em] text-fx-red uppercase">Preview</span>}
     </nav>
   );
@@ -190,9 +202,9 @@ const h2 = cx(sectionTitle, "text-[28px] tracking-[-0.02em]");
 
 /* ---------- content sections ---------- */
 
-/** Long descriptions are folded with a "View more" button */
+/** Long descriptions are folded with a "View more" button. Bold, italics, links and bullet lists come from the /create editor. */
 export function About({ data, className }: { data: EventPageData; className?: string }) {
-  if (!data.about.length) return null;
+  if (!data.about.trim()) return null;
   return (
     <section aria-labelledby="about-h" className={className}>
       <h2 id="about-h" className={h2}>
@@ -200,13 +212,39 @@ export function About({ data, className }: { data: EventPageData; className?: st
       </h2>
       <div className="mt-4">
         <ReadMore>
-          <div className="grid max-w-[640px] gap-4 text-[16px] leading-[1.7] whitespace-pre-line text-fx-red/85">
-            {data.about.map((p, i) => (
-              <p key={i}>{p}</p>
-            ))}
-          </div>
+          <RichText text={data.about} className="grid max-w-[640px] gap-4 text-[16px] leading-[1.7] text-fx-red/85" />
         </ReadMore>
       </div>
+    </section>
+  );
+}
+
+/** The organizer's photos (up to 5) and YouTube video */
+export function Media({ data, className }: { data: EventPageData; className?: string }) {
+  if (!data.gallery.length && !data.video) return null;
+  return (
+    <section aria-labelledby="media-h" className={className}>
+      <h2 id="media-h" className={h2}>
+        {data.gallery.length ? "Photos" : "Video"}
+        {data.gallery.length && data.video ? " & video" : ""}
+      </h2>
+      {data.video && (
+        <div className="mt-5">
+          <VideoEmbed id={data.video.id} title={data.video.title} />
+        </div>
+      )}
+      {data.gallery.length > 0 && (
+        <ul className="mt-5 grid grid-cols-3 gap-3 max-[641px]:grid-cols-2">
+          {data.gallery.map((src, i) => (
+            <li key={src} className={cx("overflow-hidden rounded-[18px] bg-white", i === 0 && data.gallery.length % 2 === 1 && "col-span-2 row-span-2 max-[641px]:col-span-2")}>
+              <a href={src} target="_blank" rel="noopener" className="block h-full">
+                {/* eslint-disable-next-line @next/next/no-img-element -- pre-optimized upload */}
+                <img src={src} alt={`Photo ${i + 1} of ${data.gallery.length}`} loading="lazy" className="aspect-square h-full w-full object-cover transition-transform duration-300 hover:scale-[1.03]" />
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
@@ -345,12 +383,12 @@ export function OrganizerCard({ v, className }: { v: EventView; className?: stri
         </p>
         {count > 0 && (
           <p className="mt-1 text-[14px] text-fx-red/78">
-            {count} {count === 1 ? "event" : "events"} on Fattixx
+            {count} {count === 1 ? "event" : "events"}{v.brand ? "" : " on Fattixx"}
           </p>
         )}
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <FollowButton organizerId={org.id} name={org.name} />
-          <Link href={organizerHref(org.id)} className={button("outline")}>
+          <Link href={v.brand?.organizerHref ?? organizerHref(org.id)} className={button("outline")}>
             View their page
           </Link>
         </div>
@@ -377,8 +415,8 @@ export function MoreEvents({ v }: { v: EventView }) {
           <h2 id="more-h" className={cx(sectionTitle, "text-[clamp(30px,3.4vw,44px)] leading-[1.02] tracking-[-0.035em]")}>
             {v.moreFromOrg ? `More from ${v.org.name}` : "You might also like"}
           </h2>
-          <Link href="/events" className="text-[15px] font-semibold text-fx-red-second underline underline-offset-[3px] hover:text-fx-red">
-            Browse all events
+          <Link href={v.brand?.organizerHref ?? "/events"} className="text-[15px] font-semibold text-fx-red-second underline underline-offset-[3px] hover:text-fx-red">
+            {v.brand ? "All their events" : "Browse all events"}
           </Link>
         </div>
         <div className="mt-8 grid grid-cols-4 gap-x-6 gap-y-10 max-[1101px]:grid-cols-3 max-[721px]:grid-cols-2 max-[721px]:gap-x-4">

@@ -1,7 +1,7 @@
 /*
- * Fattixx Pro: the organizer plan described on /pro. Prices are design fixtures in integer cents; Pro would be billed on
- * top of the standard per-ticket fee, never instead of it. There is no subscription billing yet: "Get Pro" sends
- * organizers to the application form, where they can mention Pro.
+ * Fattixx Pro: the organizer plan described on /pro. Prices in integer cents; Pro is billed through Stripe (lib/pro/subscription.ts)
+ * on top of the standard per-ticket fee, never instead of it. "Get Pro" goes to /pro/start: an organizer's Pro page
+ * (subscribe there), or the organizer application for someone who has no organization yet.
  */
 
 export const PRO_MONTHLY_CENTS = 5999; // billed every month
@@ -11,8 +11,8 @@ export const PRO_YEARLY_SAVINGS_CENTS = PRO_MONTHLY_CENTS * 12 - PRO_YEARLY_CENT
 
 export type Billing = "monthly" | "yearly";
 
-/** Where the "Get Pro" buttons go: the organizer application, flagged as a Pro request. */
-export const PRO_SIGNUP_HREF = "/sell?plan=pro";
+/** Where the "Get Pro" buttons go (src/app/pro/start/route.ts). */
+export const PRO_SIGNUP_HREF = "/pro/start";
 
 /** What every organizer gets for free, shown next to Pro so the difference is clear */
 export const STANDARD_INCLUDES = [
@@ -30,7 +30,7 @@ export type ProFeature = { key: ProFeatureKey; title: string; text: string };
 export const PRO_FEATURES: ProFeature[] = [
   { key: "brand", title: "Your branding", text: "Your logo, colors and photos on every event page, applied the same way across all your events." },
   { key: "badge", title: "Pro check mark", text: "A check next to your name on every event listing, event page and your organizer page." },
-  { key: "header", title: "Your own header", text: "Replace the Fattixx header with your own logo and name. The standard Fattixx footer remains." },
+  { key: "header", title: "Your own header", text: "Replace the Fattixx header with your own logo and name. A short footer with the terms and privacy links remains." },
   { key: "domain", title: "Your own web address", text: "Sell from tickets.yourbrand.com. You keep the domain, we set up the secure connection." },
   { key: "noads", title: "No ads", text: "We never show third-party ads on your pages. Your own sponsors and partners are still welcome." },
   { key: "seating", title: "Reserved seating", text: "Interactive seat maps so buyers pick their exact seat, table, box or section." },

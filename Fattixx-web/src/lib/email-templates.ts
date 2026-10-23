@@ -19,7 +19,9 @@ export type TemplateKey =
   | 'order_confirmation' | 'tickets_resent' | 'refund_issued' | 'order_cancelled' | 'event_cancelled' | 'event_postponed'
   | 'organizer_update' | 'invitation' | 'password_reset' | 'tickets_link' | 'waitlist_available' | 'ticket_transferred'
   | 'event_reminder' | 'verify_email' | 'application_received' | 'application_approved' | 'application_rejected' | 'reconciliation_alert'
-  | 'dispute_opened';
+  | 'dispute_opened' | 'sign_in_code' | 'event_updated'
+  | 'pro_activated' | 'pro_payment_failed' | 'pro_grace_ending' | 'pro_ended' | 'support_request_staff' | 'support_reply'
+  | 'seatmap_staff' | 'seatmap_organizer';
 
 export interface TemplateDef { key: TemplateKey; name: string; description: string; variables: string[]; subject: string; body: string; sample: Record<string, string> }
 
@@ -165,6 +167,30 @@ ${BUTTON('{{url}}', 'Confirm email')}
     sample: { name: 'Jane', url: `${APP}/verify-email/example` },
   },
   {
+    key: 'sign_in_code', name: 'Sign-in code', description: 'The 6-digit code for signing up or signing in without a password (the last step of Create event). Valid for 10 minutes.',
+    variables: ['code', 'minutes'],
+    subject: '{{code}} is your {{platform_name}} code',
+    body: `<p>Enter this code to continue on {{platform_name}}:</p>
+<p style="margin:6px 0 18px;font-size:30px;font-weight:700;letter-spacing:.28em"><code>{{code}}</code></p>
+<p class="muted">It works once and expires in {{minutes}} minutes. If you didn't ask for it, you can ignore this email: nobody can sign in without the code.</p>`,
+    sample: { code: '482915', minutes: '10' },
+  },
+  {
+    key: 'event_updated', name: 'Event details changed', description: 'Sent to every ticket holder when the organizer changes the date, time or location of an event they hold tickets for. Tickets stay valid.',
+    variables: ['event_title', '{{{changes_html}}}', 'when_text', 'where_text', 'order_url'],
+    subject: 'Updated: {{event_title}}',
+    body: `<p>The organizer changed the details of <strong>{{event_title}}</strong>. Your tickets stay valid.</p>
+<table class="receipt">{{{changes_html}}}</table>
+<p>{{when_text}}<br>{{where_text}}</p>
+${BUTTON('{{order_url}}', 'Show my tickets')}
+<p class="muted">Can't make it any more? Check the refund policy on your order page, or reply to the organizer.</p>`,
+    sample: {
+      event_title: 'Demo Night Live',
+      changes_html: '<tr><td>Date and time</td><td align="right">Sat, Dec 5, 2026, 8:00 PM EST<br><span class="muted">was Fri, Nov 20, 2026, 8:00 PM EST</span></td></tr>',
+      when_text: 'Sat, Dec 5, 2026, 8:00 PM EST', where_text: 'The Warehouse, 200 W Washington St, Greenville', order_url: `${APP}/tickets/find`,
+    },
+  },
+  {
     key: 'application_received', name: 'Organizer application received', description: 'Confirmation sent to someone who applied to sell tickets.',
     variables: ['contact_name', 'org_name'],
     subject: 'We received your application: {{org_name}}',
@@ -216,6 +242,82 @@ ${BUTTON('{{url}}', 'Review in Payments')}`,
 <p>Check-in records (time, staff member, device) and the order details are kept as evidence. Respond before the deadline or the dispute is lost by default.</p>
 ${BUTTON('{{url}}', 'Manage in Disputes')}`,
     sample: { order_code: 'FTX-7K2M9Q', event_title: 'Demo Night Live', buyer_email: 'jane@example.com', amount: '$29.62', reason: 'fraudulent', evidence_due: 'Fri, Nov 27, 2026', checked_in: 'Yes, 8:14 PM by Sam', url: `${APP}/admin/disputes` },
+  },
+  {
+    key: 'pro_activated', name: 'Fattixx Pro: welcome', description: 'Sent to Organization Admins when a Pro subscription starts (plan 5.7.2).',
+    variables: ['org_name', 'interval', 'url'],
+    subject: '{{org_name}} is on {{platform_name}} Pro',
+    body: `<p>Thanks for upgrading <strong>{{org_name}}</strong> to {{platform_name}} Pro, billed {{interval}}.</p>
+<p>Set up your branding and your own web address, then send your first email campaign.</p>
+${BUTTON('{{url}}', 'Set up Pro')}
+<p class="muted">You can switch between monthly and yearly billing or cancel at any time from the same page.</p>`,
+    sample: { org_name: 'Lowcountry Live', interval: 'yearly', url: `${APP}/org/lowcountry-live/pro` },
+  },
+  {
+    key: 'pro_payment_failed', name: 'Fattixx Pro: payment failed', description: 'Sent to Organization Admins when a Pro renewal payment fails. Pro stays on during the grace period (plan 5.7.11).',
+    variables: ['org_name', 'grace_days', 'grace_end', 'url'],
+    subject: 'Action needed: your {{platform_name}} Pro payment failed',
+    body: `<p>We could not charge the card on file for <strong>{{org_name}}</strong>'s {{platform_name}} Pro subscription.</p>
+<p>Pro stays on for {{grace_days}} days, until <strong>{{grace_end}}</strong>. Update your card before then to keep your branding, web address and email marketing running.</p>
+${BUTTON('{{url}}', 'Update payment method')}`,
+    sample: { org_name: 'Lowcountry Live', grace_days: '7', grace_end: 'November 27, 2026', url: `${APP}/org/lowcountry-live/pro` },
+  },
+  {
+    key: 'pro_grace_ending', name: 'Fattixx Pro: grace period ending', description: 'Sent once, 2 days before the grace period after a failed payment ends.',
+    variables: ['org_name', 'grace_end', 'url'],
+    subject: 'Your {{platform_name}} Pro ends on {{grace_end}}',
+    body: `<p>The {{platform_name}} Pro payment for <strong>{{org_name}}</strong> is still outstanding. Pro switches off on <strong>{{grace_end}}</strong>.</p>
+<p>When it does, your event pages return to the standard look, your web address sends visitors to your normal {{platform_name}} page, and scheduled campaigns are paused. Nothing is deleted.</p>
+${BUTTON('{{url}}', 'Update payment method')}`,
+    sample: { org_name: 'Lowcountry Live', grace_end: 'November 27, 2026', url: `${APP}/org/lowcountry-live/pro` },
+  },
+  {
+    key: 'pro_ended', name: 'Fattixx Pro: ended', description: 'Sent once when an organization stops being on Pro (cancelled, or unpaid after the grace period).',
+    variables: ['org_name', 'monthly', 'url'],
+    subject: '{{platform_name}} Pro has ended for {{org_name}}',
+    body: `<p><strong>{{org_name}}</strong> is back on the standard plan. You can keep creating events and selling tickets as before.</p>
+<p>Your branding, contacts, campaigns and reports are kept. Your custom web address stays reserved for 30 days. Resubscribe from {{monthly}} a month to switch it all back on.</p>
+${BUTTON('{{url}}', 'Resubscribe')}`,
+    sample: { org_name: 'Lowcountry Live', monthly: '$59.99', url: `${APP}/org/lowcountry-live/pro` },
+  },
+  {
+    key: 'support_request_staff', name: 'Support request (staff)', description: 'Sent to Support staff when an organizer opens a support request. Pro requests are marked priority.',
+    variables: ['priority', 'org_name', 'requester', 'category', 'subject', 'message', 'url'],
+    subject: '[{{priority}}] {{subject}} ({{org_name}})',
+    body: `<p><strong>{{priority}}</strong> request from {{requester}} at <strong>{{org_name}}</strong> ({{category}}).</p>
+<p>{{message}}</p>
+${BUTTON('{{url}}', 'Open in the support queue')}`,
+    sample: { priority: 'Priority', org_name: 'Lowcountry Live', requester: 'Jane Doe <jane@example.com>', category: 'domain', subject: 'Custom domain not working', message: 'tickets.lowcountry.live shows a certificate warning.', url: `${APP}/admin/support/12` },
+  },
+  {
+    key: 'support_reply', name: 'Support reply', description: 'Sent to the organizer when platform staff answer their support request.',
+    variables: ['name', 'subject', 'message', 'url'],
+    subject: 'Re: {{subject}}',
+    body: `<p>Hi {{name}},</p>
+<p>{{message}}</p>
+${BUTTON('{{url}}', 'View the conversation')}
+<p class="muted">Reply from the support page in your dashboard so the whole conversation stays together.</p>`,
+    sample: { name: 'Jane', subject: 'Custom domain not working', message: 'The certificate is issued now. Please try again.', url: `${APP}/org/lowcountry-live/support` },
+  },
+  {
+    key: 'seatmap_staff', name: 'Seat map request (staff)', description: 'Sent to Support staff when an organizer requests a seat map, comments on one, sends one back with changes or approves it.',
+    variables: ['headline', 'org_name', 'map_name', 'venue', 'message', 'url'],
+    subject: '[Seat map] {{headline}}: {{map_name}} ({{org_name}})',
+    body: `<p><strong>{{headline}}</strong> from <strong>{{org_name}}</strong>.</p>
+<p>{{map_name}} · {{venue}}</p>
+<p>{{message}}</p>
+${BUTTON('{{url}}', 'Open the request')}`,
+    sample: { headline: 'New request', org_name: 'Lowcountry Live', map_name: 'Main hall, theatre layout', venue: 'The Music Hall, Charleston', message: 'Balcony seats B1–B6 are wheelchair spaces.', url: `${APP}/admin/seating/4` },
+  },
+  {
+    key: 'seatmap_organizer', name: 'Seat map update (organizer)', description: 'Sent to the organizer when their seat map is ready to approve, or when Fattixx staff comment on their request.',
+    variables: ['headline', 'map_name', 'venue', 'message', 'url'],
+    subject: '{{headline}}: {{map_name}}',
+    body: `<p><strong>{{headline}}</strong></p>
+<p>{{map_name}} · {{venue}}</p>
+<p>{{message}}</p>
+${BUTTON('{{url}}', 'Open your seat map request')}`,
+    sample: { headline: 'Your seat map is ready to approve', map_name: 'Main hall, theatre layout', venue: 'The Music Hall, Charleston', message: 'Check every section, row and seat number, then approve it to start selling reserved seats.', url: `${APP}/org/lowcountry-live/seating/4` },
   },
 ];
 

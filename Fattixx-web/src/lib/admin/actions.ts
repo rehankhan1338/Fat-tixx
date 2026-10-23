@@ -104,22 +104,27 @@ export async function updatePlatformSettings(_prev: ActionState, fd: FormData): 
   const cents = (k: string) => Math.round(Number(str(fd, k, 10)) * 100);
   const platformFeeBps = pct('platform_fee_pct');
   const platformFeeFixed = cents('platform_fee_fixed');
+  const platformFeeCap = cents('platform_fee_cap'); // blank or 0 = no cap
   const processingBps = pct('processing_fee_pct');
   const processingFixed = cents('processing_fee_fixed');
   const holdMinutes = Number(str(fd, 'hold_minutes', 5));
+  const seatMapFee = cents('seat_map_setup_fee');
   const feeMode = str(fd, 'default_fee_mode', 20);
   const platformName = str(fd, 'platform_name', 60);
   const supportEmail = str(fd, 'support_email', 254);
-  if (![platformFeeBps, platformFeeFixed, processingBps, processingFixed].every((n) => Number.isFinite(n) && n >= 0)) return { error: 'Fees must be zero or positive numbers.' };
+  if (![platformFeeBps, platformFeeFixed, platformFeeCap, processingBps, processingFixed, seatMapFee].every((n) => Number.isFinite(n) && n >= 0)) return { error: 'Fees must be zero or positive numbers.' };
+  if (seatMapFee > 1_000_000) return { error: 'The seat map set-up fee cannot exceed $10,000.' };
   if (platformFeeBps > 5000) return { error: 'Platform fee cannot exceed 50%.' };
+  if (platformFeeCap > 0 && platformFeeCap < platformFeeFixed) return { error: 'The fee cap cannot be lower than the fixed fee per ticket.' };
   if (!Number.isInteger(holdMinutes) || holdMinutes < 3 || holdMinutes > 60) return { error: 'Hold time must be between 3 and 60 minutes.' };
   if (!['buyer_pays', 'organizer_absorbs'].includes(feeMode)) return { error: 'Choose a fee mode.' };
   if (!isEmail(supportEmail)) return { error: 'Enter a valid support email.' };
 
   const pairs: [SettingKey, string][] = [
-    ['platform_fee_bps', String(platformFeeBps)], ['platform_fee_fixed_cents', String(platformFeeFixed)],
+    ['platform_fee_bps', String(platformFeeBps)], ['platform_fee_fixed_cents', String(platformFeeFixed)], ['platform_fee_cap_cents', String(platformFeeCap)],
     ['processing_fee_bps', String(processingBps)], ['processing_fee_fixed_cents', String(processingFixed)],
     ['hold_minutes', String(holdMinutes)], ['default_fee_mode', feeMode], ['platform_name', platformName || 'Fattixx'], ['support_email', supportEmail],
+    ['seat_map_setup_fee_cents', String(seatMapFee)],
   ];
   for (const [k, v] of pairs) await setSetting(k, v, session.user.id);
   await audit('settings.updated', { actorUserId: session.user.id, metadata: Object.fromEntries(pairs) });

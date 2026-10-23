@@ -14,7 +14,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { ConfirmButton } from "@/components/confirm-button";
 import { EmptyState, Section } from "@/components/shared";
 
-export interface TicketTypeView { id: number; name: string; description: string | null; kind: string; price_cents: number; quantity: number; sold: number; held: number; min_per_order: number; max_per_order: number; max_per_account: number | null; seats_per_unit: number; sales_start_at: string; sales_end_at: string; hidden: boolean; access_code: string | null; event_date_id: number | null; sort_order: number }
+export interface TicketTypeView { id: number; name: string; description: string | null; kind: string; price_cents: number; quantity: number; sold: number; held: number; min_per_order: number; max_per_order: number; max_per_account: number | null; seats_per_unit: number; sales_start_at: string; sales_end_at: string; hidden: boolean; access_code: string | null; event_date_id: number | null; sort_order: number; seated?: number | boolean }
 export interface DayOption { id: number; label: string }
 
 const KIND_OPTIONS = [
@@ -40,9 +40,11 @@ function TicketTypeDialog({ orgSlug, eventId, tt, trigger, days = [] }: { orgSlu
           {tt ? <input type="hidden" name="ticket_type_id" value={tt.id} /> : null}
           <div className="grid gap-4 sm:grid-cols-2">
             <TextField label="Name" id="tt-name" name="name" required defaultValue={tt?.name} placeholder="General Admission" autoFocus />
-            <SelectField label="Kind" id="tt-kind" name="kind" value={kind} onChange={(e) => setKind(e.target.value)} options={KIND_OPTIONS} />
+            <SelectField label="Kind" id="tt-kind" name="kind" value={kind} onChange={(e) => setKind(e.target.value)} options={tt?.seated ? KIND_OPTIONS.filter((o) => o.value !== "table") : KIND_OPTIONS} />
             {kind !== "complimentary" ? <TextField label="Price ($)" id="tt-price" name="price" inputMode="decimal" placeholder="25.00" defaultValue={tt ? (tt.price_cents / 100).toFixed(2) : ""} hint="Enter 0 for free tickets." /> : <div />}
-            <TextField label={kind === "table" ? "Number of tables" : "Quantity available"} id="tt-qty" name="quantity" type="number" min={1} required defaultValue={tt?.quantity} />
+            {tt?.seated
+              ? <TextField label="Seats" id="tt-qty" name="quantity" type="number" readOnly defaultValue={tt.quantity} hint="Reserved seating: the seats assigned to this tier on the Seating tab." />
+              : <TextField label={kind === "table" ? "Number of tables" : "Quantity available"} id="tt-qty" name="quantity" type="number" min={1} required defaultValue={tt?.quantity} />}
             {kind === "table" ? <TextField label="Seats per table" id="tt-seats" name="seats_per_unit" type="number" min={1} max={50} defaultValue={tt?.seats_per_unit ?? 8} hint="Each seat gets its own QR code." /> : null}
             <TextField label="Min per order" id="tt-min" name="min_per_order" type="number" min={1} max={100} defaultValue={tt?.min_per_order ?? 1} />
             <TextField label="Max per order" id="tt-max" name="max_per_order" type="number" min={1} max={100} defaultValue={tt?.max_per_order ?? 10} />
@@ -76,7 +78,7 @@ export function TicketTypesPanel({ orgSlug, eventId, currency, canEdit, ticketTy
             {ticketTypes.map((t) => (
               <TableRow key={t.id}>
                 <TableCell><span className="font-medium">{t.name}</span>{t.access_code ? <Badge variant="outline" className="ml-2 font-mono text-[10px]">code: {t.access_code}</Badge> : t.hidden ? <Badge variant="outline" className="ml-2 text-[10px]">hidden</Badge> : null}{days.length ? <Badge variant="secondary" className="ml-2 text-[10px]">{dayName(t.event_date_id) ?? "all days"}</Badge> : null}{t.description ? <span className="block max-w-xs truncate text-xs text-muted-foreground">{t.description}</span> : null}</TableCell>
-                <TableCell className="capitalize text-muted-foreground">{t.kind}{t.kind === "table" ? ` · ${t.seats_per_unit} seats` : ""}</TableCell>
+                <TableCell className="capitalize text-muted-foreground">{t.seated ? <Badge variant="secondary" className="normal-case">Reserved seating</Badge> : <>{t.kind}{t.kind === "table" ? ` · ${t.seats_per_unit} seats` : ""}</>}</TableCell>
                 <TableCell className="text-right font-mono">{t.price_cents ? formatCents(t.price_cents, currency) : "Free"}</TableCell>
                 <TableCell className="text-right tabular-nums">{t.sold}</TableCell>
                 <TableCell className="text-right tabular-nums text-muted-foreground">{t.held}</TableCell>

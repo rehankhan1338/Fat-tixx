@@ -82,6 +82,15 @@ const STATUS_STYLES: Record<string, string> = {
   approved: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
   rejected: "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30",
   awaiting_approval: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30",
+  // Fattixx Pro: campaigns, domains, support requests
+  sending: "bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30",
+  canceled: "bg-zinc-500/15 text-zinc-600 dark:text-zinc-300 border-zinc-500/30",
+  issued: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
+  open: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30",
+  in_progress: "bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30",
+  waiting: "bg-zinc-500/15 text-zinc-600 dark:text-zinc-300 border-zinc-500/30",
+  resolved: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
+  priority: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30",
 };
 export function StatusBadge({ status }: { status: string }) {
   return <Badge variant="outline" className={`capitalize ${STATUS_STYLES[status] ?? ""}`}>{status.replace(/_/g, " ")}</Badge>;

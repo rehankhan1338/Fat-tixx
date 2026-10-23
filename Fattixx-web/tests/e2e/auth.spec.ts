@@ -35,10 +35,12 @@ test.describe("authentication", () => {
     await expect(page.locator("header")).not.toContainText("Admin");
     await page.goto("/account");
     await expect(page).toHaveURL(/\/login/);
+    // sign out from the console, where the Super Admin is signed in
+    await page.goto(`${E2E.adminUrl}/admin`);
     await page.click("header [data-slot=dropdown-menu-trigger]");
     await expect(page.locator("[data-slot=dropdown-menu-content]")).toContainText(E2E.adminEmail);
     await Promise.all([page.waitForURL(ADMIN_LOGIN_RE), page.click("[data-slot=dropdown-menu-content] >> text=Sign out")]);
-    await page.goto("/admin");
+    await page.goto(`${E2E.adminUrl}/admin`);
     await expect(page).toHaveURL(ADMIN_LOGIN_RE);
     c.assertClean();
   });

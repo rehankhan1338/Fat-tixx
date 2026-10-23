@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requirePlatformStaff } from "@/lib/auth/guard";
 import { query, queryOne, type Row } from "@/lib/db";
+import { QUESTIONS, answerLabels, type QuestionName } from "@/lib/applications/questionnaire";
 import { parsePagination } from "@/lib/pagination";
 import { PageHeader, Section, StatusBadge, EmptyState, formatDate } from "@/components/shared";
 import { TablePagination } from "@/components/table-pagination";
@@ -13,7 +14,7 @@ type App = Row & {
   id: number; contact_name: string; contact_email: string; contact_phone: string | null; org_name: string; legal_name: string; business_type: string; tax_id_last4: string | null;
   website: string | null; address: string | null; expected_events: string | null; status: string; review_notes: string | null; reviewed_at: Date | null; reviewer: string | null;
   created_at: Date; org_slug: string | null; ip: string | null; same_email_orgs: number;
-};
+} & Partial<Record<QuestionName, string | null>>; // the sign-up questionnaire's answers
 
 const APP_SELECT = `SELECT a.*, u.name AS reviewer, g.slug AS org_slug,
             (SELECT COUNT(*) FROM organizations o WHERE o.contact_email = a.contact_email) AS same_email_orgs
@@ -47,6 +48,10 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/adm
                   <div><dt className="inline text-muted-foreground">Website: </dt><dd className="inline">{a.website ? <a href={a.website} target="_blank" rel="noopener noreferrer" className="underline">{a.website}</a> : "none"}</dd></div>
                   <div><dt className="inline text-muted-foreground">Address: </dt><dd className="inline">{a.address}</dd></div>
                   {a.expected_events ? <div className="sm:col-span-2"><dt className="inline text-muted-foreground">Events: </dt><dd className="inline">{a.expected_events}</dd></div> : null}
+                  {QUESTIONS.map((q) => {
+                    const picked = answerLabels(q, a[q.name]);
+                    return <div key={q.name}><dt className="inline text-muted-foreground">{q.label}: </dt><dd className="inline">{picked.length ? picked.join(", ") : <span className="text-muted-foreground">skipped</span>}</dd></div>;
+                  })}
                   {Number(a.same_email_orgs) ? <div className="sm:col-span-2 text-amber-700 dark:text-amber-300">This email already manages {a.same_email_orgs} organization(s).</div> : null}
                   <div className="sm:col-span-2 text-xs text-muted-foreground">Submitted from IP {a.ip ?? "unknown"}</div>
                 </dl>

@@ -12,13 +12,15 @@ import { humanCode } from '../slug';
 import { formatEventDate } from '../tz';
 import { ticketUrl } from '../tickets';
 import { adHtmlForEmail } from '../ads/serve';
+import { orgMail, withOrgMail } from '../pro/white-label';
 import { sendSms } from '../sms';
 import {
   accessCodeMatches, addonAvailable, getPublicEventBySlug, listTicketTypes, ticketTypeAvailable, ticketTypeOnSale,
   type AddonRow, type PublicEventRow, type TicketTypeRow,
 } from '../events/queries';
-import { getOrderById, listOrderAddons, listOrderItems, listOrderTickets, type OrderRow } from './queries';
+import { getOrderById, listOrderAddons, listOrderItems, listOrderTickets, venueLineFor, type OrderRow } from './queries';
 import { promoTicketTypeIds, unitDiscount, type PromoRow } from '../marketing/queries';
+import { holdSeatsForOrder, lockChosenSeats, pickBestSeats, seatsForPaidItem, seatTiers } from '../seating/inventory';
 
 export interface CartLine { ticketTypeId: number; quantity: number }
 export interface AddonLine { addonId: number; quantity: number }
@@ -53,12 +55,18 @@ export class CheckoutError extends Error {}
 
 /**
  * Create a pending order that holds inventory. Runs in one transaction with row locks on the
- * ticket types (and add-ons), so concurrent buyers can never oversell. Returns the order code + access token.
+ * ticket types (and add-ons, and chosen seats), so concurrent buyers can never oversell. Returns the order code + access token.
+ *
+ * Reserved seating: `seatIds` are the seats the buyer picked on the map; each becomes one ticket of the seat's pricing
+ * tier (a seated ticket type). Online buyers must pick seats for seated tiers; box office and comps given a quantity of
+ * a seated tier get the best free seats.
  */
 export interface Attribution { trackingLinkId?: number | null; utmSource?: string | null; utmMedium?: string | null; utmCampaign?: string | null; channel?: 'web' | 'embed' }
 
+export const MAX_SEATS_PER_ORDER = 50;
+
 export async function createPendingOrder(input: {
-  eventSlug: string; lines: CartLine[]; addons?: AddonLine[]; answers?: AnswerInput[]; accessCode?: string | null; promoCode?: string | null;
+  eventSlug: string; lines: CartLine[]; seatIds?: number[]; addons?: AddonLine[]; answers?: AnswerInput[]; accessCode?: string | null; promoCode?: string | null;
   email: string; name: string; phone?: string; answer?: string; marketingOptIn: boolean; smsOptIn?: boolean; userId: number | null; ip: string;
   source?: 'online' | 'box_office' | 'complimentary'; createdBy?: number | null; bypassSalesWindow?: boolean; attribution?: Attribution;
 }): Promise<{ orderId: number; code: string; accessToken: string; totalCents: number; discountCents: number }> {
@@ -68,8 +76,10 @@ export async function createPendingOrder(input: {
   const staffSource = input.source && input.source !== 'online';
   if (!staffSource && !['published', 'postponed'].includes(event.status)) throw new CheckoutError('Tickets are not on sale for this event.');
   if (event.org_status !== 'active') throw new CheckoutError('Tickets are not on sale for this event.');
-  const lines = input.lines.filter((l) => Number.isInteger(l.quantity) && l.quantity > 0);
-  if (lines.length === 0) throw new CheckoutError('Choose at least one ticket.');
+  const quantityLines = input.lines.filter((l) => Number.isInteger(l.quantity) && l.quantity > 0);
+  const seatIds = [...new Set((input.seatIds ?? []).filter((n) => Number.isInteger(n) && n > 0))];
+  if (seatIds.length > MAX_SEATS_PER_ORDER) throw new CheckoutError(`Choose at most ${MAX_SEATS_PER_ORDER} seats per order.`);
+  if (quantityLines.length === 0 && seatIds.length === 0) throw new CheckoutError('Choose at least one ticket.');
   const addonLines = (input.addons ?? []).filter((l) => Number.isInteger(l.quantity) && l.quantity > 0);
 
   const settings = await getSettings();
@@ -79,6 +89,18 @@ export async function createPendingOrder(input: {
 
   const conn: PoolConnection = await db.getConnection();
   try {
+    // Chosen seats become one line per pricing tier. Their tiers are read first so the ticket types are locked
+    // before the seats (the lock order finalizePaidOrder uses too); lockChosenSeats re-checks them under lock.
+    const tierOfSeat = await seatTiers(conn, event.id, seatIds);
+    if (tierOfSeat.size !== seatIds.length) throw new CheckoutError('One of the seats you picked is no longer on the map. Reload the page and pick again.');
+    const seatCount = new Map<number, number>();
+    for (const tier of tierOfSeat.values()) {
+      if (!tier) throw new CheckoutError('One of the seats you picked is not for sale. Reload the page and pick again.');
+      seatCount.set(tier, (seatCount.get(tier) ?? 0) + 1);
+    }
+    if (quantityLines.some((l) => seatCount.has(l.ticketTypeId))) throw new CheckoutError('Pick these tickets on the seat map.');
+    const lines: CartLine[] = [...quantityLines, ...[...seatCount].map(([ticketTypeId, quantity]) => ({ ticketTypeId, quantity }))];
+
     await conn.beginTransaction();
     // Lock the ticket type rows for this event.
     const [ttRows] = await conn.query<TicketTypeRow[]>(
@@ -98,6 +120,8 @@ export async function createPendingOrder(input: {
     for (const line of lines) {
       const tt = ttRows.find((t) => Number(t.id) === line.ticketTypeId)!;
       tt.held = heldBy.get(Number(tt.id)) ?? 0;
+      if (tt.seated && !seatCount.has(Number(tt.id)) && !staffSource) throw new CheckoutError(`Pick your ${tt.name} seats on the seat map.`);
+      if (!tt.seated && seatCount.has(Number(tt.id))) throw new CheckoutError('One of the seats you picked is not for sale. Reload the page and pick again.');
       if (!staffSource || !input.bypassSalesWindow) {
         const sale = ticketTypeOnSale(tt);
         const unlocked = sale.reason === 'hidden' && accessCodeMatches(tt, input.accessCode);
@@ -125,6 +149,20 @@ export async function createPendingOrder(input: {
         if (line.quantity > left) throw new CheckoutError(left <= 0 ? `You have reached the limit of ${tt.max_per_account} × ${tt.name} per person.` : `${tt.name} is limited to ${tt.max_per_account} per person; you can add ${left} more.`);
       }
       priced.push({ tt, qty: line.quantity });
+    }
+
+    // Seats: lock and check the ones the buyer picked; box office and comps of a seated tier get the best free seats.
+    const claimSeats: number[] = [];
+    if (seatIds.length) {
+      const r = await lockChosenSeats(conn, event.id, seatIds, tierOfSeat);
+      if ('error' in r) throw new CheckoutError(r.error);
+      claimSeats.push(...seatIds);
+    }
+    for (const p of priced) {
+      if (!p.tt.seated || seatCount.has(Number(p.tt.id))) continue;
+      const picked = await pickBestSeats(conn, event.id, Number(p.tt.id), p.qty);
+      if (picked.length < p.qty) throw new CheckoutError(picked.length ? `Only ${picked.length} ${p.tt.name} seats are free.` : `No ${p.tt.name} seats are free.`);
+      claimSeats.push(...picked);
     }
 
     // Promo code: locked with the order so max_uses holds under concurrent checkouts.
@@ -213,6 +251,7 @@ export async function createPendingOrder(input: {
         promoId, att.trackingLinkId ?? null, clip(att.utmSource, 80), clip(att.utmMedium, 80), clip(att.utmCampaign, 120), att.channel === 'embed' ? 'embed' : 'web'],
     );
     const orderId = res.insertId;
+    await holdSeatsForOrder(conn, orderId, claimSeats);
     for (let i = 0; i < priced.length; i++) {
       const p = priced[i];
       await conn.query(
@@ -287,7 +326,18 @@ export async function finalizePaidOrder(orderId: number, payment: { paymentInten
     );
     // Issue one ticket per seat.
     for (const it of items) {
-      const [[tt]] = await conn.query<(Row & { seats_per_unit: number; kind: string })[]>(`SELECT seats_per_unit, kind FROM ticket_types WHERE id = ?`, [it.ticket_type_id]);
+      const [[tt]] = await conn.query<(Row & { seats_per_unit: number; kind: string; seated: number })[]>(`SELECT seats_per_unit, kind, seated FROM ticket_types WHERE id = ?`, [it.ticket_type_id]);
+      if (tt.seated) {
+        // Reserved seating: one ticket per seat the order held, labelled with the seat.
+        for (const seat of await seatsForPaidItem(conn, orderId, Number(it.ticket_type_id), Number(it.quantity))) {
+          await conn.query(
+            `INSERT INTO tickets (code, secret, order_id, order_item_id, event_id, ticket_type_id, attendee_name, attendee_email, seat_label, event_seat_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [humanCode(12), randomBytes(16).toString('hex'), orderId, it.id, order.event_id, it.ticket_type_id, order.buyer_name, order.buyer_email, seat.label, seat.id],
+          );
+        }
+        continue;
+      }
       const seats = Number(tt.seats_per_unit) || 1;
       for (let unit = 1; unit <= Number(it.quantity); unit++) {
         for (let seat = 1; seat <= seats; seat++) {
@@ -349,21 +399,24 @@ export async function sendOrderConfirmation(orderId: number, opts: { resend?: bo
   const ticketsHtml = mine.map((t) => `<p><a href="${ticketUrl(t.code, t.secret)}" class="btn">Open ticket</a> &nbsp; ${escapeHtml(t.ticket_type_name)}${t.day_label ? ` · ${escapeHtml(t.day_label)}` : ''}${t.seat_label ? ` · ${escapeHtml(t.seat_label)}` : ''}${t.attendee_name ? ` · ${escapeHtml(t.attendee_name)}` : ''} <code>${t.code}</code></p>`).join('')
     + (given.length ? `<p class="muted">Transferred: ${given.map((t) => `${escapeHtml(t.ticket_type_name)} → ${escapeHtml(t.attendee_name ?? t.attendee_email ?? '')}`).join(', ')}. The recipient has the ticket link.</p>` : '')
     + (addons.length ? `<p class="muted">Add-ons on this order: ${addons.map((a) => `${a.quantity} × ${escapeHtml(a.addon_name)}`).join(', ')}. Show your order number at the venue.</p>` : '');
+  // White-label organizers (lib/pro/white-label.ts): their name, logo and reply-to address instead of Fattixx's.
+  const wl = await orgMail(Number(order.organization_id));
   const mail = await renderEmail(opts.resend ? 'tickets_resent' : 'order_confirmation', {
-    event_title: order.event_title, event_when: when, venue_line: order.venue_name ?? '', order_code: order.code, total: c(order.total_cents),
+    event_title: order.event_title, event_when: when, venue_line: venueLineFor(order), order_code: order.code, total: c(order.total_cents),
     receipt_rows: receiptRows, tickets_html: ticketsHtml, age_notice: order.age_restriction ? `This event is ${order.age_restriction}+. Bring a valid photo ID.` : '', find_tickets_url: ticketsUrl,
-  }, { appendHtml: opts.resend ? '' : await adHtmlForEmail(Number(order.event_id)).catch(() => '') });
-  await sendEmail({ to: order.buyer_email, toName: order.buyer_name, subject: mail.subject, text: mail.text, html: mail.html, related: { type: 'order', id: order.id } });
+  }, withOrgMail({ appendHtml: opts.resend ? '' : await adHtmlForEmail(Number(order.event_id), { id: order.id, userId: order.user_id }).catch(() => '') }, wl));
+  await sendEmail({ to: order.buyer_email, toName: order.buyer_name, subject: mail.subject, text: mail.text, html: mail.html, envelope: wl?.envelope, related: { type: 'order', id: order.id } });
   // SMS ticket delivery (Phase 2) for buyers who asked for it at checkout.
   if (!opts.resend && order.sms_opt_in && order.buyer_phone && mine.length) {
     const link = mine.length === 1 ? ticketUrl(mine[0].code, mine[0].secret) : `${env.APP_URL}/tickets/find`;
-    await sendSms(order.buyer_phone, `Fattixx: ${mine.length} ticket${mine.length === 1 ? '' : 's'} for ${order.event_title} (${when}). Order ${order.code}. ${mine.length === 1 ? 'Your ticket' : 'Find your tickets'}: ${link}`, { type: 'order', id: order.id });
+    await sendSms(order.buyer_phone, `${wl?.smsName ?? 'Fattixx'}: ${mine.length} ticket${mine.length === 1 ? '' : 's'} for ${order.event_title} (${when}). Order ${order.code}. ${mine.length === 1 ? 'Your ticket' : 'Find your tickets'}: ${link}`, { type: 'order', id: order.id });
   }
 }
 
 /** Refund policy check for attendee-initiated requests. */
 export function attendeeMayRequestRefund(order: OrderRow): boolean {
   if (order.status !== 'paid') return false;
+  // no_refunds and contact_organizer: only the organizer refunds (from the dashboard)
   const start = new Date(order.event_starts_at).getTime();
   if (order.refund_policy === 'until_event_start') return Date.now() < start;
   if (order.refund_policy === 'days_before') return Date.now() < start - Number(order.refund_days_before ?? 0) * 86_400_000;

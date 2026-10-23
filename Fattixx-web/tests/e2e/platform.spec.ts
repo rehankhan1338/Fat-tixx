@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { latestLinkFor } from "./helpers/db";
-import { login, uniq, watchConsole } from "./helpers/ui";
+import { ADMIN_LOGIN_RE, E2E, latestLinkFor } from "./helpers/db";
+import { createEventInDashboard, login, openTickets, pick, ticketsSubmit, uniq, watchConsole } from "./helpers/ui";
 
 /**
  * The whole Phase 1 story in one ordered flow:
@@ -19,7 +19,7 @@ test.describe.serial("platform flow", () => {
   test("super admin creates an organization and invites its admin", async ({ page }) => {
     const c = watchConsole(page);
     await login(page);
-    await page.goto("/admin/organizations?new=1");
+    await page.goto(`${E2E.adminUrl}/admin/organizations?new=1`);
     await page.fill("#name", orgName);
     await page.fill("#slug", `e2e-${id}`);
     await page.fill("#contact_email", `e2e-contact-${id}@fattixx.local`);
@@ -36,7 +36,7 @@ test.describe.serial("platform flow", () => {
   test("organizer adds a venue with tax, creates and publishes an event with ticket types", async ({ page }) => {
     const c = watchConsole(page);
     await login(page);
-    await page.goto(`/org/${orgSlug}/venues`);
+    await page.goto(`${E2E.adminUrl}/org/${orgSlug}/venues`);
     await page.click('button:has-text("Add venue")');
     await page.fill("#v-name", "E2E Hall");
     await page.fill("#v-city", "Charleston");
@@ -45,19 +45,9 @@ test.describe.serial("platform flow", () => {
     await page.click("[data-slot=dialog-content] button[type=submit]");
     await expect(page.locator("table")).toContainText("E2E Hall");
 
-    await page.goto(`/org/${orgSlug}/events/new`);
-    await page.fill("#title", `E2E Night ${id}`);
-    await page.fill("#summary", "Automated test event");
-    await page.selectOption("#venue_id", { label: "E2E Hall" });
-    await page.fill("#starts_at", "2026-12-05T20:00");
-    await page.fill("#doors_at", "2026-12-05T19:00");
-    await page.fill("#age_restriction", "21");
-    await Promise.all([page.waitForURL(/\/events\/\d+\?created=1/), page.click('button:has-text("Create event as draft")')]);
-    eventId = page.url().match(/events\/(\d+)/)![1];
-
-    // publishing without ticket types is not possible (button disabled with a hint)
-    await expect(page.locator('button:has-text("Publish")')).toBeDisabled();
-    await expect(page.locator('button:has-text("Publish")')).toHaveAttribute("title", /ticket type/);
+    eventId = await createEventInDashboard(page, E2E.adminUrl, orgSlug, {
+      title: `E2E Night ${id}`, summary: "Automated test event", venue: "E2E Hall", date: `${new Date().getFullYear() + 1}-12-05`, time: "20:00", doors: "19:00", age: "21+", ticket: "Starter",
+    });
 
     const addTicket = async (name: string, kind: string, price: string, qty: number) => {
       await page.click('button:has-text("Add ticket type") >> nth=0');
@@ -84,15 +74,14 @@ test.describe.serial("platform flow", () => {
     await page.fill("#q", `E2E Night ${id}`); // homepage grid search
     await page.click(`#events a:has-text("E2E Night ${id}")`);
     await expect(page).toHaveURL(/\/events\//);
-    await expect(page.locator("body")).toContainText("$28.49"); // 25 + 5% fee + $0.99 + 5% tax
-    await expect(page.locator("body")).toContainText("21+ event");
+    await expect(page.locator("body")).toContainText("$29.17"); // 25 + 6.5% fee + $1.29 + 5% tax
+    await expect(page.locator("body")).toContainText("21 and over, ID required");
 
-    const free = page.locator("li", { hasText: "Free RSVP" });
-    await free.locator('button[aria-label="More"]').click();
-    await free.locator('button[aria-label="More"]').click();
-    await page.fill("#name", "Guest Buyer");
-    await page.fill("#email", `e2e-guest-${id}@fattixx.local`);
-    await Promise.all([page.waitForURL(/\/checkout\/FTX-/), page.click('button:has-text("Get free tickets")')]);
+    await openTickets(page);
+    await pick(page, "Free RSVP", 2);
+    await page.fill("#tk-name", "Guest Buyer");
+    await page.fill("#tk-email", `e2e-guest-${id}@fattixx.local`);
+    await Promise.all([page.waitForURL(/\/checkout\/FTX-/), ticketsSubmit(page).click()]);
     orderCode = page.url().match(/FTX-[A-Z0-9]+/)![0];
     await Promise.all([page.waitForURL(/\/orders\/FTX-/), page.click('button:has-text("Confirm free tickets")')]);
     await expect(page.locator("body")).toContainText("You’re going");
@@ -110,16 +99,15 @@ test.describe.serial("platform flow", () => {
     await page.goto("/");
     await page.fill("#q", `E2E Night ${id}`); // homepage grid search
     await page.click(`#events a:has-text("E2E Night ${id}")`);
-    await expect(page.locator("li", { hasText: "Free RSVP" })).toContainText("Only 1 left");
+    await openTickets(page);
+    await expect(page.locator("#tickets")).toContainText("Only 1 left");
 
     // paid path
-    const ga = page.locator("li", { hasText: "General Admission" });
-    await ga.locator('button[aria-label="More"]').click();
-    await page.fill("#name", "Card Buyer");
-    await page.fill("#email", `e2e-card-${id}@fattixx.local`);
-    await Promise.all([page.waitForURL(/\/checkout\/FTX-/), page.click('button:has-text("Continue to payment")')]);
+    await pick(page, "General Admission");
+    await page.fill("#tk-name", "Card Buyer");
+    await page.fill("#tk-email", `e2e-card-${id}@fattixx.local`);
+    await Promise.all([page.waitForURL(/\/checkout\/FTX-/), page.locator("#tickets").getByRole("button", { name: "Checkout" }).click()]);
     await expect(page.locator("body")).toContainText("Card payments are not available");
-    await expect(page.locator("body")).toContainText("Card processing");
     c.assertClean();
     await page.context().close();
   });
@@ -127,8 +115,8 @@ test.describe.serial("platform flow", () => {
   test("scanner validates, rejects reuse and forgeries; attendees and settlement reflect it", async ({ page }) => {
     const c = watchConsole(page);
     await login(page);
-    await page.goto(`/org/${orgSlug}/events/${eventId}/scan`);
-    const input = page.locator('input[placeholder^="Type ticket code"]');
+    await page.goto(`${E2E.adminUrl}/org/${orgSlug}/events/${eventId}/scan`);
+    const input = page.getByLabel("Ticket code", { exact: true });
     await input.fill(ticketCodes[0]);
     await page.click('button:has-text("Check")');
     await expect(page.getByText("VALID", { exact: true })).toBeVisible();
@@ -153,20 +141,20 @@ test.describe.serial("platform flow", () => {
     await page.click('button:has-text("Undo check-in")');
     await expect(page.getByText("UNDONE", { exact: true })).toBeVisible();
 
-    await page.goto(`/org/${orgSlug}/events/${eventId}?tab=attendees`);
+    await page.goto(`${E2E.adminUrl}/org/${orgSlug}/events/${eventId}?tab=attendees`);
     await expect(page.locator("body")).toContainText("Renamed Guest");
-    await page.goto(`/org/${orgSlug}/events/${eventId}?tab=sales`);
+    await page.goto(`${E2E.adminUrl}/org/${orgSlug}/events/${eventId}?tab=sales`);
     await expect(page.locator("body")).toContainText("Net payout to organizer");
     c.assertClean();
   });
 
   test("organizer resends tickets and the outbox records every email", async ({ page }) => {
     await login(page);
-    await page.goto(`/org/${orgSlug}/orders/${orderCode}`);
+    await page.goto(`${E2E.adminUrl}/org/${orgSlug}/orders/${orderCode}`);
     await page.click('button:has-text("Resend tickets")');
     await page.click("[data-slot=alert-dialog-action]");
     await expect(page.locator("body")).toContainText("Tickets re-sent");
-    await page.goto("/admin/emails");
+    await page.goto(`${E2E.adminUrl}/admin/emails`);
     await expect(page.locator("body")).toContainText("Your tickets: E2E Night");
     await expect(page.locator("body")).toContainText("Your tickets are confirmed");
   });
@@ -180,9 +168,9 @@ test.describe.serial("platform flow", () => {
     await page.fill("#confirm", "OrgAdmin-Strong-Pass-55");
     await Promise.all([page.waitForURL(/\/org\//), page.click("main form button[type=submit]")]);
     await expect(page).toHaveURL(new RegExp(`/org/${orgSlug}`));
+    // /admin lives in the staff console: an organization admin only reaches its sign-in page
     await page.goto("/admin");
-    await expect(page).toHaveURL(/dashboard\?denied=1/);
-    await expect(page.locator("body")).toContainText("do not have access");
+    await expect(page).toHaveURL(ADMIN_LOGIN_RE);
     await page.goto(`/org/${orgSlug}/team`);
     await expect(page.locator("body")).toContainText("E2E Org Admin");
 
@@ -201,7 +189,7 @@ test.describe.serial("platform flow", () => {
 
   test("cancelling the event refunds/voids every order and notifies buyers", async ({ page }) => {
     await login(page);
-    await page.goto(`/org/${orgSlug}/events/${eventId}`);
+    await page.goto(`${E2E.adminUrl}/org/${orgSlug}/events/${eventId}`);
     await page.click('button[aria-label="More actions"]');
     await page.click("text=Cancel event & refund everyone");
     await page.fill("#reason", "Automated test cancellation");
@@ -209,9 +197,9 @@ test.describe.serial("platform flow", () => {
     await expect(page.locator("body")).toContainText("Event cancelled");
     await page.reload();
     await expect(page.locator("body")).toContainText("This event was cancelled");
-    await page.goto(`/org/${orgSlug}/orders/${orderCode}`);
+    await page.goto(`${E2E.adminUrl}/org/${orgSlug}/orders/${orderCode}`);
     await expect(page.locator("body")).toContainText(/cancelled|refunded/i);
-    await page.goto("/admin/emails");
+    await page.goto(`${E2E.adminUrl}/admin/emails`);
     await expect(page.locator("body")).toContainText("Cancelled: E2E Night");
   });
 });

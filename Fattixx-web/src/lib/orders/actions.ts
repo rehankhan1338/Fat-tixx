@@ -2,14 +2,15 @@
 
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
-import { BOT_MESSAGE, botCheck, rateLimited } from '../security/bot';
+import { BOT_MESSAGE, CAPTCHA_MESSAGE, humanCheck, rateLimited } from '../security/bot';
 import { findTrackingLink } from '../marketing/queries';
 import { isAdmitted } from '../queue';
 import { revalidatePath } from 'next/cache';
 import { execute, query, queryOne, type Row } from '../db';
 import { audit } from '../audit';
 import { env } from '../env';
-import { assertOrg, canAccessEvent } from '../authz';
+import { assertOrg, canAccessEvent, listMemberships } from '../authz';
+import { eventUnlocked } from '../events/password';
 import { getSession } from '../auth/session';
 import { sendEmail } from '../email';
 import { renderEmail } from '../email-templates';
@@ -26,6 +27,7 @@ import { completeFreeOrderNow, confirmPaidOrderWithStripe, createPaymentIntentFo
 import { getOrderByCode, getTicketByCode, type OrderRow } from './queries';
 import { TransferError, heldByRecipient, holderMayTransfer, listTransferHolders, sendTransferEmail, transferTicket } from './transfer';
 import { returnInventoryForTickets } from './manage-actions';
+import { orgMail, withOrgMail } from '../pro/white-label';
 import { canAccessOrder, rememberOrderAccess } from './access';
 
 export type ActionState = { error?: string; ok?: boolean; message?: string; checkoutUrl?: string } | undefined;
@@ -61,7 +63,8 @@ export async function startCheckout(_prev: ActionState, fd: FormData): Promise<A
   const eventSlug = str(fd, 'event', 120);
   const ip = await clientIp();
   if (await ipIsThrottled(ip) || rateLimited(`checkout:${ip}`, 30, 10 * 60_000)) return { error: 'Too many attempts from this network. Please try again later.' };
-  if (botCheck(fd)) return { error: BOT_MESSAGE };
+  const bot = await humanCheck(fd, ip);
+  if (bot) return { error: bot === 'captcha' ? CAPTCHA_MESSAGE : BOT_MESSAGE };
   const lines: { ticketTypeId: number; quantity: number }[] = [];
   const addons: { addonId: number; quantity: number }[] = [];
   for (const [k, v] of fd.entries()) {
@@ -70,7 +73,9 @@ export async function startCheckout(_prev: ActionState, fd: FormData): Promise<A
     const a = k.match(/^addon_(\d+)$/);
     if (a) { const q = Number(v); if (Number.isInteger(q) && q > 0) addons.push({ addonId: Number(a[1]), quantity: Math.min(q, 100) }); }
   }
-  if (lines.length === 0) return { error: 'Choose at least one ticket.' };
+  // Reserved seating: one `seat` field per seat picked on the map.
+  const seatIds = fd.getAll('seat').map(Number).filter((n) => Number.isInteger(n) && n > 0);
+  if (lines.length === 0 && seatIds.length === 0) return { error: 'Choose at least one ticket.' };
   const email = str(fd, 'email', 254);
   const name = str(fd, 'name', 160);
   if (!isEmail(email)) return { error: 'Enter a valid email address so we can send your tickets.' };
@@ -79,6 +84,12 @@ export async function startCheckout(_prev: ActionState, fd: FormData): Promise<A
   // Checkout questions: validate required ones and snapshot the labels.
   const event = await getPublicEventBySlug(eventSlug);
   if (!event) return { error: 'Event not found.' };
+  const session = await getSession();
+  // Event password (plan 5.6): enforced here too, not only on the page. The organizer's team is exempt, as on the page.
+  if (event.access_password && !(await eventUnlocked(event))) {
+    const isTeam = !!session && (await listMemberships(session.user.id)).some((m) => Number(m.organization_id) === Number(event.organization_id));
+    if (!isTeam) return { error: 'This event is password protected. Reload the page and enter the password.' };
+  }
   if (event.queue_enabled && !(await isAdmitted(event.id))) return { error: 'Your turn in the waiting room has expired. Reload the page to rejoin the line.' };
   const answers: AnswerInput[] = [];
   for (const q of await listQuestions(event.id)) {
@@ -89,12 +100,11 @@ export async function startCheckout(_prev: ActionState, fd: FormData): Promise<A
     if (value) answers.push({ questionId: Number(q.id), label: q.label, answer: value });
   }
 
-  const session = await getSession();
   const attribution = await attributionFrom(fd, Number(event.organization_id), event.id);
   let r: Awaited<ReturnType<typeof createPendingOrder>>;
   try {
     r = await createPendingOrder({
-      eventSlug, lines, addons, answers, accessCode: str(fd, 'access_code', 40) || null, promoCode: str(fd, 'promo_code', 40) || null,
+      eventSlug, lines, seatIds, addons, answers, accessCode: str(fd, 'access_code', 40) || null, promoCode: str(fd, 'promo_code', 40) || null,
       email, name, phone: str(fd, 'phone', 40), marketingOptIn: !!fd.get('marketing'), smsOptIn: !!fd.get('sms'), userId: session?.user.id ?? null, ip, attribution,
     });
   } catch (e) {
@@ -281,7 +291,8 @@ async function refundOrderInternal(order: OrderRow, amountCents: number, reason:
     if (!active) { await execute(`UPDATE refunds SET status = 'failed' WHERE id = ?`, [refundId]); return { error: 'Stripe is not configured; cannot refund card payments.' }; }
     try {
       const { stripe: s } = await getStripe();
-      const sr = await s.refunds.create({ payment_intent: order.stripe_payment_intent_id, amount: amountCents, metadata: { order_code: order.code, refund_id: String(refundId) } }, { idempotencyKey: `refund-${refundId}` });
+      // Stripe Connect orders: take the organizer's share of the refund back from their account (in proportion).
+      const sr = await s.refunds.create({ payment_intent: order.stripe_payment_intent_id, amount: amountCents, ...(order.connect_account_id ? { reverse_transfer: true } : {}), metadata: { order_code: order.code, refund_id: String(refundId) } }, { idempotencyKey: `refund-${refundId}` });
       stripeRefundId = sr.id;
     } catch (e) {
       await execute(`UPDATE refunds SET status = 'failed' WHERE id = ?`, [refundId]);
@@ -299,8 +310,9 @@ async function refundOrderInternal(order: OrderRow, amountCents: number, reason:
     await returnAddonInventory(order.id);
   }
   const when = formatEventDate(new Date(order.event_starts_at), order.event_timezone);
-  const mail = await renderEmail('refund_issued', { amount: formatCents(amountCents, order.currency), order_code: order.code, event_title: order.event_title, event_when: when, reason, tickets_note: fullyRefunded ? 'The tickets on this order are no longer valid.' : 'Your remaining tickets stay valid.' });
-  await sendEmail({ to: order.buyer_email, toName: order.buyer_name, subject: mail.subject, text: mail.text, html: mail.html, related: { type: 'order', id: order.id } });
+  const wl = await orgMail(Number(order.organization_id));
+  const mail = await renderEmail('refund_issued', { amount: formatCents(amountCents, order.currency), order_code: order.code, event_title: order.event_title, event_when: when, reason, tickets_note: fullyRefunded ? 'The tickets on this order are no longer valid.' : 'Your remaining tickets stay valid.' }, withOrgMail({}, wl));
+  await sendEmail({ to: order.buyer_email, toName: order.buyer_name, subject: mail.subject, text: mail.text, html: mail.html, envelope: wl?.envelope, related: { type: 'order', id: order.id } });
   return { refundId };
 }
 

@@ -18,6 +18,8 @@ export type FeeBreakdown = {
   buyerPaysCents: number;
   /** what the organizer receives per ticket, before any refunds */
   organizerGetsCents: number;
+  /** the fee hit the per-ticket cap */
+  capped: boolean;
 };
 
 /** Platform and processing fee on a single-ticket order at this price. */
@@ -28,7 +30,7 @@ export function ticketFee(priceCents: number, fees: FeeConfig): { feeCents: numb
 }
 
 export function feeBreakdown(priceCents: number, payer: FeePayer, fees: FeeConfig): FeeBreakdown {
-  if (priceCents <= 0) return { priceCents: 0, feeCents: 0, processingCents: 0, buyerPaysCents: 0, organizerGetsCents: 0 };
+  if (priceCents <= 0) return { priceCents: 0, feeCents: 0, processingCents: 0, buyerPaysCents: 0, organizerGetsCents: 0, capped: false };
   const p = priceOrder([{ unitPriceCents: priceCents, quantity: 1 }], fees, 0, payer === "buyer" ? "buyer_pays" : "organizer_absorbs");
   const { feeCents, processingCents } = ticketFee(priceCents, fees);
   return {
@@ -37,6 +39,7 @@ export function feeBreakdown(priceCents: number, payer: FeePayer, fees: FeeConfi
     processingCents,
     buyerPaysCents: p.totalCents,
     organizerGetsCents: Math.max(0, priceCents - p.absorbedFeeCents),
+    capped: !!fees.platformFeeCapCents && feeCents >= fees.platformFeeCapCents,
   };
 }
 
@@ -59,6 +62,11 @@ export function feeLabel(fees: FeeConfig): string {
   if (fees.platformFeeBps) parts.push(percent(fees.platformFeeBps));
   if (fees.platformFeeFixedCents) parts.push(formatCents(fees.platformFeeFixedCents));
   return parts.join(" + ") || "$0";
+}
+
+/** "$19.95" (most the fee can be on one ticket), or null when there is no cap */
+export function feeCapLabel(fees: FeeConfig): string | null {
+  return fees.platformFeeCapCents && fees.platformFeeCapCents > 0 ? formatCents(fees.platformFeeCapCents) : null;
 }
 
 /** "2.9% + $0.30 per order", or null when card processing is included */

@@ -8,7 +8,7 @@ import { clock24 } from "@/lib/home/event-page";
 import type { EventPageData } from "@/lib/home/event-page";
 import { AddToCalendar, ShareButton } from "./EventActions";
 import { CalendarIcon, PinIcon } from "./icons";
-import { About, Breadcrumb, EventJsonLd, eventView, GoodToKnow, HostChip, Lineup, LocationCard, MoreEvents, OrganizerCard, ReportLink, Sponsors } from "./EventPageParts";
+import { About, Breadcrumb, EventJsonLd, eventView, GoodToKnow, HostChip, Lineup, LocationCard, Media, MoreEvents, OrganizerCard, ReportLink, Sponsors } from "./EventPageParts";
 import type { EventView } from "./EventPageParts";
 import TicketDialog from "./TicketDialog";
 
@@ -49,7 +49,12 @@ export default function EventPage({ data, panel, ad, notices = [] }: { data: Eve
       <EventJsonLd data={data} v={v} />
 
       <div className={cx(container, "pt-[112px] pb-24 max-[901px]:pt-[96px] max-[641px]:pb-16")}>
-        <Breadcrumb category={e.category} preview={data.preview} />
+        {data.brand?.cover && (
+          // a Pro organizer's cover image (plan 5.7.2), above everything else
+          // eslint-disable-next-line @next/next/no-img-element -- uploaded image, already resized to WebP
+          <img src={data.brand.cover} alt="" className="mb-8 h-[clamp(140px,22vw,300px)] w-full rounded-[28px] object-cover" />
+        )}
+        <Breadcrumb category={e.category} preview={data.preview} organizer={data.brand ? { name: v.org.name, href: data.brand.organizerHref } : null} />
         {data.preview && <Notice title={`This event is ${data.status}.`} text="Only your team can see this page until it is published." />}
         {data.status === "postponed" && <Notice title="This event has been postponed." text="Existing tickets remain valid for the new date." />}
         {data.status === "cancelled" && <Notice title="This event has been cancelled." text="Paid orders are refunded in full." />}
@@ -125,8 +130,9 @@ export default function EventPage({ data, panel, ad, notices = [] }: { data: Eve
                   <span className="sr-only">Location</span>
                 </dt>
                 <dd className="min-w-0">
-                  <p className="text-[16px] font-semibold">{e.venue}</p>
-                  {v.place && <p className="mt-[2px] text-[15px] text-fx-red/78">{v.place}</p>}
+                  <p className="text-[16px] font-semibold">{v.online ? "Online event" : e.venue}</p>
+                  {v.online && <p className="mt-[2px] text-[15px] text-fx-red/78">The link to join is on your tickets and in your confirmation email.</p>}
+                  {!v.online && v.place && <p className="mt-[2px] text-[15px] text-fx-red/78">{v.place}</p>}
                   {!v.online && (
                     <a href={v.mapsUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-[14px] font-semibold text-fx-red-second underline underline-offset-[3px] hover:text-fx-red">
                       Get directions
@@ -139,6 +145,7 @@ export default function EventPage({ data, panel, ad, notices = [] }: { data: Eve
             {data.summary && <p className="mt-8 border-y border-fx-red/12 py-7 text-[18px] leading-[1.6] text-fx-red/85 max-[641px]:text-[16px]">{data.summary}</p>}
 
             <About data={data} className="mt-10" />
+            <Media data={data} className="mt-14" />
             <Lineup data={data} className="mt-14" />
             <Sponsors sponsors={data.sponsors} className="mt-14" />
             {ad && <div className="mt-10">{ad}</div>}

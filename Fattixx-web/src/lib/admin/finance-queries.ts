@@ -3,22 +3,24 @@ import { query, queryOne, type Row } from '../db';
 
 /**
  * Finance views for the platform panel: what is owed to organizers, payouts made, disputes,
- * payments, and operational health. Payout due per event = gross − refunds − absorbed fees − already paid.
+ * payments, and operational health. Payout due per event = gross − refunds − absorbed fees − already paid, counting only
+ * orders Fattixx settles by hand: orders paid through Stripe Connect were already split with the payment.
  */
 export type OwedRow = Row & {
   event_id: number; event_title: string; event_slug: string; starts_at: Date; status: string; currency: string;
   org_id: number; org_name: string; org_slug: string; legal_name: string | null;
   gross_cents: number; refunded_cents: number; absorbed_cents: number; paid_orders: number; tickets: number;
-  paid_out_cents: number; approved_cents: number; last_payout_status: string | null;
+  paid_out_cents: number; approved_cents: number; last_payout_status: string | null; connect_cents: number;
 };
 
 export async function listSettlements(): Promise<OwedRow[]> {
   return query<OwedRow>(
     `SELECT e.id AS event_id, e.title AS event_title, e.slug AS event_slug, e.starts_at, e.status, e.currency,
             g.id AS org_id, g.name AS org_name, g.slug AS org_slug, g.legal_name,
-            COALESCE(SUM(CASE WHEN o.status IN ('paid','partially_refunded','refunded') THEN o.subtotal_cents END),0) AS gross_cents,
-            COALESCE(SUM(CASE WHEN o.status IN ('paid','partially_refunded','refunded') THEN o.refunded_cents END),0) AS refunded_cents,
-            COALESCE(SUM(CASE WHEN o.status IN ('paid','partially_refunded','refunded') THEN o.absorbed_fee_cents END),0) AS absorbed_cents,
+            COALESCE(SUM(CASE WHEN o.status IN ('paid','partially_refunded','refunded') AND o.connect_account_id IS NULL THEN o.subtotal_cents END),0) AS gross_cents,
+            COALESCE(SUM(CASE WHEN o.status IN ('paid','partially_refunded','refunded') AND o.connect_account_id IS NULL THEN o.refunded_cents END),0) AS refunded_cents,
+            COALESCE(SUM(CASE WHEN o.status IN ('paid','partially_refunded','refunded') AND o.connect_account_id IS NULL THEN o.absorbed_fee_cents END),0) AS absorbed_cents,
+            COALESCE(SUM(CASE WHEN o.status IN ('paid','partially_refunded','refunded') AND o.connect_account_id IS NOT NULL THEN o.connect_transfer_cents END),0) AS connect_cents,
             COUNT(DISTINCT CASE WHEN o.status IN ('paid','partially_refunded') THEN o.id END) AS paid_orders,
             (SELECT COUNT(*) FROM tickets k WHERE k.event_id = e.id AND k.status IN ('valid','used')) AS tickets,
             (SELECT COALESCE(SUM(p.amount_cents),0) FROM payouts p WHERE p.event_id = e.id AND p.status = 'paid') AS paid_out_cents,

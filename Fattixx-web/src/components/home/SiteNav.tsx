@@ -381,7 +381,7 @@ export default function SiteNav({ account = null, overHero = false }: { account?
         </a>
 
         {account?.canCreateEvents !== false && (
-          <a href="/org/organization/events/new" className="rounded-full bg-fx-yellow px-5 py-[11px] text-[15px] font-semibold whitespace-nowrap text-fx-red max-[901px]:px-4 max-[721px]:hidden">
+          <a href="/create" className="rounded-full bg-fx-yellow px-5 py-[11px] text-[15px] font-semibold whitespace-nowrap text-fx-red max-[901px]:px-4 max-[721px]:hidden">
             Create event
           </a>
         )}

@@ -40,6 +40,7 @@ export default async function EventsPage({ params, searchParams }: PageProps<"/o
                 <TableRow key={e.id}>
                   <TableCell>
                     <Link href={`/org/${slug}/events/${e.id}`} className="font-medium hover:underline">{e.title}</Link>
+                    {e.status === "draft" && canCreate ? <Link href={`/org/${slug}/events/${e.id}/edit`} className="ml-2 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">Continue editing</Link> : null}
                     <span className="block text-xs text-muted-foreground">{e.venue_name ?? "No venue"}{e.visibility !== "public" ? <Badge variant="outline" className="ml-2 text-[10px]">{e.visibility}</Badge> : null}</span>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{formatEventDate(new Date(e.starts_at), e.timezone)}</TableCell>

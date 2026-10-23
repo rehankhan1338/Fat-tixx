@@ -35,7 +35,12 @@ export async function getStripe(): Promise<{ stripe: Stripe; active: ActiveStrip
 }
 
 /** Events the webhook route (src/app/api/stripe/webhook) handles; the registered endpoint must deliver all of them. */
-export const WEBHOOK_EVENTS = ['payment_intent.succeeded', 'charge.refunded', 'charge.dispute.created', 'charge.dispute.updated', 'charge.dispute.closed'] as const;
+export const WEBHOOK_EVENTS = [
+  'payment_intent.succeeded', 'charge.refunded', 'charge.dispute.created', 'charge.dispute.updated', 'charge.dispute.closed',
+  // Fattixx Pro subscriptions (src/lib/pro/subscription.ts)
+  'checkout.session.completed', 'customer.subscription.created', 'customer.subscription.updated', 'customer.subscription.deleted',
+  'invoice.paid', 'invoice.payment_failed', 'invoice.finalized',
+] as const;
 
 export interface WebhookEndpointStatus {
   /** The URL Stripe must call: `${APP_URL}/api/stripe/webhook` on the public site. */
@@ -89,7 +94,7 @@ export async function registerWebhookEndpoint(active: ActiveStripe, url: string)
     return { id: current.endpoint.id, secret: null, created: false };
   }
   if (current.endpoint) await stripe.webhookEndpoints.del(current.endpoint.id);
-  const ep = await stripe.webhookEndpoints.create({ url, enabled_events: events, description: 'Fattixx (payments, refunds, disputes)' });
+  const ep = await stripe.webhookEndpoints.create({ url, enabled_events: events, description: 'Fattixx (payments, refunds, disputes, Pro subscriptions)' });
   return { id: ep.id, secret: ep.secret ?? null, created: true };
 }
 

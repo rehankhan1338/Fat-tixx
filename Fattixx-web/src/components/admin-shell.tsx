@@ -18,19 +18,21 @@ export async function AdminShell({ session, extraGroups = [], headerRight, child
   const isSupport = isSuper || hasPlatformRole(session, "support");
 
   const platform: NavItem[] = [
-    ...(isSupport ? [{ href: "/admin/applications", label: "Organizer applications", icon: "clipboard" as const }] : []),
+    ...(isSupport ? [{ href: "/admin/applications", label: "Organizer applications", icon: "clipboard" as const }, { href: "/admin/support", label: "Support queue", icon: "lifebuoy" as const }, { href: "/admin/seating", label: "Seat maps", icon: "seats" as const }] : []),
     ...(isFinance ? [
       { href: "/admin/organizations", label: "Organizations", icon: "building" as const },
       { href: "/admin/events", label: "Events", icon: "calendar" as const },
     ] : []),
     { href: "/admin/orders", label: "Orders & Tickets", icon: "receipt" },
     ...(isSupport ? [{ href: "/admin/users", label: "Users", icon: "users" as const }] : []),
-    ...(isSuper ? [{ href: "/admin/ads", label: "Ads & sponsors", icon: "megaphone" as const }] : []),
+    ...(isSuper ? [{ href: "/admin/ads", label: "Ads & sponsors", icon: "megaphone" as const }, { href: "/admin/advertisers", label: "Advertisers", icon: "megaphone" as const }] : []),
   ];
   const money: NavItem[] = isFinance ? [
     { href: "/admin/payments", label: "Payments & Stripe", icon: "receipt" },
     { href: "/admin/payouts", label: "Payouts", icon: "ticket" },
     { href: "/admin/disputes", label: "Disputes", icon: "shield" },
+    { href: "/admin/subscriptions", label: "Pro subscriptions", icon: "sparkles" },
+    { href: "/admin/sponsorships", label: "Sponsorships", icon: "handshake" },
   ] : [];
   const system: NavItem[] = [
     ...(isFinance ? [{ href: "/admin/settings", label: "Fees & Settings", icon: "settings" as const }] : []),

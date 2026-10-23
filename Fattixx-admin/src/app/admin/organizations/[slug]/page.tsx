@@ -18,6 +18,14 @@ import { OrgPlatformSettingsForm } from "./platform-settings-form";
 import { ConfirmButton } from "@/components/confirm-button";
 import { deleteOrganization } from "@/lib/admin/crud-actions";
 import { formatEventDate } from "@/lib/tz";
+import { adminReleaseDomain } from "@/lib/pro/actions";
+import { getOrgDomain } from "@/lib/pro/domains";
+import { orgProState } from "@/lib/pro/subscription";
+import { ProCompForm } from "./pro-comp-form";
+import { WhiteLabelForm } from "./white-label-form";
+import { orgIsPro } from "@/lib/pro/gate";
+import { getActiveStripe } from "@/lib/payments/stripe";
+import { connectState, getConnectAccount, parseDue } from "@/lib/payments/connect";
 
 export const metadata: Metadata = { title: "Organization" };
 
@@ -28,7 +36,16 @@ export default async function AdminOrganizationPage({ params, searchParams }: Pa
   const sp = await searchParams;
   const org = await getOrgBySlug(slug);
   if (!org) notFound();
-  const [members, events, overview, settings] = await Promise.all([listOrgMembers(org.id), listOrgEvents(org.id), orgOverview(org.id), getSettings()]);
+  const active = await getActiveStripe();
+  const [members, events, overview, settings, pro, domain, connect] = await Promise.all([listOrgMembers(org.id), listOrgEvents(org.id), orgOverview(org.id), getSettings(), orgProState(org), getOrgDomain(org.id), active ? getConnectAccount(org.id, active.mode) : null]);
+  const day = (d: Date | null) => (d ? new Date(d).toLocaleDateString("en-US", { dateStyle: "long" }) : "—");
+  const proText: Record<string, string> = {
+    none: "Standard plan.", pending: "Checkout started, not paid.", ended: "Pro has ended.", lapsed: "Payment failed and the grace period is over: Pro is off.",
+    active: pro.state.kind === "active" ? `Active, billed ${pro.state.interval === "year" ? "yearly" : "monthly"}; renews ${day(pro.state.renews)}.` : "",
+    canceling: pro.state.kind === "canceling" ? `Cancelled; Pro ends ${day(pro.state.until)}.` : "",
+    grace: pro.state.kind === "grace" ? `Payment failed; Pro stays on until ${day(pro.state.until)}.` : "",
+    comp: pro.state.kind === "comp" ? `Complimentary until ${day(pro.state.until)}.` : "",
+  };
   const invite = typeof sp.invite === "string" && sp.invite.startsWith("http") ? sp.invite : null;
 
   return (
@@ -52,7 +69,30 @@ export default async function AdminOrganizationPage({ params, searchParams }: Pa
           <TabsTrigger value="team">Team</TabsTrigger>
           <TabsTrigger value="events">Events</TabsTrigger>
           <TabsTrigger value="platform">Fees & status</TabsTrigger>
+          <TabsTrigger value="pro">Fattixx Pro</TabsTrigger>
         </TabsList>
+        <TabsContent value="pro" className="space-y-6 pt-4">
+          <Section title="Plan" description={proText[pro.state.kind]}>
+            {pro.sub ? (
+              <p className="text-sm text-muted-foreground">
+                Stripe ({pro.sub.stripe_mode}): customer <span className="font-mono">{pro.sub.stripe_customer_id ?? "—"}</span>, subscription <span className="font-mono">{pro.sub.stripe_subscription_id ?? "—"}</span>, status {pro.sub.status}.
+              </p>
+            ) : null}
+            {isSuper ? <div className="mt-4"><ProCompForm orgSlug={org.slug} until={org.pro_comp_until ? new Date(org.pro_comp_until).toISOString().slice(0, 10) : ""} /></div> : null}
+          </Section>
+          <Section title="Custom domain" description={domain ? `${domain.hostname}: ${domain.status}, TXT ${domain.txt_ok ? "ok" : "missing"}, DNS ${domain.dns_ok ? "ok" : "not pointing here"}, certificate ${domain.ssl_status.replace("_", " ")}. Last checked ${formatDate(domain.checked_at)}.` : "None."}>
+            {domain?.last_error ? <p className="text-sm text-destructive">{domain.last_error}</p> : null}
+            {domain && isSuper ? (
+              <ConfirmButton action={adminReleaseDomain} fields={{ org: org.slug }} title={`Release ${domain.hostname}?`} description="The organization loses this domain at once and another organization can claim it with its own DNS records. Use for domain disputes." confirmText="Release domain">Release domain</ConfirmButton>
+            ) : null}
+          </Section>
+          <Section title="White-label" description={org.white_label ? (orgIsPro(org) ? "On." : "On, but inactive while the organization is not on Pro.") : "Off."}>
+            {isSuper ? <WhiteLabelForm orgSlug={org.slug} on={!!org.white_label} /> : null}
+          </Section>
+          <Section title="Stripe Connect payouts" description={connect ? `${connect.stripe_mode} account ${connect.account_id}: ${connectState(connect).replace("_", " ")}${connect.disabled_reason ? ` (${connect.disabled_reason})` : ""}. Last synced ${formatDate(connect.synced_at)}.` : "No Stripe account; paid manually through Admin → Payouts."}>
+            {connect && parseDue(connect.requirements_due).length ? <p className="text-sm text-muted-foreground">Stripe needs: {parseDue(connect.requirements_due).join(", ")}</p> : null}
+          </Section>
+        </TabsContent>
         <TabsContent value="team" className="pt-4">
           <Section title="Team members" description="Roles and permissions apply to this organization only." actions={<AddMemberDialog orgSlug={org.slug} />}>
             <TeamTable orgSlug={org.slug} members={members} currentUserId={session.user.id} />

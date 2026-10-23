@@ -12,10 +12,10 @@ import { Label } from "@/components/ui/label";
 export type CreativeView = { id: number; imageUrl: string | null; alt_text: string; headline: string | null; body: string | null };
 
 /** Upload and preview ad creatives. Images are re-encoded to WebP and resized, keeping pages fast on mobile (plan 13.1). */
-export function CreativesPanel({ campaignId, creatives, scope }: { campaignId: number; creatives: CreativeView[]; scope?: { org: string; event: number } }) {
+export function CreativesPanel({ campaignId, creatives, scope, advertiser = false }: { campaignId: number; creatives: CreativeView[]; scope?: { org: string; event: number }; advertiser?: boolean }) {
   const [state, action] = useActionState(addCreative, undefined);
   const form = useClearOnSuccess(state);
-  const scopeFields: Record<string, string | number> = scope ? { org: scope.org, event: scope.event } : {};
+  const scopeFields: Record<string, string | number> = scope ? { org: scope.org, event: scope.event } : advertiser ? { advertiser: 1 } : {};
   return (
     <div className="space-y-4">
       {creatives.length ? (
@@ -36,6 +36,7 @@ export function CreativesPanel({ campaignId, creatives, scope }: { campaignId: n
         <FormStatus state={state} />
         <input type="hidden" name="campaign_id" value={campaignId} />
         {scope ? <><input type="hidden" name="org" value={scope.org} /><input type="hidden" name="event" value={scope.event} /></> : null}
+        {advertiser ? <input type="hidden" name="advertiser" value="1" /> : null}
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5"><Label htmlFor={`cr-img-${campaignId}`}>Image</Label><Input id={`cr-img-${campaignId}`} name="image" type="file" accept="image/jpeg,image/png,image/webp" /></div>
           <TextField label="Alt text" id={`cr-alt-${campaignId}`} name="alt_text" required maxLength={200} hint="What the image shows, for screen readers" />

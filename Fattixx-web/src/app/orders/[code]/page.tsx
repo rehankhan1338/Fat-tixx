@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { CheckCircle2Icon, MailIcon, SendIcon } from "lucide-react";
+import { CheckCircle2Icon, MailIcon, SendIcon, VideoIcon } from "lucide-react";
 import { getOrderByCode, listOrderAddons, listOrderItems, listOrderTickets, ticketDayLabel } from "@/lib/orders/queries";
 import { canAccessOrder } from "@/lib/orders/access";
 import { attendeeMayRequestRefund } from "@/lib/orders/checkout";
@@ -36,6 +36,8 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/or
   const mayRefund = attendeeMayRequestRefund(order);
   const mayTransfer = !holderMayTransfer(order);
   const hasReceipt = ["paid", "partially_refunded", "refunded", "cancelled"].includes(order.status);
+  // online events: the join link is for ticket holders only (plan 5.6), so only orders with a live ticket of their own show it
+  const joinUrl = order.event_online_url && ["paid", "partially_refunded"].includes(order.status) && tickets.some((t) => ["valid", "used"].includes(t.status) && !given(t)) ? order.event_online_url : null;
   const receiptHref = `/orders/${order.code}/receipt${token ? `?t=${encodeURIComponent(token)}` : ""}`;
 
   return (
@@ -48,7 +50,18 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/or
         <div className="grid gap-6 lg:grid-cols-5">
           <div className="space-y-4 lg:col-span-3">
             <h1 className="text-2xl font-bold tracking-tight">{order.event_title}</h1>
-            <p className="text-muted-foreground">{formatEventDate(new Date(order.event_starts_at), order.event_timezone)}{order.venue_name ? ` · ${order.venue_name}` : ""}</p>
+            <p className="text-muted-foreground">{formatEventDate(new Date(order.event_starts_at), order.event_timezone)}{order.venue_name ? ` · ${order.venue_name}` : order.event_online_url ? " · Online event" : ""}</p>
+            {joinUrl ? (
+              <Card>
+                <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+                  <div className="min-w-0">
+                    <p className="font-medium">Online event</p>
+                    <p className="truncate text-sm text-muted-foreground">Only ticket holders get this link. Please don’t share it.</p>
+                  </div>
+                  <Button render={<a href={joinUrl} target="_blank" rel="noopener noreferrer" />}><VideoIcon /> Join the event</Button>
+                </CardContent>
+              </Card>
+            ) : null}
             <div className="grid gap-4 sm:grid-cols-2">
               {tickets.map((t, i) => (
                 <Card key={t.id} className={["valid", "used"].includes(t.status) ? "" : "opacity-60"}>
@@ -105,13 +118,20 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/or
                   {mayRefund ? <RefundRequestButton code={order.code} token={token} amountLabel={formatCents(Number(order.total_cents), order.currency)} className="w-full" /> : null}
                   <Button variant="outline" size="sm" className={mayRefund || hasReceipt ? "w-full" : "w-full sm:col-span-2"} render={<Link href="/tickets/find" />}>Find my other tickets</Button>
                 </div>
-                {!mayRefund ? <p className="text-xs text-muted-foreground">Refunds: {order.refund_policy === "no_refunds" ? "not available except if the event is cancelled." : "no longer available for this order."}</p> : null}
+                {!mayRefund ? (
+                  <p className="text-xs text-muted-foreground">
+                    Refunds:{" "}
+                    {order.refund_policy === "no_refunds" ? "not available except if the event is cancelled."
+                      : order.refund_policy === "contact_organizer" ? <>contact the organizer, {order.org_name}, at <a href={`mailto:${order.org_contact_email}?subject=${encodeURIComponent(`Refund request: order ${order.code}`)}`} className="underline">{order.org_contact_email}</a>.</>
+                      : "no longer available for this order."}
+                  </p>
+                ) : null}
               </CardContent>
             </Card>
           </div>
         </div>
       </div>
-      {["paid", "partially_refunded"].includes(order.status) ? <AdSlot placement="order_confirmation" eventId={Number(order.event_id)} className="mt-8" /> : null}
+      {["paid", "partially_refunded"].includes(order.status) ? <AdSlot placement="order_confirmation" eventId={Number(order.event_id)} orderCode={order.code} className="mt-8" /> : null}
     </PublicShell>
   );
 }

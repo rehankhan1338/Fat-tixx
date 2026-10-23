@@ -63,8 +63,8 @@ describe("promo codes", () => {
     expect(r.discountCents).toBe(400);
     expect(Number(order.discount_cents)).toBe(400);
     expect(Number(order.subtotal_cents)).toBe(3600);
-    // 5 % platform fee on the discounted $18 = 90 + 99 fixed, per ticket.
-    expect(Number(order.platform_fee_cents)).toBe(2 * (90 + 99));
+    // 6.5 % platform fee on the discounted $18 = 117 + 129 fixed, per ticket.
+    expect(Number(order.platform_fee_cents)).toBe(2 * (117 + 129));
     const [item] = await listOrderItems(order.id);
     expect(Number(item.unit_price_cents)).toBe(1800);
     expect(Number(item.unit_discount_cents)).toBe(200);

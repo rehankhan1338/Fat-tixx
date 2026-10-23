@@ -115,8 +115,8 @@ export const DEFAULT_HOME: HomeContent = {
     lead: "Build your event page, set your ticket tiers and check guests in at the door, with one simple fee.",
     cta: { label: "Create an event", href: "/create" },
     stats: [
-      { big: "6.5% + $1.29", text: "One flat fee per paid ticket, with card processing included." },
-      { big: "$19.95", text: "The most you’ll ever pay in fees on a single ticket." },
+      { big: "{fee}", text: "One flat fee per paid ticket{processing_clause}." },
+      { big: "{fee_cap}", text: "The most you’ll ever pay in fees on a single ticket." },
       { big: "$0", text: "To create an event or list free tickets." },
     ],
     pricingLink: { label: "See the full pricing breakdown", href: "/pricing" },
@@ -126,12 +126,12 @@ export const DEFAULT_HOME: HomeContent = {
 export const DEFAULT_PRICING: PricingContent = {
   meta: {
     title: "Pricing",
-    description: "One simple fee: {fee} per paid ticket{processing_clause}. Free events cost nothing.",
+    description: "One simple fee: {fee} per paid ticket{processing_clause}{fee_cap_clause}. Free events cost nothing.",
   },
   hero: {
     eyebrow: "Pricing",
     title: "Every ticket,\nbroken down.",
-    lead: "Pick a price and see exactly where the money goes. One fee per paid ticket{processing_clause}. Free tickets cost nothing.",
+    lead: "Pick a price and see exactly where the money goes. One fee per paid ticket{processing_clause}{fee_cap_clause}. Free tickets cost nothing.",
     ticketLabel: "Admit one",
     ticketType: "General admission",
     ticketTagline: "Your event, your venue, your night.",
@@ -147,7 +147,7 @@ export const DEFAULT_PRICING: PricingContent = {
     show: true,
     items: [
       { big: "$0", title: "Free events", text: "Create an event and list free tickets without paying a thing." },
-      { big: "{fee}", title: "Paid tickets", text: "One fee per ticket sold. Add it to the ticket price or cover it yourself, per event." },
+      { big: "{fee}", title: "Paid tickets", text: "One fee per ticket sold{fee_cap_clause}. Add it to the ticket price or cover it yourself, per event." },
       { big: "{processing_rate}", title: "Card processing", text: "Charged once per order when money moves, never on free tickets." },
     ],
   },
@@ -159,7 +159,7 @@ export const DEFAULT_PRICING: PricingContent = {
     competitor: { label: "Other platform", servicePercent: 3.7, serviceFixedCents: 179, processingPercent: 2.9, checked: "October 2026" },
     saveNote: "More in your pocket when you cover the fee, or less for your buyers to pay when they cover it.",
     footnote:
-      "{competitor}: a leading ticketing platform’s published US fees as of {competitor_checked}, {competitor_rate} per paid ticket. Fattixx: {fee} per paid ticket{processing_clause}. Fees per ticket on a single-ticket order, before sales tax.",
+      "{competitor}: a leading ticketing platform’s published US fees as of {competitor_checked}, {competitor_rate} per paid ticket. Fattixx: {fee} per paid ticket{processing_clause}{fee_cap_clause}. Fees per ticket on a single-ticket order, before sales tax.",
   },
   faq: {
     show: true,
@@ -168,7 +168,7 @@ export const DEFAULT_PRICING: PricingContent = {
     lead: "Something else on your mind? [Contact us](mailto:{support_email}).",
     items: [
       { q: "Does it cost anything to create an event?", a: "No. Creating an event and listing free tickets is $0. You only pay when you sell a paid ticket." },
-      { q: "Is card processing extra?", a: "Card processing is {processing}, charged once per paid order. The {fee} fee is per ticket." },
+      { q: "Is card processing extra?", a: "{processing_answer}" },
       { q: "Who pays the fee, me or my buyers?", a: "You choose for each event: add the fees to the ticket price at checkout, or cover them yourself. Either way, buyers see the full price up front." },
       { q: "What about sales tax?", a: "Admissions or sales tax, where it applies, is set per venue or event and shown in the all-in price buyers see." },
       { q: "When do I get paid?", a: "Ticket sales are paid out to your bank account through Stripe once your organizer account is verified, with a settlement statement for every event." },
@@ -205,6 +205,8 @@ export const DEFAULT_FOOTER: FooterContent = {
         { label: "Create an event", href: "/create" },
         { label: "Pricing", href: "/pricing" },
         { label: "Fattixx Pro", href: "/pro" },
+        { label: "Sponsor an event", href: "/sponsorships" },
+        { label: "Advertise", href: "/advertise" },
       ],
     },
     {

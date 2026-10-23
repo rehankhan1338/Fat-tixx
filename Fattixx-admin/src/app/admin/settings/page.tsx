@@ -39,10 +39,11 @@ export default async function SettingsPage({ searchParams }: PageProps<"/admin/s
           <Section title="Fees, taxes and checkout">
             {isSuper ? <SettingsForm settings={s} /> : (
               <dl className="grid gap-2 text-sm sm:grid-cols-2">
-                <div><dt className="text-muted-foreground">Platform fee</dt><dd>{(Number(s.platform_fee_bps) / 100).toFixed(2)}% + {formatCents(Number(s.platform_fee_fixed_cents))} per ticket</dd></div>
+                <div><dt className="text-muted-foreground">Platform fee</dt><dd>{(Number(s.platform_fee_bps) / 100).toFixed(2)}% + {formatCents(Number(s.platform_fee_fixed_cents))} per ticket{Number(s.platform_fee_cap_cents) > 0 ? `, at most ${formatCents(Number(s.platform_fee_cap_cents))}` : ""}</dd></div>
                 <div><dt className="text-muted-foreground">Processing estimate</dt><dd>{(Number(s.processing_fee_bps) / 100).toFixed(2)}% + {formatCents(Number(s.processing_fee_fixed_cents))} per order</dd></div>
                 <div><dt className="text-muted-foreground">Default fee mode</dt><dd>{s.default_fee_mode.replace("_", " ")}</dd></div>
                 <div><dt className="text-muted-foreground">Hold time</dt><dd>{s.hold_minutes} minutes</dd></div>
+                <div><dt className="text-muted-foreground">Seat map set-up fee</dt><dd>{Number(s.seat_map_setup_fee_cents) > 0 ? formatCents(Number(s.seat_map_setup_fee_cents)) : "Free"}</dd></div>
                 <p className="text-xs text-muted-foreground sm:col-span-2">Only a Super Admin can change these settings.</p>
               </dl>
             )}

@@ -69,6 +69,11 @@ export default function OrganizerPage({ data }: { data: OrganizerPageData }) {
 
   return (
     <div className={cx(container, "max-w-[1120px] pt-[136px] pb-24 max-[901px]:pt-[116px] max-[641px]:pb-16")}>
+      {data.brand?.cover && (
+        // Fattixx Pro cover image
+        // eslint-disable-next-line @next/next/no-img-element -- uploaded image, already resized to WebP
+        <img src={data.brand.cover} alt="" className="mb-10 h-[clamp(140px,22vw,300px)] w-full rounded-[28px] object-cover" />
+      )}
       {/* ---------- organizer ---------- */}
       <header className="text-center text-fx-red">
         <div className="mx-auto w-fit">
@@ -134,9 +139,11 @@ export default function OrganizerPage({ data }: { data: OrganizerPageData }) {
           <div className="mt-8 rounded-[22px] border border-fx-red/10 bg-white px-6 py-12 text-center">
             <p className="font-display text-[20px] font-semibold">Nothing on sale right now</p>
             <p className="mt-2 text-[15px] text-fx-red/78">New events from {o.name} will show up here.</p>
-            <Link href="/events" className={cx(button("outline"), "mt-6")}>
-              Browse all events
-            </Link>
+            {!data.brand && (
+              <Link href="/events" className={cx(button("outline"), "mt-6")}>
+                Browse all events
+              </Link>
+            )}
           </div>
         )}
       </section>

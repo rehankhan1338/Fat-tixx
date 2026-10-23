@@ -9,7 +9,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ path: s
     const data = await readFile(path.join(UPLOAD_ROOT, rel));
     return new Response(data, {
       headers: {
-        'Content-Type': 'image/webp',
+        'Content-Type': rel.endsWith('.pdf') ? 'application/pdf' : 'image/webp',
         'Cache-Control': 'public, max-age=31536000, immutable',
         'X-Content-Type-Options': 'nosniff',
       },

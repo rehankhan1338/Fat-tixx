@@ -23,7 +23,7 @@ const BLOB_PREFIX = 'uploads';
 const BLOB_HOST = /^https:\/\/[a-z0-9-]+\.public\.blob\.vercel-storage\.com\//i;
 const BLOB_CACHE_SECONDS = 365 * 24 * 60 * 60;
 
-export type UploadKind = 'events' | 'orgs' | 'ads' | 'sponsors' | 'site';
+export type UploadKind = 'events' | 'orgs' | 'ads' | 'sponsors' | 'site' | 'seatmaps';
 
 function blobEnabled(): boolean {
   return !!process.env.BLOB_READ_WRITE_TOKEN;
@@ -56,6 +56,28 @@ export async function saveImageUpload(file: File, kind: UploadKind, maxWidth = 1
   return `${kind}/${name}`;
 }
 
+/** Largest floor plan an organizer can upload (the request is sent to a Route Handler; Vercel functions take 4.5 MB). */
+export const FLOOR_PLAN_MAX_BYTES = 4 * 1024 * 1024;
+
+/**
+ * A venue floor plan for a seat map request: an image (re-encoded to WebP like every upload, kept large enough to
+ * trace seats from) or a PDF, checked by its first bytes and stored as it is.
+ */
+export async function saveFloorPlanUpload(file: File): Promise<{ path: string; kind: 'image' | 'pdf' }> {
+  if (file.size === 0) throw new Error('The floor plan file is empty.');
+  if (file.size > FLOOR_PLAN_MAX_BYTES) throw new Error('The floor plan must be 4 MB or smaller. Export a smaller PDF or image.');
+  const input = Buffer.from(await file.arrayBuffer());
+  if (input.subarray(0, 5).toString('latin1') !== '%PDF-') return { path: await saveImageUpload(file, 'seatmaps', 3200), kind: 'image' };
+  const name = newName().replace(/\.webp$/, '.pdf');
+  if (blobEnabled()) {
+    const blob = await blobPut(`${BLOB_PREFIX}/seatmaps/${name}`, input, { access: 'public', contentType: 'application/pdf', addRandomSuffix: false, cacheControlMaxAge: BLOB_CACHE_SECONDS });
+    return { path: blob.url, kind: 'pdf' };
+  }
+  await mkdir(path.join(UPLOAD_ROOT, 'seatmaps'), { recursive: true });
+  await writeFile(path.join(UPLOAD_ROOT, 'seatmaps', name), input);
+  return { path: `seatmaps/${name}`, kind: 'pdf' };
+}
+
 /** Duplicate a stored image so two records never share one file (deleting one must not break the other). */
 export async function copyUpload(stored: string | null | undefined): Promise<string | null> {
   if (!stored) return null;
@@ -83,7 +105,7 @@ export async function deleteUpload(stored: string | null | undefined): Promise<v
 
 /** A relative path of a locally stored upload (the pre-Blob format, still used in local dev). */
 export function isSafeUploadPath(rel: string): boolean {
-  return /^(events|orgs|ads|sponsors|site)\/[a-z0-9-]+\.webp$/.test(rel);
+  return /^(events|orgs|ads|sponsors|site|seatmaps)\/[a-z0-9-]+\.webp$/.test(rel) || /^seatmaps\/[a-z0-9-]+\.pdf$/.test(rel);
 }
 
 /** A public URL on a Vercel Blob store. */
@@ -92,7 +114,7 @@ export function isBlobUrl(value: string): boolean {
 }
 
 function blobKind(url: string): UploadKind | null {
-  const m = new URL(url).pathname.match(/^\/uploads\/(events|orgs|ads|sponsors|site)\//);
+  const m = new URL(url).pathname.match(/^\/uploads\/(events|orgs|ads|sponsors|site|seatmaps)\//);
   return (m?.[1] as UploadKind | undefined) ?? null;
 }
 

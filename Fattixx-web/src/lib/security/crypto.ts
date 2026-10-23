@@ -1,5 +1,5 @@
 import 'server-only';
-import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { env } from '../env';
 
 /** 256-bit opaque token, URL-safe. Used for session cookies and one-time links. */
@@ -10,6 +10,14 @@ export function randomToken(bytes = 32): string {
 /** SHA-256 hex digest. Used to store tokens so a DB leak does not expose live sessions. */
 export function sha256(input: string | Buffer): string {
   return createHash('sha256').update(input).digest('hex');
+}
+
+/**
+ * Keyed SHA-256 (hex) with the app's secret key. Used where a plain hash could be brute-forced offline: 6-digit
+ * sign-in codes, and the cookie that remembers an unlocked password-protected event.
+ */
+export function hmacHex(input: string): string {
+  return createHmac('sha256', env.APP_ENCRYPTION_KEY).update(input).digest('hex');
 }
 
 /** Constant-time string comparison that does not leak length via early exit. */

@@ -69,6 +69,17 @@ export function formatEventDate(date: Date, tz: string, opts: { withTime?: boole
   }).format(date);
 }
 
+/** UTC Date → "YYYY-MM-DDTHH:mm:00-04:00": the wall clock in `tz` with its UTC offset (wallet passes show event-local time). */
+export function isoWithOffset(date: Date, tz: string): string {
+  const wall = utcToWallClock(date, tz);
+  const m = wall.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/)!;
+  const asUtc = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+  const minutes = Math.round((asUtc - Math.floor(date.getTime() / 60_000) * 60_000) / 60_000);
+  const sign = minutes < 0 ? '-' : '+';
+  const abs = Math.abs(minutes);
+  return `${wall}:00${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
+}
+
 export function formatTimeOnly(date: Date, tz: string): string {
   return new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' }).format(date);
 }

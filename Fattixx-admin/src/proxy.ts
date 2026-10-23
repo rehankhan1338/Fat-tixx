@@ -37,7 +37,8 @@ export function proxy(request: NextRequest) {
   }
 
   // --- Optimistic auth redirect (cookie presence only) ---
-  if (pathname !== '/' && !pathname.startsWith('/api/') && !request.cookies.has(SESSION_COOKIE)) {
+  // (the scanner's service worker is a public file, as on the public site)
+  if (pathname !== '/' && pathname !== '/scan-sw.js' && !pathname.startsWith('/api/') && !request.cookies.has(SESSION_COOKIE)) {
     const url = request.nextUrl.clone();
     url.pathname = '/';
     url.search = `?next=${encodeURIComponent(pathname)}`;

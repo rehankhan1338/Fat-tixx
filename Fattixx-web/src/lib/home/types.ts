@@ -7,7 +7,7 @@ export type Organizer = {
   id: string;
   name: string;
   initials: string;
-  /** on Fattixx Pro: shows the Pro check next to the organizer's name (no plan exists yet, always false) */
+  /** on Fattixx Pro: shows the Pro check next to the organizer's name (organizations.pro_until, see lib/pro/status.ts) */
   pro?: boolean;
   /** logo image URL; events without their own image show this */
   logo?: string | null;
@@ -17,6 +17,26 @@ export type Organizer = {
   social?: Partial<Record<SocialNetwork, string>>;
   /** public events on Fattixx, upcoming and past */
   eventCount?: number;
+};
+
+/**
+ * A Fattixx Pro organizer's look on its public pages (lib/pro/branding.ts). Null for organizers not on Pro: their
+ * saved colors and cover stay in the database but are not shown.
+ */
+export type OrgBrand = {
+  slug: string;
+  name: string;
+  logo: string | null;
+  /** validated hex colors (lib/pro/brand-colors.ts); null = the Fattixx palette */
+  primary: string | null;
+  accent: string | null;
+  cover: string | null;
+  /** the organizer's own header and a small legal footer instead of the Fattixx nav and footer */
+  ownHeader: boolean;
+  /** white-label add-on (lib/pro/white-label.ts): own header everywhere, the organizer's name on tickets and emails */
+  whiteLabel?: boolean;
+  /** the organizer's own site pages, linked from their header (white-label only) */
+  pages?: { slug: string; title: string }[];
 };
 
 export type EventItem = {

@@ -8,7 +8,8 @@ import {
 } from '../events/queries';
 import { allInAddonCents, allInUnitCents, effectiveTaxBps, expireStaleHolds, feeConfigForEvent } from '../orders/checkout';
 import { listMemberships } from '../authz';
-import { formatCents } from '../money';
+import { refundPolicyText } from '../events/refund-policy';
+import { processingLabel } from '../home/pricing';
 import { formatEventDate } from '../tz';
 import { uploadUrl } from '../uploads';
 import { isAdmitted } from '../queue';
@@ -121,6 +122,8 @@ export async function mobileEventDetail(slug: string, opts: { accessCode?: strin
   const isLive = ['published', 'postponed'].includes(event.status);
   if (!isLive && !isTeam) return null;
   if (event.visibility === 'private' && !isTeam && (!event.private_key || opts.linkKey !== event.private_key)) return null;
+  // Password-protected events are only shown on the website, where the visitor types the password.
+  if (event.access_password && !isTeam) return null;
 
   const accessCode = (opts.accessCode ?? '').trim().slice(0, 40);
   const [types, fees, dates, addons, questions, siblings, sponsors, promos, admitted] = await Promise.all([
@@ -154,12 +157,11 @@ export async function mobileEventDetail(slug: string, opts: { accessCode?: strin
   const questionViews: MobileQuestion[] = questions.map((q) => ({ id: Number(q.id), label: q.label, kind: q.kind, required: !!q.required, options: questionOptions(q) }));
   const soldOut = tickets.length > 0 && tickets.every((o) => !o.onSale && o.reason === 'sold_out');
   const soldOutTypes = tickets.filter((o) => !o.onSale && o.reason === 'sold_out' && !o.presale).map((o) => ({ id: o.id, name: o.name }));
+  const processing = processingLabel(fees);
   const feeNote = event.fee_mode === 'buyer_pays'
-    ? `Prices include the ticket price, service fee${taxBps ? ' and tax' : ''}. A card processing fee of ${(fees.processingFeeBps / 100).toFixed(1)}% + ${formatCents(fees.processingFeeFixedCents, event.currency)} per order is added at checkout.`
+    ? `Prices include the ticket price, service fee${taxBps ? ' and tax' : ''}.${processing ? ` A card processing fee of ${processing} is added at checkout.` : ' No additional charges at checkout.'}`
     : `Prices include all fees${taxBps ? ' and tax' : ''}. No additional charges at checkout.`;
-  const refundText = event.refund_policy === 'no_refunds' ? 'No refunds except if the event is cancelled.'
-    : event.refund_policy === 'until_event_start' ? 'Refunds available on request until the event starts.'
-    : `Refunds available on request up to ${event.refund_days_before} days before the event.`;
+  const refundText = refundPolicyText(event);
 
   return {
     event: {

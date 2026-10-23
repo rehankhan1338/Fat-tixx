@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requirePlatformStaff, hasPlatformRole } from "@/lib/auth/guard";
 import { countPayments, listPayments, listReconciliations, paymentsSummary } from "@/lib/admin/finance-queries";
-import { getStripeSettings, maskKey } from "@/lib/settings";
+import { getSettings, getStripeSettings, maskKey } from "@/lib/settings";
 import { checkWebhookEndpoint } from "@/lib/payments/stripe";
 import { env } from "@/lib/env";
 import { formatCents } from "@/lib/money";
@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StripeSettingsPanel, ReconcileForm } from "./payments-client";
+import { MonetizationForm } from "./monetization-form";
 
 export const metadata: Metadata = { title: "Payments & Stripe" };
 
@@ -25,7 +26,7 @@ export default async function PaymentsPage({ searchParams }: PageProps<"/admin/p
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
   const isSuper = hasPlatformRole(session, "super_admin");
   const { page, perPage, offset } = parsePagination(sp);
-  const [summary, payments, paymentTotal, recon, stripe] = await Promise.all([paymentsSummary(), listPayments(q, perPage, offset), countPayments(q), listReconciliations(), getStripeSettings()]);
+  const [summary, payments, paymentTotal, recon, stripe, settings] = await Promise.all([paymentsSummary(), listPayments(q, perPage, offset), countPayments(q), listReconciliations(), getStripeSettings(), getSettings()]);
   const active = stripe[stripe.mode];
   const configured = !!(active.secretKey && active.publishableKey);
   const webhookUrl = `${env.APP_URL}/api/stripe/webhook`;
@@ -46,8 +47,8 @@ export default async function PaymentsPage({ searchParams }: PageProps<"/admin/p
         <Stat label="Open disputes" value={summary.disputesOpen} hint={summary.disputesOpen ? `${formatCents(summary.disputedCents)} at risk` : "none"} />
       </div>
 
-      <Tabs defaultValue={sp.tab === "stripe" ? "stripe" : sp.tab === "reconcile" ? "reconcile" : "payments"}>
-        <TabsList><TabsTrigger value="payments">Payments</TabsTrigger><TabsTrigger value="reconcile">Reconciliation</TabsTrigger><TabsTrigger value="stripe">Stripe keys</TabsTrigger></TabsList>
+      <Tabs defaultValue={sp.tab === "stripe" ? "stripe" : sp.tab === "reconcile" ? "reconcile" : sp.tab === "payouts" ? "payouts" : "payments"}>
+        <TabsList><TabsTrigger value="payments">Payments</TabsTrigger><TabsTrigger value="reconcile">Reconciliation</TabsTrigger><TabsTrigger value="stripe">Stripe keys</TabsTrigger><TabsTrigger value="payouts">Payouts & marketplace</TabsTrigger></TabsList>
 
         <TabsContent value="payments" className="pt-4">
           <Card><CardContent className="space-y-4 pt-6">
@@ -103,7 +104,8 @@ export default async function PaymentsPage({ searchParams }: PageProps<"/admin/p
             {recon.length === 0 ? <p className="text-sm text-muted-foreground">No runs yet.</p> : (
               <div className="space-y-3">
                 {recon.map((r) => {
-                  const issues: { kind: string; ref: string; detail: string }[] = r.discrepancies ? JSON.parse(r.discrepancies) : [];
+                  // a JSON column: some MySQL / MariaDB setups return it already parsed
+                  const issues: { kind: string; ref: string; detail: string }[] = !r.discrepancies ? [] : typeof r.discrepancies === "string" ? JSON.parse(r.discrepancies) : r.discrepancies;
                   return (
                     <div key={r.id} className="rounded-lg border p-3 text-sm">
                       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -117,6 +119,12 @@ export default async function PaymentsPage({ searchParams }: PageProps<"/admin/p
                 })}
               </div>
             )}
+          </Section>
+        </TabsContent>
+
+        <TabsContent value="payouts" className="pt-4">
+          <Section title="Payouts & marketplace" description="Phase 3: automatic organizer payouts with Stripe Connect, advertiser portal pricing and the sponsorship marketplace fee.">
+            <MonetizationForm canEdit={isSuper} values={{ payout_mode: settings.payout_mode, connect_payout_delay_days: settings.connect_payout_delay_days, ad_cpm_cents: settings.ad_cpm_cents, ad_min_impressions: settings.ad_min_impressions, sponsorship_fee_bps: settings.sponsorship_fee_bps }} />
           </Section>
         </TabsContent>
 

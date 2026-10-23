@@ -15,10 +15,12 @@ export function SettingsForm({ settings: s }: { settings: Settings }) {
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField label="Platform fee (% of ticket price)" id="platform_fee_pct" name="platform_fee_pct" type="number" step="0.01" min={0} max={50} defaultValue={(Number(s.platform_fee_bps) / 100).toFixed(2)} />
         <TextField label="Platform fee, fixed per ticket ($)" id="platform_fee_fixed" name="platform_fee_fixed" type="number" step="0.01" min={0} defaultValue={(Number(s.platform_fee_fixed_cents) / 100).toFixed(2)} />
-        <TextField label="Card processing estimate (%)" id="processing_fee_pct" name="processing_fee_pct" type="number" step="0.01" min={0} defaultValue={(Number(s.processing_fee_bps) / 100).toFixed(2)} hint="Stripe standard is 2.9% + $0.30 per transaction." />
+        <TextField label="Fee cap per ticket ($)" id="platform_fee_cap" name="platform_fee_cap" type="number" step="0.01" min={0} defaultValue={(Number(s.platform_fee_cap_cents) / 100).toFixed(2)} hint="The platform fee on one ticket never goes above this. 0 = no cap. The website advertises it on the homepage and /pricing." />
+        <TextField label="Card processing charged to buyers (%)" id="processing_fee_pct" name="processing_fee_pct" type="number" step="0.01" min={0} defaultValue={(Number(s.processing_fee_bps) / 100).toFixed(2)} hint="0 = card processing included in the platform fee (the plan's pricing). Stripe itself charges 2.9% + $0.30." />
         <TextField label="Card processing, fixed per order ($)" id="processing_fee_fixed" name="processing_fee_fixed" type="number" step="0.01" min={0} defaultValue={(Number(s.processing_fee_fixed_cents) / 100).toFixed(2)} />
         <SelectField label="Default fee mode for new events" id="default_fee_mode" name="default_fee_mode" defaultValue={s.default_fee_mode} options={[{ value: "buyer_pays", label: "Buyer pays fees (added to the all-in price)" }, { value: "organizer_absorbs", label: "Organizer absorbs fees (deducted at settlement)" }]} />
         <TextField label="Checkout hold time (minutes)" id="hold_minutes" name="hold_minutes" type="number" min={3} max={60} defaultValue={s.hold_minutes} hint="Tickets are reserved for the buyer this long during checkout." />
+        <TextField label="Seat map set-up fee ($)" id="seat_map_setup_fee" name="seat_map_setup_fee" type="number" step="0.01" min={0} defaultValue={(Number(s.seat_map_setup_fee_cents) / 100).toFixed(2)} hint="One-time fee when a Pro organizer requests a new seat map. 0 = free. Maps from the Venue Library are always free to use." />
       </div>
       <Separator />
       <div className="grid gap-4 sm:grid-cols-2">

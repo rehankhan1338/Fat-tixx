@@ -28,11 +28,31 @@ export interface OutgoingEmail {
   html?: string;
   category?: 'transactional' | 'marketing';
   related?: { type: string; id: string | number };
+  envelope?: MailEnvelope;
 }
+
+/**
+ * Per-message sender details, kept in email_outbox.envelope_json so retries send the same thing. Used by Fattixx Pro
+ * email marketing: the organizer's name as the sender name (the address stays the verified platform sender), replies to
+ * the organizer, and List-Unsubscribe headers.
+ */
+export type MailEnvelope = { fromName?: string; replyTo?: string; headers?: Record<string, string> };
 
 export const MAX_ATTEMPTS = 8;
 
-type Message = { to: string; toName: string | null; subject: string; text: string; html: string | null };
+type Message = { to: string; toName: string | null; subject: string; text: string; html: string | null; envelope?: MailEnvelope | null };
+
+function parseEnvelope(json: string | null | undefined): MailEnvelope | null {
+  if (!json) return null;
+  try { return JSON.parse(json) as MailEnvelope; } catch { return null; }
+}
+
+/** Header names and values safe to pass on (no line breaks, printable ASCII names). */
+function safeHeaders(h: Record<string, string> | undefined): Record<string, string> | undefined {
+  if (!h) return undefined;
+  const out = Object.fromEntries(Object.entries(h).filter(([k, v]) => /^[A-Za-z0-9-]{1,60}$/.test(k) && !/[\r\n]/.test(v)));
+  return Object.keys(out).length ? out : undefined;
+}
 type Sender = (msg: Message) => Promise<void>;
 
 export type EmailProvider = 'brevo' | 'smtp';
@@ -71,7 +91,12 @@ async function getSender(): Promise<Sender | null> {
   if (smtpUrl) {
     const t = smtpTransport(smtpUrl);
     return async (msg) => {
-      await t.sendMail({ from: s.from, to: msg.toName ? `"${msg.toName.replace(/"/g, '')}" <${msg.to}>` : msg.to, subject: msg.subject, text: msg.text, html: msg.html ?? undefined });
+      const e = msg.envelope;
+      const from = e?.fromName ? `"${e.fromName.replace(/["\r\n]/g, '')}" <${parseAddress(s.from).email}>` : s.from;
+      await t.sendMail({
+        from, to: msg.toName ? `"${msg.toName.replace(/"/g, '')}" <${msg.to}>` : msg.to, subject: msg.subject, text: msg.text, html: msg.html ?? undefined,
+        replyTo: e?.replyTo, headers: safeHeaders(e?.headers),
+      });
     };
   }
   return null;
@@ -85,15 +110,19 @@ function parseAddress(s: string): { name?: string; email: string } {
 
 // https://developers.brevo.com/reference/sendtransacemail
 async function sendViaBrevo(apiKey: string, from: string, msg: Message): Promise<void> {
+  const e = msg.envelope;
+  const headers = safeHeaders(e?.headers);
   const res = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: { 'api-key': apiKey, 'content-type': 'application/json', accept: 'application/json' },
     body: JSON.stringify({
-      sender: parseAddress(from),
+      sender: { ...parseAddress(from), ...(e?.fromName ? { name: e.fromName } : {}) },
       to: [msg.toName ? { email: msg.to, name: msg.toName } : { email: msg.to }],
       subject: msg.subject,
       textContent: msg.text,
       ...(msg.html ? { htmlContent: msg.html } : {}),
+      ...(e?.replyTo ? { replyTo: { email: e.replyTo } } : {}),
+      ...(headers ? { headers } : {}),
     }),
     signal: AbortSignal.timeout(15_000),
   });
@@ -159,10 +188,11 @@ async function deliver(id: number, msg: Message): Promise<boolean> {
 }
 
 export async function sendEmail(msg: OutgoingEmail): Promise<number> {
+  const envelope = msg.envelope && (msg.envelope.fromName || msg.envelope.replyTo || msg.envelope.headers) ? msg.envelope : null;
   const r = await execute(
-    `INSERT INTO email_outbox (to_email, to_name, subject, text_body, html_body, category, related_type, related_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [msg.to, msg.toName ?? null, msg.subject, msg.text, msg.html ?? null, msg.category ?? 'transactional',
+    `INSERT INTO email_outbox (to_email, to_name, subject, text_body, html_body, envelope_json, category, related_type, related_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [msg.to, msg.toName ?? null, msg.subject, msg.text, msg.html ?? null, envelope ? JSON.stringify(envelope) : null, msg.category ?? 'transactional',
      msg.related?.type ?? null, msg.related ? String(msg.related.id) : null],
   );
   const id = r.insertId;
@@ -170,17 +200,18 @@ export async function sendEmail(msg: OutgoingEmail): Promise<number> {
     await execute(`UPDATE email_outbox SET status = 'logged' WHERE id = ?`, [id]);
     return id;
   }
-  await deliver(id, { to: msg.to, toName: msg.toName ?? null, subject: msg.subject, text: msg.text, html: msg.html ?? null });
+  await deliver(id, { to: msg.to, toName: msg.toName ?? null, subject: msg.subject, text: msg.text, html: msg.html ?? null, envelope });
   return id;
 }
 
-type OutboxRow = Row & { id: number; to_email: string; to_name: string | null; subject: string; text_body: string; html_body: string | null };
+type OutboxRow = Row & { id: number; to_email: string; to_name: string | null; subject: string; text_body: string; html_body: string | null; envelope_json: string | null };
+const outboxMessage = (row: OutboxRow): Message => ({ to: row.to_email, toName: row.to_name, subject: row.subject, text: row.text_body, html: row.html_body, envelope: parseEnvelope(row.envelope_json) });
 
 /** Retry one failed/queued message (Admin → Emails). */
 export async function resendOutboxEmail(id: number): Promise<boolean> {
-  const row = await queryOne<OutboxRow>(`SELECT id, to_email, to_name, subject, text_body, html_body FROM email_outbox WHERE id = ?`, [id]);
+  const row = await queryOne<OutboxRow>(`SELECT id, to_email, to_name, subject, text_body, html_body, envelope_json FROM email_outbox WHERE id = ?`, [id]);
   if (!row) return false;
-  return deliver(id, { to: row.to_email, toName: row.to_name, subject: row.subject, text: row.text_body, html: row.html_body });
+  return deliver(id, outboxMessage(row));
 }
 
 /**
@@ -190,7 +221,7 @@ export async function resendOutboxEmail(id: number): Promise<boolean> {
 export async function retryDueEmails(limit = 50): Promise<{ retried: number; sent: number }> {
   if (!(await getSender())) return { retried: 0, sent: 0 };
   const due = await query<OutboxRow>(
-    `SELECT id, to_email, to_name, subject, text_body, html_body FROM email_outbox
+    `SELECT id, to_email, to_name, subject, text_body, html_body, envelope_json FROM email_outbox
       WHERE (status = 'failed' AND next_attempt_at IS NOT NULL AND next_attempt_at <= NOW() AND attempts < ?)
          OR (status = 'queued' AND created_at < NOW() - INTERVAL 5 MINUTE)
       ORDER BY id LIMIT ?`, [MAX_ATTEMPTS, limit],
@@ -204,7 +235,7 @@ export async function retryDueEmails(limit = 50): Promise<{ retried: number; sen
            OR (status = 'queued' AND created_at < NOW() - INTERVAL 5 MINUTE AND (next_attempt_at IS NULL OR next_attempt_at <= NOW())))`, [row.id],
     );
     if (!claim.affectedRows) continue;
-    if (await deliver(Number(row.id), { to: row.to_email, toName: row.to_name, subject: row.subject, text: row.text_body, html: row.html_body })) sent++;
+    if (await deliver(Number(row.id), outboxMessage(row))) sent++;
   }
   return { retried: due.length, sent };
 }

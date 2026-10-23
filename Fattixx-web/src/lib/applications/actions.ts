@@ -9,16 +9,18 @@ import { sendEmail } from '../email';
 import { renderEmail } from '../email-templates';
 import { env } from '../env';
 import { clientIp } from '../request';
-import { BOT_MESSAGE, botCheck, rateLimited } from '../security/bot';
+import { BOT_MESSAGE, CAPTCHA_MESSAGE, humanCheck, rateLimited } from '../security/bot';
 import { slugify, shortSuffix } from '../slug';
 import { ensureUser, isEmail } from '../users';
 import { createOneTimeToken } from '../tokens';
+import { readAnswers, type QuestionName } from './questionnaire';
 
 /**
  * Organizer onboarding with verification (Phase 2). Anyone can apply to sell tickets; platform staff
  * verify the person and business (legal name, tax ID last 4, website, address) before an organization
  * is created. Approved organizations are marked verified; the applicant becomes their Organization Admin.
  * When Stripe Connect is adopted, its identity verification plugs in at the approval step.
+ * The application opens with a skippable questionnaire about the organizer's events (questionnaire.ts).
  */
 export type ActionState = { error?: string; ok?: boolean; message?: string; field?: string } | undefined;
 const str = (fd: FormData, k: string, max = 500) => String(fd.get(k) ?? '').trim().slice(0, max);
@@ -26,7 +28,8 @@ const str = (fd: FormData, k: string, max = 500) => String(fd.get(k) ?? '').trim
 export async function submitApplication(_prev: ActionState, fd: FormData): Promise<ActionState> {
   const ip = await clientIp();
   if (rateLimited(`apply:${ip}`, 5, 60 * 60_000)) return { error: 'Too many applications from this network. Try again later.' };
-  if (botCheck(fd)) return { error: BOT_MESSAGE };
+  const bot = await humanCheck(fd, ip);
+  if (bot) return { error: bot === 'captcha' ? CAPTCHA_MESSAGE : BOT_MESSAGE };
   const v = {
     contactName: str(fd, 'contact_name', 160), email: str(fd, 'contact_email', 254).toLowerCase(), phone: str(fd, 'contact_phone', 40),
     orgName: str(fd, 'org_name', 160), legalName: str(fd, 'legal_name', 200), type: str(fd, 'business_type', 20), taxLast4: str(fd, 'tax_id_last4', 4),
@@ -44,10 +47,13 @@ export async function submitApplication(_prev: ActionState, fd: FormData): Promi
   const open = await queryOne(`SELECT 1 FROM organizer_applications WHERE contact_email = ? AND status = 'pending'`, [v.email]);
   if (open) return { ok: true, message: 'You already have an application in review. We will email you when it is done.' };
   const session = await getSession();
+  const q = readAnswers(fd);
   const r = await execute(
-    `INSERT INTO organizer_applications (user_id, contact_name, contact_email, contact_phone, org_name, legal_name, business_type, tax_id_last4, website, address, expected_events, ip)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [session?.user.id ?? null, v.contactName, v.email, v.phone || null, v.orgName, v.legalName, v.type, v.taxLast4 || null, v.website || null, v.address, v.events || null, ip],
+    `INSERT INTO organizer_applications (user_id, contact_name, contact_email, contact_phone, org_name, legal_name, business_type, tax_id_last4, website, address, expected_events,
+       event_types, expected_revenue, events_per_year, typical_attendance, attendee_ages, audiences, ip)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [session?.user.id ?? null, v.contactName, v.email, v.phone || null, v.orgName, v.legalName, v.type, v.taxLast4 || null, v.website || null, v.address, v.events || null,
+      q.event_types, q.expected_revenue, q.events_per_year, q.typical_attendance, q.attendee_ages, q.audiences, ip],
   );
   await audit('application.submitted', { actorUserId: session?.user.id ?? null, targetType: 'organizer_application', targetId: r.insertId, metadata: { org: v.orgName } });
   const mail = await renderEmail('application_received', { contact_name: v.contactName, org_name: v.orgName });
@@ -55,7 +61,7 @@ export async function submitApplication(_prev: ActionState, fd: FormData): Promi
   return { ok: true, message: 'Thanks! Your application is in review. We verify every organizer before they can sell, and will email you the result.' };
 }
 
-type AppRow = Row & { id: number; contact_name: string; contact_email: string; contact_phone: string | null; org_name: string; legal_name: string; website: string | null; status: string; expected_events: string | null };
+type AppRow = Row & { id: number; contact_name: string; contact_email: string; contact_phone: string | null; org_name: string; legal_name: string; website: string | null; status: string; expected_events: string | null } & Record<QuestionName, string | null>;
 
 export async function approveApplication(fd: FormData): Promise<ActionState> {
   const session = await assertPlatformRole(['super_admin', 'support']);
@@ -64,8 +70,11 @@ export async function approveApplication(fd: FormData): Promise<ActionState> {
   let slug = slugify(app.org_name);
   if (await queryOne(`SELECT 1 FROM organizations WHERE slug = ?`, [slug])) slug = `${slug}-${shortSuffix()}`;
   const org = await execute(
-    `INSERT INTO organizations (slug, name, legal_name, contact_email, contact_phone, website, description, created_by, verified_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-    [slug, app.org_name, app.legal_name, app.contact_email, app.contact_phone, app.website, app.expected_events, session.user.id],
+    `INSERT INTO organizations (slug, name, legal_name, contact_email, contact_phone, website, description, created_by, verified_at,
+       event_types, expected_revenue, events_per_year, typical_attendance, attendee_ages, audiences, questionnaire_done_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?, ?, NOW())`,
+    [slug, app.org_name, app.legal_name, app.contact_email, app.contact_phone, app.website, app.expected_events, session.user.id,
+      app.event_types, app.expected_revenue, app.events_per_year, app.typical_attendance, app.attendee_ages, app.audiences],
   );
   const { user, created } = await ensureUser(app.contact_email, app.contact_name);
   await execute(`INSERT IGNORE INTO organization_members (organization_id, user_id, role, invited_by) VALUES (?, ?, 'org_admin', ?)`, [org.insertId, user.id, session.user.id]);

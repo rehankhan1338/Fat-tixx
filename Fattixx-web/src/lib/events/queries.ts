@@ -2,13 +2,18 @@ import 'server-only';
 import { query, queryOne, type Row } from '../db';
 import type { OrgContext } from '../authz';
 import { eventVisibilityClause } from '../authz';
+import type { RefundPolicy } from './refund-policy';
 
 export type EventRow = Row & {
   id: number; organization_id: number; venue_id: number | null; slug: string; series_id: string | null; title: string; summary: string | null; description: string | null;
-  image_path: string | null; starts_at: Date; ends_at: Date | null; doors_at: Date | null; timezone: string; capacity: number | null; waitlist_enabled: number; queue_enabled: number; queue_rate_per_min: number; reminder_sent_at: Date | null;
+  /** online events: the join link, shown to ticket holders only */
+  online_url: string | null;
+  image_path: string | null; video_url: string | null; starts_at: Date; ends_at: Date | null; show_end_time: number; doors_at: Date | null; timezone: string; capacity: number | null; waitlist_enabled: number; queue_enabled: number; queue_rate_per_min: number; reminder_sent_at: Date | null;
   status: 'draft' | 'published' | 'cancelled' | 'postponed' | 'completed'; visibility: 'public' | 'private' | 'unlisted'; private_key: string | null;
+  /** encrypted event password (src/lib/events/password.ts); null = none */
+  access_password: string | null;
   age_restriction: number | null; fee_mode: 'buyer_pays' | 'organizer_absorbs'; tax_bps: number | null; tax_label: string | null; currency: string;
-  refund_policy: 'no_refunds' | 'until_event_start' | 'days_before'; refund_days_before: number | null; allow_transfers: number;
+  refund_policy: RefundPolicy; refund_days_before: number | null; allow_transfers: number;
   category: string | null; featured: number;
   checkout_question: string | null; cancelled_at: Date | null; cancel_reason: string | null; created_by: number | null; created_at: Date; updated_at: Date;
 };
@@ -39,11 +44,14 @@ export async function getEvent(orgId: number, eventId: number): Promise<EventLis
   return queryOne<EventListRow>(`${EVENT_LIST_SELECT} WHERE e.id = ? AND e.organization_id = ?`, [eventId, orgId]);
 }
 
-export type PublicEventRow = EventListRow & { org_name: string; org_slug: string; org_logo: string | null; venue_address: string | null; venue_city: string | null; venue_region: string | null; venue_tax_bps: number | null; venue_tax_label: string | null; fee_bps_override: number | null; fee_fixed_cents_override: number | null; org_status: string; org_meta_pixel: string | null; org_ga4: string | null };
+export type PublicEventRow = EventListRow & { org_name: string; org_slug: string; org_logo: string | null; org_contact_email: string; venue_address: string | null; venue_city: string | null; venue_region: string | null; venue_tax_bps: number | null; venue_tax_label: string | null; fee_bps_override: number | null; fee_fixed_cents_override: number | null; org_status: string; org_meta_pixel: string | null; org_ga4: string | null;
+  /** Fattixx Pro (lib/pro): Pro while org_pro_until is in the future; the brand_* fields apply only then */
+  org_pro_until: Date | null; org_brand_primary: string | null; org_brand_accent: string | null; org_brand_cover: string | null; org_brand_own_header: number; org_white_label: number };
 
 const PUBLIC_SELECT = `
   SELECT e.*, v.name AS venue_name, v.address_line1 AS venue_address, v.city AS venue_city, v.region AS venue_region, v.tax_bps AS venue_tax_bps, v.tax_label AS venue_tax_label,
-         g.name AS org_name, g.slug AS org_slug, g.logo_path AS org_logo, g.fee_bps_override, g.fee_fixed_cents_override, g.status AS org_status, g.meta_pixel_id AS org_meta_pixel, g.ga4_id AS org_ga4,
+         g.name AS org_name, g.slug AS org_slug, g.logo_path AS org_logo, g.contact_email AS org_contact_email, g.fee_bps_override, g.fee_fixed_cents_override, g.status AS org_status, g.meta_pixel_id AS org_meta_pixel, g.ga4_id AS org_ga4,
+         g.pro_until AS org_pro_until, g.brand_primary AS org_brand_primary, g.brand_accent AS org_brand_accent, g.brand_cover_path AS org_brand_cover, g.brand_own_header AS org_brand_own_header, g.white_label AS org_white_label,
          (SELECT COALESCE(SUM(t.sold),0) FROM ticket_types t WHERE t.event_id = e.id) AS tickets_sold,
          (SELECT COALESCE(SUM(t.quantity * t.seats_per_unit),0) FROM ticket_types t WHERE t.event_id = e.id) AS capacity_total,
          0 AS gross_cents, 0 AS checked_in
@@ -69,12 +77,15 @@ export async function countOrgPublicEvents(orgId: number): Promise<number> {
   return Number(r?.n ?? 0);
 }
 
-export type PublicOrgRow = Row & { id: number; slug: string; name: string; description: string | null; website: string | null; logo_path: string | null };
+export type PublicOrgRow = Row & {
+  id: number; slug: string; name: string; description: string | null; website: string | null; logo_path: string | null;
+  pro_until: Date | null; brand_primary: string | null; brand_accent: string | null; brand_cover_path: string | null; brand_own_header: number; white_label: number;
+};
 
 /** An active organization by slug, the fields its public page shows. */
 export async function getPublicOrganization(slug: string): Promise<PublicOrgRow | null> {
   if (!/^[a-z0-9-]{1,64}$/.test(slug)) return null;
-  return queryOne<PublicOrgRow>(`SELECT id, slug, name, description, website, logo_path FROM organizations WHERE slug = ? AND status = 'active'`, [slug]);
+  return queryOne<PublicOrgRow>(`SELECT id, slug, name, description, website, logo_path, pro_until, brand_primary, brand_accent, brand_cover_path, brand_own_header, white_label FROM organizations WHERE slug = ? AND status = 'active'`, [slug]);
 }
 
 export async function getPublicEventBySlug(slug: string): Promise<PublicEventRow | null> {
@@ -86,6 +97,8 @@ export type TicketTypeRow = Row & {
   id: number; event_id: number; name: string; description: string | null; kind: 'general' | 'vip' | 'table' | 'complimentary';
   price_cents: number; quantity: number; sold: number; min_per_order: number; max_per_order: number; max_per_account: number | null; seats_per_unit: number; event_date_id: number | null;
   sales_start_at: Date | null; sales_end_at: Date | null; hidden: number; access_code: string | null; sort_order: number; held: number;
+  /** reserved seating pricing tier (sold seat by seat from the map; quantity = seats assigned, not blocked) */
+  seated: number; seat_color: string | null;
 };
 
 /** Public path to an event page. Private events only open with their key in the link. */
@@ -151,6 +164,17 @@ export async function listSeriesSiblings(seriesId: string, eventId: number): Pro
     `${PUBLIC_SELECT} WHERE e.series_id = ? AND e.id <> ? AND e.status IN ('published','postponed') AND g.status = 'active'
        AND COALESCE(e.ends_at, e.starts_at + INTERVAL 6 HOUR) > NOW() ORDER BY e.starts_at ASC`, [seriesId, eventId],
   );
+}
+
+// ---------------------------------------------------------------------------
+// Photo gallery (up to MAX_EVENT_PHOTOS per event)
+// ---------------------------------------------------------------------------
+export const MAX_EVENT_PHOTOS = 5;
+
+export type EventPhotoRow = Row & { id: number; event_id: number; image_path: string; sort_order: number };
+
+export async function listEventPhotos(eventId: number): Promise<EventPhotoRow[]> {
+  return query<EventPhotoRow>(`SELECT * FROM event_photos WHERE event_id = ? ORDER BY sort_order, id`, [eventId]);
 }
 
 // ---------------------------------------------------------------------------

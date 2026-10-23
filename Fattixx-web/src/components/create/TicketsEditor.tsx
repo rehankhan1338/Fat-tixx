@@ -2,18 +2,26 @@
 
 import { useState } from "react";
 import { cx } from "@/components/ui/styles";
-import { newTicket, REFUND_OPTIONS } from "@/lib/home/create";
+import { fromRefundChoice, legacyRefundLabel, newTicket, REFUND_OPTIONS, refundChoice } from "@/lib/home/create";
 import type { EventDraft, TicketDraft, VenueOption } from "@/lib/home/create";
 import { useFees } from "@/lib/home/fees-context";
-import { feeBreakdown, feeLabel, formatCents, parseDollars, processingLabel } from "@/lib/home/pricing";
+import { feeBreakdown, feeCapLabel, feeLabel, formatCents, parseDollars, processingLabel } from "@/lib/home/pricing";
 import { input, labelCls, Segmented, Switch } from "./ui";
 
 type Patch = (p: Partial<EventDraft>) => void;
 
-/** `venue`: the saved venue chosen under Location, if any (its tax rate is the default). */
-export default function TicketsEditor({ d, patch, venue }: { d: EventDraft; patch: Patch; venue: VenueOption | null }) {
+/** A ticket type the dashboard manages (VIP, tables, comps, presale, day tickets): listed, not edited here. */
+export type LockedTicket = { id: number; name: string; detail: string };
+
+/**
+ * `venue`: the saved venue chosen under Location, if any (its tax rate is the default).
+ * `locked` / `manageHref`: when editing a saved event, the ticket types edited on its dashboard tab instead.
+ */
+export default function TicketsEditor({ d, patch, venue, locked = [], manageHref }: { d: EventDraft; patch: Patch; venue: VenueOption | null; locked?: LockedTicket[]; manageHref?: string }) {
   const fees = useFees();
   const [openId, setOpenId] = useState<string | null>(null);
+  const refundValue = refundChoice(d);
+  const cap = feeCapLabel(fees);
 
   if (d.mode === "rsvp") {
     return (
@@ -64,17 +72,19 @@ export default function TicketsEditor({ d, patch, venue }: { d: EventDraft; patc
               {cents > 0 ? (
                 <>
                   Buyers pay <b className="text-fx-red">{formatCents(b.buyerPaysCents)}</b>, you receive <b className="text-fx-red">{formatCents(b.organizerGetsCents)}</b>.
+                  {b.capped && <> The fee is capped at {cap} per ticket.</>}
                 </>
               ) : (
                 "Free ticket. No fee."
               )}
+              {t.sold ? <span className="mt-1 block font-semibold text-fx-red">{t.sold} sold so far.</span> : null}
             </p>
 
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
               <button type="button" aria-expanded={more} onClick={() => setOpenId(more ? null : t.id)} className="min-h-11 cursor-pointer text-[14px] font-semibold text-fx-red-second underline underline-offset-4">
                 {more ? "Fewer options" : "More options"}
               </button>
-              {d.tickets.length > 1 && (
+              {(d.tickets.length > 1 || locked.length > 0) && !t.sold && (
                 <button type="button" onClick={() => patch({ tickets: d.tickets.filter((x) => x.id !== t.id) })} className="min-h-11 cursor-pointer text-[14px] font-semibold text-fx-red/78 hover:text-fx-red">
                   Remove ticket {i + 1}
                 </button>
@@ -130,10 +140,28 @@ export default function TicketsEditor({ d, patch, venue }: { d: EventDraft; patc
         );
       })}
 
+      {locked.length > 0 && (
+        <div className="rounded-[20px] border border-dashed border-fx-red/20 p-4 min-[641px]:p-5">
+          <p className="m-0 text-[14px] font-semibold">Also on sale</p>
+          <ul className="mt-2 grid gap-1 text-[14px] text-fx-red/78">
+            {locked.map((t) => (
+              <li key={t.id}>
+                <b className="font-semibold text-fx-red">{t.name}</b> · {t.detail}
+              </li>
+            ))}
+          </ul>
+          {manageHref && (
+            <a href={manageHref} className="mt-2 inline-block min-h-11 text-[14px] font-semibold text-fx-red-second underline underline-offset-4">
+              Edit these on the Ticket types tab
+            </a>
+          )}
+        </div>
+      )}
+
       <button
         type="button"
         onClick={() => {
-          const t = newTicket(d.tickets.length ? "" : "General Admission");
+          const t = newTicket(d.tickets.length || locked.length ? "" : "General Admission");
           patch({ tickets: [...d.tickets, t] });
           setOpenId(null);
         }}
@@ -146,7 +174,8 @@ export default function TicketsEditor({ d, patch, venue }: { d: EventDraft; patc
         <span className="text-[13px] font-semibold tracking-[.12em] text-fx-red/78 uppercase">Fees &amp; tax</span>
         <span className="text-[15px] font-semibold">Who covers the Fattixx fee?</span>
         <span className="text-[13px] leading-[1.45] text-fx-red/78">
-          {feeLabel(fees)} per paid ticket{processingLabel(fees) ? `, plus card processing of ${processingLabel(fees)}` : ", card processing included"}. Free tickets have no fee.
+          {feeLabel(fees)} per paid ticket{processingLabel(fees) ? `, plus card processing of ${processingLabel(fees)}` : ", card processing included"}
+          {cap ? `, never more than ${cap} per ticket` : ""}. Free tickets have no fee.
         </span>
         <div className="mt-1">
           <Segmented
@@ -187,22 +216,23 @@ export default function TicketsEditor({ d, patch, venue }: { d: EventDraft; patc
           <label htmlFor="refund" className={labelCls}>
             Refund policy
           </label>
-          <select id="refund" className={cx(input, "mt-2 cursor-pointer")} value={d.refund} onChange={(e) => patch({ refund: e.target.value as EventDraft["refund"] })}>
+          <select id="refund" className={cx(input, "mt-2 cursor-pointer")} value={refundValue} onChange={(e) => patch(fromRefundChoice(e.target.value))}>
             {REFUND_OPTIONS.map((o) => (
               <option key={o.v} value={o.v}>
-                {o.v === "days_before" ? o.label.replace("N", d.refundDays || "N") : o.label}
+                {o.label}
               </option>
             ))}
+            {/* an event made before keeps its own choice */}
+            {!REFUND_OPTIONS.some((o) => o.v === refundValue) && <option value={refundValue}>{legacyRefundLabel(refundValue)}</option>}
           </select>
-          {d.refund === "days_before" && (
-            <div className="mt-3 flex items-center gap-3">
-              <label htmlFor="refund-days" className={cx(labelCls, "shrink-0")}>
-                Days before the event
-              </label>
-              <input id="refund-days" className={cx(input, "max-w-24")} inputMode="numeric" value={d.refundDays} onChange={(e) => patch({ refundDays: e.target.value.replace(/\D/g, "").slice(0, 3) })} />
-            </div>
-          )}
-          {anyPaid && <p className="mt-2 mb-0 text-[13px] text-fx-red/78">Shown on the event page and at checkout.</p>}
+          <p className="mt-2 mb-0 text-[13px] text-fx-red/78">
+            {d.refund === "contact"
+              ? "Buyers see your contact email and ask you; you refund from the dashboard."
+              : d.refund === "none"
+                ? "Buyers are refunded only if you cancel the event."
+                : "Buyers can refund themselves from their order page until then."}
+            {anyPaid ? " Shown on the event page and at checkout." : ""}
+          </p>
         </div>
       </div>
       <Switch checked={d.waitlist} onChange={(v) => patch({ waitlist: v })} label="Waitlist when sold out" hint="Buyers can join a waitlist once tickets sell out." />

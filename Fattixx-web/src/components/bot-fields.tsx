@@ -2,7 +2,10 @@
 
 import { useEffect, useRef } from "react";
 
-/** Honeypot + render timestamp checked by `botCheck()` on the server. Invisible to people and screen readers. */
+/**
+ * Honeypot + render timestamp checked by `humanCheck()` on the server. Invisible to people and screen readers.
+ * The visible part, the CAPTCHA, is <Captcha /> (src/components/captcha.tsx), placed next to the form's submit button.
+ */
 export function BotFields() {
   const ft = useRef<HTMLInputElement>(null);
   useEffect(() => { if (ft.current) ft.current.value = String(Date.now()); }, []);

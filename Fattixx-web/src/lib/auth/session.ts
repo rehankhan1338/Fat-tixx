@@ -109,8 +109,10 @@ function plausibleToken(token: string | undefined | null): token is string {
 
 async function resolveSession(token: string, via: CurrentSession['via']): Promise<CurrentSession | null> {
   const id = sha256(token);
-  // Browser sessions expire after SESSION_IDLE_MINUTES without activity; app sessions only at expires_at.
-  const idleClause = via === 'cookie' ? 'AND s.last_seen_at > (NOW() - INTERVAL ? MINUTE)' : '';
+  // Browser sessions expire after SESSION_IDLE_MINUTES without activity; app sessions only at expires_at. An app
+  // session is never accepted as a browser cookie: a token copied out of the app must not become a website login
+  // that the app's own activity keeps from idling out.
+  const idleClause = via === 'cookie' ? `AND s.last_seen_at > (NOW() - INTERVAL ? MINUTE) AND (s.user_agent IS NULL OR s.user_agent NOT LIKE '${MOBILE_UA_PREFIX}%')` : '';
   const params: (string | number)[] = via === 'cookie' ? [id, SESSION_IDLE_MINUTES] : [id];
   const row = await queryOne<SessionRow>(
     `SELECT s.id, s.user_id, s.created_at, s.last_seen_at, s.expires_at,
