@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { CheckField, FormStatus, SelectField, TextAreaField, TextField } from "@/components/form-fields";
 import { SubmitButton } from "@/components/submit-button";
 import { BotFields } from "@/components/bot-fields";
+import { Captcha } from "@/components/captcha";
 
 /** Promoter / UTM attribution passed through from the event page URL. */
 export interface Attribution { ref?: string; utm_source?: string; utm_medium?: string; utm_campaign?: string }
@@ -128,6 +129,7 @@ export function TicketSelector({ eventSlug, currency, options, addons = [], ques
             <CheckField id="marketing" name="marketing" label="Email me about future events from this organizer" />
             {ageRestriction ? <p className="text-xs text-amber-700 dark:text-amber-300">This event is {ageRestriction}+. Every attendee must show a valid photo ID at the door.</p> : null}
           </div>
+          <Captcha />
           <SubmitButton className="w-full" size="lg" pendingText="Reserving…">{total === 0 ? "Get free tickets" : `Continue to payment · ${formatCents(total, currency)}`}</SubmitButton>
           <p className="text-center text-xs text-muted-foreground">Your tickets are held for 10 minutes while you check out.</p>
         </>

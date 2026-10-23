@@ -1,4 +1,5 @@
 import 'server-only';
+import { CAPTCHA_FIELD, verifyCaptcha } from './captcha';
 
 /**
  * Lightweight bot protection for public forms (checkout, registration, waitlist, organizer applications;
@@ -9,7 +10,7 @@ import 'server-only';
  *     Missing `_ft` (no JavaScript) is allowed, so the forms keep working without scripts.
  *  3. Per-IP rate limit (in memory, per app instance) on top of the database login throttling.
  *
- * A CAPTCHA (e.g. Cloudflare Turnstile) can be added later behind the same `botCheck` call.
+ * A CAPTCHA (Cloudflare Turnstile, ./captcha.ts) is added on top by `humanCheck` when its keys are configured.
  */
 const MIN_FILL_MS = 800;
 
@@ -20,6 +21,13 @@ export function botCheck(fd: FormData): string | null {
   if (ft && Number.isFinite(ft) && Date.now() - ft < MIN_FILL_MS) return 'too_fast';
   return null;
 }
+
+/** `botCheck` plus the CAPTCHA token the form's <BotFields /> widget added. */
+export async function humanCheck(fd: FormData, ip: string | null): Promise<string | null> {
+  return botCheck(fd) ?? ((await verifyCaptcha(fd.get(CAPTCHA_FIELD) as string | null, ip)) ? null : 'captcha');
+}
+
+export const CAPTCHA_MESSAGE = 'Please complete the “I’m human” check and try again.';
 
 type Bucket = { hits: number[] };
 const g = globalThis as typeof globalThis & { __fxRate?: Map<string, Bucket> };

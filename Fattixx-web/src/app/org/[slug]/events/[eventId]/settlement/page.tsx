@@ -31,6 +31,7 @@ export default async function SettlementPage({ params }: PageProps<"/org/[slug]/
         {row("Refunds", `−${c(s.refundedCents)}`)}
         {row("Platform fees absorbed by organizer", `−${c(s.absorbedFeesCents)}`)}
         {row("Net payout to organizer", c(s.payoutCents), true)}
+        {s.connectTransferredCents ? row("Of which sent to your Stripe account with each sale (before refunds)", c(s.connectTransferredCents)) : null}
       </tbody></table>
       <h2 className="mt-8 mb-2 text-sm font-semibold uppercase tracking-wider text-neutral-500">Collected from buyers (not organizer revenue)</h2>
       <table className="w-full text-sm"><tbody>

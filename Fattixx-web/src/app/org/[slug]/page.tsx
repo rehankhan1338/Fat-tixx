@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { PlusIcon } from "lucide-react";
 import { requireOrg } from "@/lib/authz";
 import { listVisibleEvents, orgOverview } from "@/lib/events/queries";
@@ -11,6 +12,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
 import { AdSlot } from "@/components/ad-slot";
+import { orgIsPro } from "@/lib/pro/gate";
+import { needsPayoutSetup } from "@/lib/payments/payout-reminders";
 
 export const metadata: Metadata = { title: "Overview" };
 
@@ -18,7 +21,13 @@ export default async function OrgOverviewPage({ params, searchParams }: PageProp
   const { slug } = await params;
   const sp = await searchParams;
   const ctx = await requireOrg(slug);
-  const [upcoming, overview] = await Promise.all([listVisibleEvents(ctx, "upcoming"), ctx.role === "staff" ? null : orgOverview(ctx.org.id)]);
+  // an organizer who signed up on /create answers the sign-up questionnaire first (project plan, "Organizer Sign Up")
+  if (ctx.role === "org_admin" && !ctx.org.questionnaire_done_at) redirect(`/org/${slug}/welcome`);
+  const [upcoming, overview, payoutsMissing] = await Promise.all([
+    listVisibleEvents(ctx, "upcoming"),
+    ctx.role === "staff" ? null : orgOverview(ctx.org.id),
+    ctx.role === "org_admin" ? needsPayoutSetup(Number(ctx.org.id)) : false,
+  ]);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -28,6 +37,13 @@ export default async function OrgOverviewPage({ params, searchParams }: PageProp
         actions={ctx.role !== "staff" ? <Button render={<Link href={`/org/${slug}/events/new`} />}><PlusIcon /> New event</Button> : null}
       />
       {sp.denied ? <Alert variant="destructive"><AlertDescription>Your role does not allow that action.</AlertDescription></Alert> : null}
+      {payoutsMissing ? (
+        <Alert>
+          <AlertDescription>
+            Set up payouts to get paid for your ticket sales. <Link href={`/org/${slug}/payouts`} className="font-semibold underline underline-offset-4">Set up payouts</Link>
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       {overview ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -62,7 +78,7 @@ export default async function OrgOverviewPage({ params, searchParams }: PageProp
           </Table>
         )}
       </Section>
-      <AdSlot placement="org_dashboard" />
+      {orgIsPro(ctx.org) ? null : <AdSlot placement="org_dashboard" />}
     </div>
   );
 }

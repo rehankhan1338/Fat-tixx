@@ -8,7 +8,7 @@ export type AuditAction =
   | 'auth.session.created' | 'auth.session.revoked' | 'auth.session.revoked_all' | 'auth.logout'
   | 'auth.password.rehashed' | 'auth.password.reset_requested' | 'auth.password.set' | 'auth.register'
   | 'user.created' | 'user.invited' | 'user.role.granted' | 'user.role.revoked' | 'user.status.changed' | 'user.updated' | 'user.deleted'
-  | 'org.created' | 'org.updated' | 'org.status.changed' | 'org.deleted' | 'org.member.added' | 'org.member.updated' | 'org.member.removed'
+  | 'org.created' | 'org.updated' | 'org.questionnaire' | 'org.status.changed' | 'org.deleted' | 'org.member.added' | 'org.member.updated' | 'org.member.removed'
   | 'order.deleted' | 'ticket.voided' | 'ticket.transferred'
   | 'venue.created' | 'venue.updated' | 'venue.deleted'
   | 'event.created' | 'event.updated' | 'event.published' | 'event.unpublished' | 'event.cancelled' | 'event.postponed' | 'event.deleted'
@@ -25,13 +25,26 @@ export type AuditAction =
   | 'payout.approved' | 'payout.paid' | 'payout.voided' | 'dispute.opened' | 'dispute.updated' | 'reconciliation.run'
   | 'checkin.offline_conflict' | 'checkin.conflict_resolved'
   | 'auth.email_verified' | 'user.data_exported' | 'user.self_deleted'
+  | 'auth.code.sent' | 'auth.code.failed' | 'auth.google.linked' | 'auth.terms_accepted' | 'event.holders_notified' | 'event_photo.added' | 'event_photo.deleted'
   | 'promo.created' | 'promo.updated' | 'promo.deleted'
   | 'tracking_link.created' | 'tracking_link.updated' | 'tracking_link.deleted'
   | 'sponsor.created' | 'sponsor.updated' | 'sponsor.deleted'
   | 'ad.created' | 'ad.updated' | 'ad.deleted' | 'ad.status.changed'
   | 'application.submitted' | 'application.approved' | 'application.rejected'
   | 'export.downloaded'
-  | 'audit.cleared' | 'auth.attempts.cleared' | 'auth.attempt.deleted';
+  | 'pro.checkout.started' | 'pro.subscription.synced' | 'pro.subscription.canceled' | 'pro.subscription.resumed' | 'pro.subscription.switched' | 'pro.comp.granted'
+  | 'pro.branding.updated' | 'pro.domain.added' | 'pro.domain.verified' | 'pro.domain.removed' | 'pro.domain.released'
+  | 'marketing.campaign.saved' | 'marketing.campaign.scheduled' | 'marketing.campaign.sent' | 'marketing.campaign.canceled' | 'marketing.campaign.deleted' | 'marketing.test_sent'
+  | 'marketing.segment.saved' | 'marketing.segment.deleted' | 'marketing.template.saved' | 'marketing.template.deleted' | 'marketing.contact.unsubscribed' | 'marketing.contacts.exported'
+  | 'support.request.created' | 'support.request.replied' | 'support.request.updated'
+  | 'seatmap.request.created' | 'seatmap.request.status' | 'seatmap.request.noted' | 'seatmap.request.fee' | 'seatmap.saved' | 'seatmap.library.updated'
+  | 'seating.attached' | 'seating.detached' | 'seating.tier.created' | 'seating.seats.updated' | 'seating.ticket.moved'
+  | 'audit.cleared' | 'auth.attempts.cleared' | 'auth.attempt.deleted'
+  | 'ticket.wallet_pass'
+  | 'connect.onboarding.started' | 'connect.dashboard.opened' | 'settings.payouts'
+  | 'advertiser.applied' | 'advertiser.reviewed' | 'ad.checkout.started' | 'ad.paid' | 'ad.reviewed' | 'ad.refunded'
+  | 'sponsorship.package.saved' | 'sponsorship.package.deleted' | 'sponsorship.requested' | 'sponsorship.decided' | 'sponsorship.paid' | 'sponsorship.cancelled' | 'sponsorship.refunded'
+  | 'whitelabel.updated' | 'site_page.saved' | 'site_page.deleted';
 
 export async function audit(
   action: AuditAction,

@@ -9,7 +9,7 @@ import { clientIp, userAgent } from '../request';
 import { hashPassword, passwordPolicyErrors, pwnedPasswordCount } from '../security/password';
 import { ipIsThrottled, recordAttempt } from '../security/rate-limit';
 import { consumeOneTimeToken, peekOneTimeToken } from '../tokens';
-import { BOT_MESSAGE, botCheck, rateLimited } from '../security/bot';
+import { BOT_MESSAGE, CAPTCHA_MESSAGE, humanCheck, rateLimited } from '../security/bot';
 import { findUserByEmail, isEmail, normalizeEmail, sendSetPasswordLink } from '../users';
 import { authenticateWithPassword, platformRolesOf, registerAttendeeAccount, sendVerificationEmail } from './credentials';
 import { authIsFresh, clearSessionCookie, createSession, getSession, revokeAllUserSessions, revokeSession } from './session';
@@ -135,7 +135,8 @@ export async function setPasswordWithToken(_prev: ActionState, formData: FormDat
 // Attendee self-registration (optional accounts; guest checkout stays available)
 // ---------------------------------------------------------------------------
 export async function registerAttendee(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  if (botCheck(formData)) return { error: BOT_MESSAGE };
+  const bot = await humanCheck(formData, await clientIp());
+  if (bot) return { error: bot === 'captcha' ? CAPTCHA_MESSAGE : BOT_MESSAGE };
   const result = await registerAttendeeAccount({
     email: String(formData.get('email') ?? ''), name: String(formData.get('name') ?? ''), password: String(formData.get('password') ?? ''),
   });

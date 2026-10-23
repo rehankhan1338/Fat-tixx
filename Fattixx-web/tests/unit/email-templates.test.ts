@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TEMPLATES, fillTemplate, htmlToText, brandedLayout } from "@/lib/email-templates";
+import { EMAIL_THEME, TEMPLATES, fillTemplate, htmlToText, brandedLayout } from "@/lib/email-templates";
 import { contrastText } from "@/lib/branding";
 
 describe("email templates", () => {
@@ -27,9 +27,9 @@ describe("email templates", () => {
     expect(text).not.toMatch(/<[^>]+>/);
   });
 
-  it("branded layout uses the accent colour and logo", () => {
+  it("branded layout uses the Fattixx header band, the logo and the support address", () => {
     const html = brandedLayout("Title", "<p>Body</p>", { name: "Acme Tix", color: "#123456", logoPath: "orgs/logo.webp", supportEmail: "s@acme.test" }, "https://acme.test");
-    expect(html).toContain("background:#123456");
+    expect(html).toContain(`background:${EMAIL_THEME.red}`); // the site palette, whatever the stored brand colour
     expect(html).toContain('src="https://acme.test/api/uploads/orgs/logo.webp"');
     expect(html).toContain("s@acme.test");
   });

@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { login, uniq, watchConsole } from "./helpers/ui";
+import { E2E } from "./helpers/db";
+import { createEventInDashboard, login, uniq, watchConsole } from "./helpers/ui";
 
 /** Payouts, disputes, payments & Stripe settings, monitoring, branding and email templates. */
 test.describe.serial("finance, monitoring, branding & templates", () => {
@@ -10,21 +11,15 @@ test.describe.serial("finance, monitoring, branding & templates", () => {
     await login(page);
     // Create an org with a paid-looking (free) order so the event has settlement rows; free events have gross 0,
     // so use a box-office order which records revenue without Stripe.
-    await page.goto("/admin/organizations?new=1");
+    await page.goto(`${E2E.adminUrl}/admin/organizations?new=1`);
     await page.fill("#name", `E2E Fin ${id}`); await page.fill("#slug", `e2e-fin-${id}`); await page.fill("#contact_email", `e2e-fin-${id}@fattixx.local`);
     await Promise.all([page.waitForURL(/\/admin\/organizations\/e2e-fin-/), page.click('form button:has-text("Create organization")')]);
-    await page.goto(`/org/e2e-fin-${id}/events/new`);
-    await page.fill("#title", `Fin Night ${id}`); await page.fill("#starts_at", "2026-12-20T20:00");
-    await Promise.all([page.waitForURL(/\/events\/\d+\?created=1/), page.click('button:has-text("Create event as draft")')]);
-    const eventId = page.url().match(/events\/(\d+)/)![1];
-    await page.click('button:has-text("Add ticket type") >> nth=0');
-    await page.fill("#tt-name", "GA"); await page.fill("#tt-price", "40.00"); await page.fill("#tt-qty", "50");
-    await page.click("[data-slot=dialog-content] button[type=submit]");
+    const eventId = await createEventInDashboard(page, E2E.adminUrl, `e2e-fin-${id}`, { title: `Fin Night ${id}`, date: `${new Date().getFullYear() + 1}-12-20`, time: "20:00", ticket: "GA", price: "40" });
     await expect(page.locator("table")).toContainText("GA");
     await page.click('button:has-text("Publish")');
     await expect(page.locator("body")).toContainText("Event published");
     // Box-office sale (paid at the door) records revenue.
-    await page.goto(`/org/e2e-fin-${id}/events/${eventId}?tab=attendees`);
+    await page.goto(`${E2E.adminUrl}/org/e2e-fin-${id}/events/${eventId}?tab=attendees`);
     await page.click('button:has-text("Issue tickets")');
     await page.selectOption("#is-source", "box_office");
     await page.fill("#is-name", "Door Buyer"); await page.fill("#is-email", `e2e-door-${id}@fattixx.local`);
@@ -32,7 +27,7 @@ test.describe.serial("finance, monitoring, branding & templates", () => {
     await page.click("[data-slot=dialog-content] button[type=submit]");
     await expect(page.locator("body")).toContainText("ticket(s) issued");
 
-    await page.goto("/admin/payouts");
+    await page.goto(`${E2E.adminUrl}/admin/payouts`);
     const row = page.locator("tr", { hasText: `Fin Night ${id}` });
     await expect(row).toContainText("$80.00"); // 2 × $40 net revenue, buyer-pays mode → absorbed 0, due 80
     await row.locator('button:has-text("Approve settlement")').click();
@@ -63,7 +58,7 @@ test.describe.serial("finance, monitoring, branding & templates", () => {
       const res = await page.goto(p, { waitUntil: "load" });
       expect(res!.status(), p).toBe(200);
     }
-    await page.goto("/admin/payments?tab=stripe");
+    await page.goto(`${E2E.adminUrl}/admin/payments?tab=stripe`);
     await expect(page.locator("body")).toContainText("TEST — sandbox");
     await expect(page.locator("body")).toContainText("/api/stripe/webhook");
     // wrong prefix is rejected before any network call
@@ -84,18 +79,18 @@ test.describe.serial("finance, monitoring, branding & templates", () => {
 
   test("branding: change name and colour, see it on the public site", async ({ page }) => {
     await login(page);
-    await page.goto("/admin/settings?tab=branding");
+    await page.goto(`${E2E.adminUrl}/admin/settings?tab=branding`);
     await page.fill("#platform_name", `Fattixx ${id}`);
     await page.fill("#brand_color", "#1e3a8a");
     await page.click('button:has-text("Save branding")');
     await expect(page.locator("body")).toContainText("Branding saved");
     // The homepage carries the FATTIXX design wordmark; other public pages use the configurable branding.
     await page.goto("/terms");
-    await expect(page.locator("header")).toContainText(`Fattixx ${id}`);
+    await expect(page).toHaveTitle(new RegExp(`Fattixx ${id}`)); // the header keeps the Fattixx wordmark (design); the name is in the title
     const primary = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--primary").trim());
     expect(primary).toBe("#1e3a8a");
     // restore
-    await page.goto("/admin/settings?tab=branding");
+    await page.goto(`${E2E.adminUrl}/admin/settings?tab=branding`);
     await page.fill("#platform_name", "Fattixx");
     await page.fill("#brand_color", "#f59e0b");
     await page.click('button:has-text("Save branding")');
@@ -104,22 +99,22 @@ test.describe.serial("finance, monitoring, branding & templates", () => {
 
   test("email templates: edit, preview, send, reset", async ({ page }) => {
     await login(page);
-    await page.goto("/admin/emails/templates");
+    await page.goto(`${E2E.adminUrl}/admin/emails/templates`);
     await page.click('button:has-text("Team invitation")');
     await page.fill("#tpl-subject", `Welcome aboard ${id}: {{context}}`);
     await page.click('button:has-text("Save template")');
     await expect(page.locator("body")).toContainText("Template saved");
     await expect(page.frameLocator('iframe[title="Email preview"]').locator("h1")).toContainText(`Welcome aboard ${id}`);
     // the live email uses the edited subject
-    await page.goto("/admin/users");
+    await page.goto(`${E2E.adminUrl}/admin/users`);
     await page.click('button:has-text("Add platform staff")');
     await page.fill("#pu-name", "Tpl Person"); await page.fill("#pu-email", `e2e-tpl-${id}@fattixx.local`);
     await page.click("[data-slot=dialog-content] button[type=submit]");
     await page.click('[data-slot=dialog-content] button:has-text("Done")');
-    await page.goto("/admin/emails");
+    await page.goto(`${E2E.adminUrl}/admin/emails`);
     await expect(page.locator("body")).toContainText(`Welcome aboard ${id}: the Fattixx platform team`);
     // reset
-    await page.goto("/admin/emails/templates");
+    await page.goto(`${E2E.adminUrl}/admin/emails/templates`);
     await page.click('button:has-text("Team invitation")');
     await page.click('button:has-text("Reset to default")');
     await page.click("[data-slot=alert-dialog-action]");

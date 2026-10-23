@@ -9,20 +9,20 @@ type Ad = { token: string; clickUrl: string; imageUrl: string | null; alt: strin
  * delay event pages, tickets or check-in; renders nothing (no empty gap) when no ad is active; and counts an
  * impression only once at least half of the ad has been on screen. First-party image + link only, no scripts.
  */
-export function AdSlot({ placement, eventId, className = "" }: { placement: string; eventId?: number; className?: string }) {
+export function AdSlot({ placement, eventId, orderCode, className = "" }: { placement: string; eventId?: number; orderCode?: string; className?: string }) {
   const [ad, setAd] = useState<Ad | null>(null);
   const ref = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const ctrl = new AbortController();
-    const qs = new URLSearchParams({ placement, ...(eventId ? { event: String(eventId) } : {}) });
+    const qs = new URLSearchParams({ placement, ...(eventId ? { event: String(eventId) } : {}), ...(orderCode ? { order: orderCode } : {}) });
     const load = () => fetch(`/api/ads?${qs}`, { signal: ctrl.signal, cache: "no-store" })
       .then((r) => (r.status === 200 ? r.json() : null)).then((a: Ad | null) => setAd(a)).catch(() => {});
     // Wait until the browser is idle so ads never compete with the page's own content.
     const ric = (window as unknown as { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
     const h = ric ? ric(load) : window.setTimeout(load, 300);
     return () => { ctrl.abort(); if (!ric) window.clearTimeout(h); };
-  }, [placement, eventId]);
+  }, [placement, eventId, orderCode]);
 
   useEffect(() => {
     const el = ref.current;

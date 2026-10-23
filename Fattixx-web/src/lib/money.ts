@@ -26,6 +26,8 @@ export interface FeeConfig {
   platformFeeFixedCents: number;
   processingFeeBps: number;
   processingFeeFixedCents: number;
+  /** Most the platform fee can be on one ticket or add-on unit; 0 or missing = no cap. */
+  platformFeeCapCents?: number;
 }
 
 export interface PriceLine {
@@ -48,7 +50,8 @@ export interface OrderPricing {
 
 /**
  * Compute what the buyer pays and what the organizer absorbs.
- *  - Platform fee: bps of ticket price + fixed per paid ticket (free tickets carry no fee).
+ *  - Platform fee: bps of ticket price + fixed per paid ticket (free tickets carry no fee), never more than
+ *    platformFeeCapCents per unit when a cap is set.
  *  - Processing fee: bps of (subtotal + platform fee + tax) + fixed per order, only when money moves.
  *  - Tax (admissions/sales) applies to ticket price only.
  * Fee mode "buyer_pays" adds fees to the total; "organizer_absorbs" keeps the total at price + tax and
@@ -58,8 +61,9 @@ export function priceOrder(lines: PriceLine[], fees: FeeConfig, taxBps: number, 
   let subtotal = 0, platformFee = 0, tax = 0;
   const perUnitPlatformFee: number[] = [];
   const perUnitTax: number[] = [];
+  const cap = fees.platformFeeCapCents && fees.platformFeeCapCents > 0 ? fees.platformFeeCapCents : Infinity;
   for (const line of lines) {
-    const unitFee = line.unitPriceCents > 0 ? bpsOf(line.unitPriceCents, fees.platformFeeBps) + (line.fixedFee === false ? 0 : fees.platformFeeFixedCents) : 0;
+    const unitFee = line.unitPriceCents > 0 ? Math.min(cap, bpsOf(line.unitPriceCents, fees.platformFeeBps) + (line.fixedFee === false ? 0 : fees.platformFeeFixedCents)) : 0;
     const unitTax = bpsOf(line.unitPriceCents, taxBps);
     perUnitPlatformFee.push(unitFee);
     perUnitTax.push(unitTax);

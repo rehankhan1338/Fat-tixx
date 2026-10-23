@@ -1,32 +1,32 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { redirect } from "next/navigation";
 import { PublicShell } from "@/components/public-shell";
 import { getSession } from "@/lib/auth/session";
 import { ApplyForm } from "./apply-form";
 
 export const metadata: Metadata = { title: "Sell tickets" };
 
+/**
+ * Organizer sign-up: a few skippable questions about the organizer's events, then the contact and business details
+ * we verify. The step is kept in `?step=` so the browser's back button returns to the previous question; the answers
+ * live only in the page, so a reload starts again at the first question.
+ */
 export default async function SellPage({ searchParams }: PageProps<"/sell">) {
   const [session, sp] = await Promise.all([getSession(), searchParams]);
+  if (sp.step !== undefined) {
+    const keep = new URLSearchParams();
+    for (const k of ["plan", "reason"]) { const v = sp[k]; if (typeof v === "string") keep.set(k, v); }
+    const qs = keep.toString();
+    redirect(qs ? `/sell?${qs}` : "/sell");
+  }
   const pro = sp.plan === "pro";
-  const fromCreate = sp.reason === "create";
+  const notices = [
+    sp.reason === "create" ? "Events are created by approved organizers. Apply here; once your organization is verified you can create and publish events." : null,
+    pro ? "Fattixx Pro is not available yet. Apply as an organizer and we will contact you when it launches." : null,
+  ].filter((n): n is string => !!n);
   return (
     <PublicShell>
-      <div className="mx-auto max-w-2xl space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Sell tickets with Fattixx</h1>
-          {fromCreate ? <p className="mt-2 rounded-lg border border-primary/40 bg-primary/5 p-3 text-sm">Events are created by approved organizers. Apply below; once your organization is verified you can create and publish events.</p> : null}
-          {pro ? <p className="mt-2 rounded-lg border border-primary/40 bg-primary/5 p-3 text-sm">Fattixx Pro is not available yet. Apply as an organizer and mention Pro below; we will contact you when it launches.</p> : null}
-          <p className="mt-2 text-muted-foreground">Tell us who you are. We verify every organizer before they can sell, which protects buyers and you. Most reviews take one to two business days.</p>
-        </div>
-        <ul className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
-          <li className="rounded-lg border p-3"><strong className="block text-foreground">All-in pricing</strong>Fees shown up front, as the law requires.</li>
-          <li className="rounded-lg border p-3"><strong className="block text-foreground">Fast door check-in</strong>Signed QR codes that keep working offline.</li>
-          <li className="rounded-lg border p-3"><strong className="block text-foreground">Settlement statements</strong>Every fee, refund and tax line per event.</li>
-        </ul>
-        <ApplyForm defaultName={session?.user.name} defaultEmail={session?.user.email} defaultEvents={pro ? "Interested in Fattixx Pro. " : undefined} />
-        <p className="text-xs text-muted-foreground">By applying you agree to the <Link href="/organizer-agreement" className="underline">Organizer Agreement</Link> and <Link href="/privacy" className="underline">Privacy Policy</Link>.</p>
-      </div>
+      <ApplyForm defaultName={session?.user.name} defaultEmail={session?.user.email} defaultEvents={pro ? "Interested in Fattixx Pro. " : undefined} notices={notices} />
     </PublicShell>
   );
 }

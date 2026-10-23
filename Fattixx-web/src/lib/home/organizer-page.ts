@@ -1,7 +1,7 @@
 /* Data for an organizer's page (/o/<organization slug>): the organizer and their public events, split into upcoming and past. */
 
 import type { ListedEvent } from "./events";
-import type { Organizer } from "./types";
+import type { OrgBrand, Organizer } from "./types";
 
 export type OrganizerPageData = {
   organizer: Organizer;
@@ -11,6 +11,8 @@ export type OrganizerPageData = {
   past: ListedEvent[];
   /** cities of the upcoming events, most events first */
   cities: string[];
+  /** Fattixx Pro branding (null when the organizer is not on Pro) */
+  brand?: OrgBrand | null;
 };
 
 /** Cities of the given events, most events first */

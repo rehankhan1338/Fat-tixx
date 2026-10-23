@@ -18,7 +18,7 @@ beforeAll(async () => {
   const [[{ db: current }]] = await db.query<(Row & { db: string })[]>("SELECT DATABASE() AS db");
   if (current !== "fattixx_test") throw new Error(`Refusing to run integration tests against database "${current}"`);
   orgId = (await execute(`INSERT INTO organizations (slug, name, contact_email) VALUES (?, 'IT Offline', 'off@test.local')`, [`it-off-${tag}`])).insertId;
-  staffId = (await execute(`INSERT INTO users (email, email_normalized, name) VALUES (?, ?, 'Door Staff')`, [`door-${tag}@test.local`, `door-${tag}@test.local`])).insertId;
+  staffId = (await execute(`INSERT INTO users (public_id, email, email_normalized, name) VALUES (?, ?, ?, 'Door Staff')`, [randomUUID(), `door-${tag}@test.local`, `door-${tag}@test.local`])).insertId;
   const slug = `it-offline-${tag}`;
   eventId = (await execute(
     `INSERT INTO events (organization_id, slug, title, starts_at, timezone, status, visibility, fee_mode) VALUES (?, ?, 'IT Offline', NOW() + INTERVAL 1 DAY, 'America/New_York', 'published', 'public', 'buyer_pays')`,

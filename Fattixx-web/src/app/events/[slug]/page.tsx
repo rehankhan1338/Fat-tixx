@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import {
-  accessCodeMatches, addonAvailable, getPublicEventBySlug, listAddons, listEventDates, listQuestions, listSeriesSiblings, listTicketTypes, publicEventPath, questionOptions, ticketTypeAvailable, ticketTypeOnSale,
+  accessCodeMatches, addonAvailable, getPublicEventBySlug, listAddons, listEventDates, listEventPhotos, listQuestions, listSeriesSiblings, listTicketTypes, publicEventPath, questionOptions, ticketTypeAvailable, ticketTypeOnSale,
 } from "@/lib/events/queries";
+import { eventUnlocked } from "@/lib/events/password";
+import { youtubeId } from "@/lib/video";
 import { allInAddonCents, allInUnitCents, effectiveTaxBps, expireStaleHolds, feeConfigForEvent } from "@/lib/orders/checkout";
 import { leaveWaitlist } from "@/lib/waitlist/actions";
 import { getSession } from "@/lib/auth/session";
 import { listMemberships } from "@/lib/authz";
 import { brandingForLayout } from "@/lib/branding";
 import { env } from "@/lib/env";
-import { formatCents } from "@/lib/money";
+import { refundPolicyText } from "@/lib/events/refund-policy";
+import { processingLabel } from "@/lib/home/pricing";
 import { formatEventDate, formatTimeOnly, utcToWallClock } from "@/lib/tz";
 import { uploadUrl } from "@/lib/uploads";
 import { query, type Row } from "@/lib/db";
@@ -18,24 +21,32 @@ import { isSmsConfigured } from "@/lib/sms";
 import { listVisibleSponsors } from "@/lib/sponsors";
 import { organizerEventCount, organizerOf, publicEvents, relatedEvents, toEventItems } from "@/lib/home/data";
 import { endOf, isoLocal } from "@/lib/home/event-page";
-import type { EventPageData, TicketStatus, TicketType } from "@/lib/home/event-page";
+import type { EventPageData, SeatingView, TicketStatus, TicketType } from "@/lib/home/event-page";
+import { eventDrawing, getEventSeating, listEventSeats } from "@/lib/seating/queries";
+import { TIER_COLORS } from "@/lib/seating/layout";
 import { AdSlot } from "@/components/ad-slot";
 import { TrackingPixels } from "@/components/tracking-pixels";
 import EventPage from "@/components/event/EventPage";
 import TicketPanel from "@/components/event/TicketPanel";
 import { PublicPage } from "@/components/layout/PublicPage";
+import { eventBrand } from "@/lib/pro/branding";
+import { publicOriginFor, requestCustomDomain, resolveActiveDomain } from "@/lib/pro/domains";
+import { PasswordGate } from "./password-gate";
 
 export async function generateMetadata({ params }: PageProps<"/events/[slug]">): Promise<Metadata> {
   const { slug } = await params;
   const e = await getPublicEventBySlug(slug);
   if (!e) return { title: "Event not found" };
   const img = e.image_path ? `${env.APP_URL}${uploadUrl(e.image_path)}` : e.org_logo ? `${env.APP_URL}${uploadUrl(e.org_logo)}` : undefined;
-  const description = e.summary ?? `${e.title} — ${formatEventDate(new Date(e.starts_at), e.timezone)}${e.venue_name ? ` at ${e.venue_name}` : ""}.`;
+  const description = e.summary ?? `${e.title} — ${formatEventDate(new Date(e.starts_at), e.timezone)}${e.venue_name ? ` at ${e.venue_name}` : e.online_url ? " (online)" : ""}.`;
+  // Pro organizers: their name in the title instead of Fattixx's, and their custom domain as the canonical address
+  const brand = eventBrand(e);
+  const canonical = brand ? `${await publicOriginFor(Number(e.organization_id))}/events/${e.slug}` : `/events/${e.slug}`;
   return {
-    title: e.title, description,
-    robots: e.visibility === "public" ? { index: true, follow: true } : { index: false, follow: false },
-    alternates: { canonical: `/events/${e.slug}` },
-    openGraph: { title: e.title, description, images: img ? [{ url: img, alt: e.title }] : undefined, type: "website", url: `/events/${e.slug}` },
+    title: brand ? { absolute: `${e.title} · ${e.org_name}` } : e.title, description,
+    robots: e.visibility === "public" && !e.access_password ? { index: true, follow: true } : { index: false, follow: false },
+    alternates: { canonical },
+    openGraph: { title: e.title, description, images: img ? [{ url: img, alt: e.title }] : undefined, type: "website", url: canonical, ...(brand ? { siteName: e.org_name } : {}) },
     twitter: { card: img ? "summary_large_image" : "summary", title: e.title, description, images: img ? [img] : undefined },
   };
 }
@@ -45,6 +56,17 @@ export default async function EventRoute({ params, searchParams }: PageProps<"/e
   const sp = await searchParams;
   const event = await getPublicEventBySlug(slug);
   if (!event) notFound();
+  // On a custom domain (plan 5.7.2): only that organizer's events, and only while the domain is live and they are on
+  // Pro. Anything else falls back to the normal Fattixx address.
+  const customHost = await requestCustomDomain();
+  if (customHost) {
+    const d = await resolveActiveDomain(customHost);
+    if (!d || !d.pro || d.organizationId !== Number(event.organization_id)) {
+      const qs = new URLSearchParams(Object.entries(sp).flatMap(([k, v]) => (typeof v === "string" ? [[k, v]] : []))).toString();
+      redirect(`${env.APP_URL}/events/${event.slug}${qs ? `?${qs}` : ""}`);
+    }
+  }
+  const brand = eventBrand(event);
   await expireStaleHolds();
   const session = await getSession();
   // Drafts and private events are visible to the organizer's team / platform staff (preview) without the link key.
@@ -54,11 +76,21 @@ export default async function EventRoute({ params, searchParams }: PageProps<"/e
   const linkKey = typeof sp.key === "string" ? sp.key : null;
   if (event.visibility === "private" && !isTeam && (!event.private_key || linkKey !== event.private_key)) notFound();
 
+  // Event password (plan 5.6): the team sees the page as usual; everyone else types it first.
+  if (!isTeam && !(await eventUnlocked(event))) {
+    const carry = new URLSearchParams(Object.entries(sp).flatMap(([k, v]) => (typeof v === "string" ? [[k, v]] : [])));
+    return (
+      <PublicPage brand={brand}>
+        <PasswordGate slug={event.slug} title={event.title} organizer={event.org_name} query={carry.toString()} />
+      </PublicPage>
+    );
+  }
+
   // Waitlist unsubscribe link from the email.
   const leftWaitlist = typeof sp.leave === "string" ? await leaveWaitlist(sp.leave) : false;
 
   const accessCode = typeof sp.code === "string" ? sp.code.trim() : "";
-  const [types, fees, dates, addons, questions, siblings, sponsors, promos, admitted, brand, allEvents, orgCount] = await Promise.all([
+  const [types, fees, dates, addons, questions, siblings, sponsors, promos, admitted, platform, allEvents, orgCount, photos] = await Promise.all([
     listTicketTypes(event.id), feeConfigForEvent(event), listEventDates(event.id), listAddons(event.id), listQuestions(event.id),
     event.series_id ? listSeriesSiblings(event.series_id, event.id) : Promise.resolve([]),
     listVisibleSponsors(event.id),
@@ -67,6 +99,7 @@ export default async function EventRoute({ params, searchParams }: PageProps<"/e
     brandingForLayout(),
     publicEvents(),
     organizerEventCount(Number(event.organization_id)),
+    listEventPhotos(event.id),
   ]);
   // Promoter / UTM attribution from the URL travels with the checkout form.
   const param = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string).slice(0, 120) : undefined);
@@ -90,8 +123,19 @@ export default async function EventRoute({ params, searchParams }: PageProps<"/e
       allInCents: allInUnitCents(Number(t.price_cents), fees, taxBps, event.fee_mode),
       status: sale.onSale ? "on_sale" : statusOf(sale.reason), remaining: available, minPerOrder: Number(t.min_per_order), maxPerOrder: Number(t.max_per_order), seats: Number(t.seats_per_unit),
       salesStart: t.sales_start_at ? formatEventDate(new Date(t.sales_start_at), event.timezone) : null, presale: unlocked.includes(t), dayLabel: dayLabelFor(t.event_date_id),
+      seated: !!t.seated, color: t.seat_color,
     };
   });
+  // Reserved seating: the map with every seat's status; only tiers the buyer can see are pickable.
+  const seatingRow = tickets.some((t) => t.seated) ? await getEventSeating(event.id) : null;
+  const seating: SeatingView | null = seatingRow ? {
+    drawing: eventDrawing(seatingRow),
+    seats: (await listEventSeats(event.id)).map((s) => ({ id: s.id, x: s.x, y: s.y, label: s.label, access: s.access, tier: s.tier, status: s.status })),
+    tiers: tickets.filter((t) => t.seated).map((t, i) => ({
+      id: t.id, name: t.name, color: t.color ?? TIER_COLORS[i % TIER_COLORS.length], priceCents: t.priceCents, allInCents: t.allInCents, max: t.maxPerOrder, status: t.status, salesStart: t.salesStart,
+    })),
+    linkKey: event.visibility === "private" ? linkKey : null,
+  } : null;
   const addonOptions = addons.filter((a) => a.active).map((a) => ({
     id: Number(a.id), name: a.name, description: a.description, allInCents: allInAddonCents(Number(a.price_cents), fees, taxBps, event.fee_mode), available: addonAvailable(a), max: Number(a.max_per_order),
   }));
@@ -103,29 +147,31 @@ export default async function EventRoute({ params, searchParams }: PageProps<"/e
   const onSale = tickets.filter((t) => t.status === "on_sale" && t.remaining > 0);
   const lowestCents = onSale.length ? Math.min(...onSale.map((t) => t.allInCents)) : null;
   const rsvp = tickets.length > 0 && tickets.every((t) => t.allInCents === 0);
+  const processing = processingLabel(fees);
   const feeText = rsvp
     ? "Free to attend, no fees."
     : event.fee_mode === "buyer_pays"
-      ? `Prices include the ticket price, service fee${taxBps ? " and tax" : ""}. A card processing fee of ${(fees.processingFeeBps / 100).toFixed(1)}% + ${formatCents(fees.processingFeeFixedCents, event.currency)} per order is added at checkout.`
+      ? `Prices include the ticket price, service fee${taxBps ? " and tax" : ""}.${processing ? ` A card processing fee of ${processing} is added at checkout.` : " No additional charges at checkout."}`
       : `Prices include all fees${taxBps ? " and tax" : ""}. No additional charges at checkout.`;
-  const refundText = event.refund_policy === "no_refunds"
-    ? "No refunds. Tickets can't be refunded unless the event is cancelled."
-    : event.refund_policy === "until_event_start"
-      ? "Refunds on request until the event starts."
-      : `Refunds on request up to ${event.refund_days_before} ${Number(event.refund_days_before) === 1 ? "day" : "days"} before the event.`;
+  const refundText = refundPolicyText(event);
 
   // the event as the listings show it (same mapping, so prices and tags match), plus the page's own details
   const [item] = await toEventItems([event]);
   const wall = (d: Date) => utcToWallClock(d, event.timezone);
   const endWall = event.ends_at ? wall(new Date(event.ends_at)) : null;
+  const videoId = youtubeId(event.video_url);
   const data: EventPageData = {
     event: item,
     slug: event.slug,
     organizer: organizerOf(event, { eventCount: orgCount }),
     summary: event.summary ?? "",
-    about: (event.description ?? "").split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean),
+    about: event.description ?? "",
+    gallery: photos.map((p) => uploadUrl(p.image_path)).filter((u): u is string => !!u),
+    video: videoId ? { id: videoId, title: `${event.title}: video` } : null,
+    online: !event.venue_id && !!event.online_url,
     endTime: endWall?.slice(11, 16),
     endDate: endWall?.slice(0, 10),
+    showEndTime: !!event.show_end_time,
     days: dates.length > 1
       ? dates.map((d) => ({
           date: wall(new Date(d.starts_at)).slice(0, 10),
@@ -148,17 +194,19 @@ export default async function EventRoute({ params, searchParams }: PageProps<"/e
     preview: !isLive,
     siblings: siblings.map((s) => ({ href: publicEventPath(s), label: formatEventDate(new Date(s.starts_at), s.timezone) })),
     sponsors,
-    ...relatedEvents(item, allEvents),
-    contactEmail: brand.supportEmail,
+    // Pro pages never send buyers to other organizers' events
+    ...(brand ? { more: allEvents.filter((x) => x.organizerId === item.organizerId && x.id !== item.id).slice(0, 4), moreFromOrg: true } : relatedEvents(item, allEvents)),
+    contactEmail: platform.supportEmail,
     offers: tickets.filter((t) => !t.presale).map((t) => ({ name: t.name, allInCents: t.allInCents, status: t.status })),
-    siteUrl: env.APP_URL,
+    siteUrl: customHost ? `https://${customHost}` : env.APP_URL,
+    brand: brand ? { cover: brand.cover, organizerHref: customHost ? "/" : `/o/${brand.slug}` } : null,
   };
 
   const mode = !isLive && event.status !== "postponed" ? "unpublished" : tickets.length === 0 && !hasPresale ? "none" : tickets.length === 0 ? "presale_only" : inQueue ? "queue" : "tickets";
   const notices = typeof sp.leave === "string" ? [{ title: leftWaitlist ? "You have been removed from the waitlist." : "That waitlist link is no longer valid." }] : [];
 
   return (
-    <PublicPage events={allEvents}>
+    <PublicPage events={allEvents} brand={brand}>
       <main className="bg-fx-ivory">
         <EventPage
           data={data}
@@ -186,6 +234,7 @@ export default async function EventRoute({ params, searchParams }: PageProps<"/e
               smsEnabled={isSmsConfigured()}
               presale={{ enabled: isLive && hasPresale && !inQueue, linkKey, codeRejected, unlocked: unlocked.map((t) => t.name) }}
               waitlist={{ show: showWaitlist, soldOutTypes: soldOutTypes.map((t) => ({ id: t.id, name: t.name })), allSoldOut: soldOut }}
+              seating={seating}
             />
           }
         />

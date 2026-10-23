@@ -1,7 +1,7 @@
 import { createHmac, randomBytes } from "node:crypto";
 import { test, expect } from "@playwright/test";
-import { loadEnvLocal, testDb } from "./helpers/db";
-import { login, uniq, watchConsole } from "./helpers/ui";
+import { E2E, loadEnvLocal, testDb } from "./helpers/db";
+import { login, openTickets, pick, uniq, watchConsole } from "./helpers/ui";
 
 /**
  * Plan-completion features end to end: promoter link + promo code at checkout, offline scanning with
@@ -62,12 +62,13 @@ test("promoter link is counted, attributed, and a promo code discounts the check
   const page = await (await browser.newContext()).newPage();
   await page.goto(`/r/${linkCode}`);
   await expect(page).toHaveURL(new RegExp(`/events/${eventSlug}\\?.*ref=${linkCode}`));
-  await page.locator("li", { hasText: "General Admission" }).locator('button[aria-label="More"]').click();
-  await page.fill("#name", "Promo Buyer");
-  await page.fill("#email", `e2e-promo-${id}@fattixx.local`);
-  await page.fill("#promo_code", "half");
+  await openTickets(page);
+  await pick(page, "General Admission");
+  await page.fill("#tk-name", "Promo Buyer");
+  await page.fill("#tk-email", `e2e-promo-${id}@fattixx.local`);
+  await page.fill("#tk-promo", "half");
   await page.waitForTimeout(900);
-  await Promise.all([page.waitForURL(/\/checkout\/FTX-/), page.click('button:has-text("Continue to payment")')]);
+  await Promise.all([page.waitForURL(/\/checkout\/FTX-/), page.locator("#tickets").getByRole("button", { name: "Checkout" }).click()]);
   await expect(page.locator("body")).toContainText("Promo discount");
   await expect(page.locator("body")).toContainText("−$10.00");
   const conn = await testDb();
@@ -84,7 +85,7 @@ test("scanner keeps working offline, syncs, and flags a double admission for rev
   const context = await browser.newContext();
   const page = await context.newPage();
   await login(page);
-  const res = await page.goto(`/org/${orgSlug}/events/${eventId}/scan`);
+  const res = await page.goto(`${E2E.adminUrl}/org/${orgSlug}/events/${eventId}/scan`);
   expect(res!.headers()["permissions-policy"]).toContain("camera=(self)");
   await expect(page.locator("body")).toContainText("2 tickets on this device");
 
@@ -120,7 +121,7 @@ test("scanner keeps working offline, syncs, and flags a double admission for rev
     expect(logs.map((l) => l.result)).toEqual(["valid", "offline_conflict"]);
   } finally { await conn.end(); }
 
-  await page.goto(`/org/${orgSlug}/events/${eventId}`);
+  await page.goto(`${E2E.adminUrl}/org/${orgSlug}/events/${eventId}`);
   await expect(page.locator("body")).toContainText("1 offline check-in conflict to review");
   await page.click('button:has-text("Mark reviewed")');
   await expect(page.locator("body")).not.toContainText("offline check-in conflict to review", { timeout: 15_000 });
@@ -130,7 +131,7 @@ test("super admin creates, activates and serves an ad; impressions are counted",
   const page = await (await browser.newContext()).newPage();
   const c = watchConsole(page);
   await login(page);
-  await page.goto("/admin/ads/new");
+  await page.goto(`${E2E.adminUrl}/admin/ads/new`);
   await page.fill("#c-name", `e2e-ad-${id}`);
   await page.fill("#c-adv", "E2E Sponsor Co");
   await page.fill("#c-url", "https://example.com/sponsor");
@@ -168,8 +169,29 @@ test("super admin creates, activates and serves an ad; impressions are counted",
 test("organizer application is reviewed and approved into a verified organization", async ({ browser }) => {
   const applicant = await (await browser.newContext()).newPage();
   await applicant.goto("/sell");
+  // the questionnaire: answer the first two questions, skip the other four
+  const atStep = (n: number) => expect(applicant.locator(`[data-step="${n}"]`)).toBeVisible();
+  await applicant.locator('[data-step="1"]').getByText("Music", { exact: true }).click();
+  await applicant.locator('[data-step="1"]').getByRole("button", { name: "More" }).click();
+  await applicant.locator('[data-step="1"]').getByText("Nightlife", { exact: true }).click();
+  await applicant.click('button:has-text("Next")');
+  await atStep(2);
+  await applicant.locator('[data-step="2"]').getByText("Under $5k", { exact: true }).click();
+  await applicant.click('button:has-text("Next")');
+  for (const n of [3, 4, 5, 6]) {
+    await atStep(n);
+    await applicant.click('button:has-text("Skip")');
+  }
+  // the browser's back button returns to the previous step
+  await atStep(7);
+  await applicant.goBack();
+  await atStep(6);
+  await applicant.goForward();
+  await atStep(7);
   await applicant.fill("#ap-name", "E2E Applicant");
   await applicant.fill("#ap-email", `e2e-apply-${id}@fattixx.local`);
+  await applicant.click('button:has-text("Next")');
+  await atStep(8);
   await applicant.fill("#ap-org", `e2e-apply-${id}`);
   await applicant.fill("#ap-legal", "E2E Promotions LLC");
   await applicant.fill("#ap-tax", "1234");
@@ -184,6 +206,9 @@ test("organizer application is reviewed and approved into a verified organizatio
   await admin.goto("/admin/applications");
   const card = admin.locator("li", { hasText: `e2e-apply-${id}` });
   await expect(card).toContainText("E2E Promotions LLC");
+  await expect(card).toContainText("Event types: Music, Nightlife");
+  await expect(card).toContainText("Expected revenue: Under $5k");
+  await expect(card).toContainText("Audience: skipped");
   await card.locator('button:has-text("Verify & approve")').click();
   await expect(admin.locator("body")).toContainText("is its Organization Admin");
   const conn = await testDb();

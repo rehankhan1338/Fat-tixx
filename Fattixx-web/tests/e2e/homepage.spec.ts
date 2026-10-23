@@ -25,14 +25,14 @@ test.beforeAll(async () => {
 test("real events are listed with all-in prices, filters and links", async ({ page }) => {
   const c = watchConsole(page);
   await page.goto("/");
-  await expect(page.locator("h1")).toContainText("Find your next");
+  await expect(page.locator("h1").first()).toContainText("tickets for everything");
   await expect(page.locator("body")).not.toContainText("Preview: sample events");
 
   await page.fill("#q", title);
   const card = page.locator("#events article", { hasText: title });
   await expect(card).toBeVisible();
-  // $25 + 5% service fee + $0.99 (no venue tax): the same all-in price the event page shows.
-  await expect(card).toContainText("From $27.24");
+  // $25 + 6.5% service fee + $1.29 (no venue tax): the same all-in price the event page shows.
+  await expect(card).toContainText("From $27.92");
   await expect(card).toContainText("Jazz Cellar, Greenville, SC");
   await expect(card.locator(`a[href="/events/${slug}"]`)).toBeVisible();
 
@@ -48,7 +48,7 @@ test("real events are listed with all-in prices, filters and links", async ({ pa
 });
 
 test("footer deep links apply their filters", async ({ page }) => {
-  await page.goto("/?free=1#events");
+  await page.goto("/?price=free#events");
   await expect(page.locator('#events button[aria-pressed="true"]:has-text("Free")')).toBeVisible();
   await page.fill("#q", title);
   await expect(page.locator("#events article", { hasText: title })).toHaveCount(0); // paid event filtered out

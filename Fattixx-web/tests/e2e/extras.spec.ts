@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
-import { latestLinkFor, testDb } from "./helpers/db";
-import { login, uniq, watchConsole } from "./helpers/ui";
+import { E2E, latestLinkFor, testDb } from "./helpers/db";
+import { login, openTickets, pick, ticketsSubmit, uniq, watchConsole } from "./helpers/ui";
 
 /**
  * Event extras end to end: multi-day schedule, add-ons, checkout questions, presale access codes,
@@ -38,7 +38,7 @@ async function openTab(page: Page, name: string) {
 test("organizer adds a second day, an add-on, a question and a presale ticket", async ({ page }) => {
   const c = watchConsole(page);
   await login(page);
-  await page.goto(`/org/${orgSlug}/events/${eventId}`);
+  await page.goto(`${E2E.adminUrl}/org/${orgSlug}/events/${eventId}`);
   await expect(page.locator("h1")).toContainText(`E2E Extras Night ${id}`);
 
   await openTab(page, "Schedule");
@@ -80,25 +80,24 @@ test("buyer unlocks the presale with a code, adds an add-on, answers the questio
   const page = await (await browser.newContext()).newPage();
   const c = watchConsole(page);
   await page.goto(`/events/${eventSlug}`);
-  await expect(page.locator("body")).toContainText("2-day event");
+  await expect(page.locator("body")).toContainText("each day"); // a 2-day event
   await expect(page.locator("body")).toContainText("Saturday");
   await expect(page.locator("body")).not.toContainText("Early Bird");
+  await openTickets(page);
   await page.fill("#access-code", "early");
-  await Promise.all([page.waitForURL(/code=early/), page.click('button:has-text("Unlock")')]);
-  await expect(page.locator("body")).toContainText("Code accepted");
-  const early = page.locator("li", { hasText: "Early Bird" });
-  await expect(early).toContainText("presale");
-  await early.locator('button[aria-label="More"]').click();
-  const parking = page.locator("li", { hasText: "Parking pass" });
-  await expect(parking).toBeVisible();
-  await parking.locator('button[aria-label="More"]').click();
-  await expect(page.locator("body")).toContainText("1 ticket + 1 add-on");
-  await page.fill("#name", "Presale Buyer");
-  await page.fill("#email", buyerEmail);
+  await Promise.all([page.waitForURL(/code=early/), page.locator("#tickets").getByRole("button", { name: "Unlock" }).click()]);
+  await openTickets(page);
+  await expect(page.locator("#tickets")).toContainText("Code accepted");
+  await expect(page.locator("#tickets")).toContainText(/presale/i);
+  await pick(page, "Early Bird");
+  await pick(page, "Parking pass");
+  await expect(page.locator("#tickets")).toContainText("1 ticket + 1 add-on");
+  await page.fill("#tk-name", "Presale Buyer");
+  await page.fill("#tk-email", buyerEmail);
   // Required question blocks checkout until answered (browser-side required attribute).
   await expect(page.locator('input[name^="q_"]')).toHaveAttribute("required", "");
   await page.fill('input[name^="q_"]', "Vegan");
-  await Promise.all([page.waitForURL(/\/checkout\/FTX-/), page.click('button:has-text("Get free tickets")')]);
+  await Promise.all([page.waitForURL(/\/checkout\/FTX-/), ticketsSubmit(page).click()]);
   orderCode = page.url().match(/FTX-[A-Z0-9]+/)![0];
   await expect(page.locator("body")).toContainText("Parking pass");
   await Promise.all([page.waitForURL(/\/orders\/FTX-/), page.click('button:has-text("Confirm free tickets")')]);
@@ -111,7 +110,7 @@ test("buyer unlocks the presale with a code, adds an add-on, answers the questio
 test("organizer sees the answer and add-on on the order; a sold-out type opens the waitlist and tickets can be released", async ({ page, browser }) => {
   const c = watchConsole(page);
   await login(page);
-  await page.goto(`/org/${orgSlug}/orders/${orderCode}`);
+  await page.goto(`${E2E.adminUrl}/org/${orgSlug}/orders/${orderCode}`);
   await expect(page.locator("body")).toContainText("Dietary needs?");
   await expect(page.locator("body")).toContainText("Vegan");
   await expect(page.locator("body")).toContainText("Parking pass");
@@ -122,6 +121,7 @@ test("organizer sees the answer and add-on on the order; a sold-out type opens t
 
   const pub = await (await browser.newContext()).newPage();
   await pub.goto(`/events/${eventSlug}`);
+  await openTickets(pub);
   await expect(pub.locator("body")).toContainText("Sold out");
   await expect(pub.locator("body")).toContainText("join the waitlist");
   await pub.fill("#wl-email", waiterEmail);
@@ -129,7 +129,7 @@ test("organizer sees the answer and add-on on the order; a sold-out type opens t
   await pub.click('button:has-text("Notify me")');
   await expect(pub.locator("body")).toContainText("You are on the waitlist");
 
-  await page.goto(`/org/${orgSlug}/events/${eventId}?tab=waitlist`);
+  await page.goto(`${E2E.adminUrl}/org/${orgSlug}/events/${eventId}?tab=waitlist`);
   await expect(page.locator("body")).toContainText(waiterEmail);
   await expect(page.locator("[role=tab]", { hasText: "Waitlist (1)" })).toBeVisible();
   await page.click('button:has-text("Release tickets to waitlist")');
@@ -144,7 +144,7 @@ test("organizer sees the answer and add-on on the order; a sold-out type opens t
 test("recurring copies are created and linked; a private event only opens with its key", async ({ page, browser }) => {
   const c = watchConsole(page);
   await login(page);
-  await page.goto(`/org/${orgSlug}/events/${eventId}`);
+  await page.goto(`${E2E.adminUrl}/org/${orgSlug}/events/${eventId}`);
   await page.click('button[aria-label="More actions"]');
   await page.click('[role=menuitem]:has-text("Make recurring")');
   await page.selectOption("#frequency", "weekly");
@@ -157,8 +157,8 @@ test("recurring copies are created and linked; a private event only opens with i
 
   const pub = await (await browser.newContext()).newPage();
   await pub.goto(`/events/${eventSlug}`);
-  await expect(pub.locator("body")).toContainText("More dates for this event");
-  const links = pub.locator("a", { hasText: /Dec 1[12], 2026|Dec 1[89], 2026/ });
+  await expect(pub.locator("body")).toContainText("More dates");
+  const links = pub.locator("div", { has: pub.getByText("More dates", { exact: true }) }).last().locator("ul a");
   await expect(links).toHaveCount(2);
 
   // Copies carry the schedule, ticket types, add-ons and questions.
@@ -181,7 +181,7 @@ test("recurring copies are created and linked; a private event only opens with i
   await expect(anon.locator("h1")).toContainText(`E2E Extras Night ${id}`);
 
   // The organizer page shows the shareable private link.
-  await page.goto(`/org/${orgSlug}/events/${eventId}`);
+  await page.goto(`${E2E.adminUrl}/org/${orgSlug}/events/${eventId}`);
   await expect(page.locator("body")).toContainText("Private event — share this link");
   await expect(page.locator("body")).toContainText("key=e2ekey1234567890");
   c.assertClean();

@@ -97,7 +97,7 @@ export default function PricingHero({ content: c }: { content: PricingContent["h
           <div className="text-[12px] font-bold tracking-[.14em] uppercase">Receipt</div>
           <dl className="mt-[14px] tabular-nums">
             <Line label="Ticket" value={formatCents(b.priceCents)} />
-            <Line label={c.feeLabel} value={formatCents(b.feeCents)} />
+            <Line label={b.capped ? `${c.feeLabel} (capped)` : c.feeLabel} value={formatCents(b.feeCents)} />
             <Line label="Card processing" value={processing ? formatCents(b.processingCents) : "Included"} />
           </dl>
           <div className="mt-[18px] flex items-baseline justify-between gap-3">

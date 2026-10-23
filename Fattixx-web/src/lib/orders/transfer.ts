@@ -4,10 +4,11 @@ import { db, query, queryOne, type Row } from '../db';
 import { env } from '../env';
 import { sendEmail } from '../email';
 import { renderEmail } from '../email-templates';
+import { orgMail, withOrgMail } from '../pro/white-label';
 import { humanCode } from '../slug';
 import { ticketUrl } from '../tickets';
 import { formatEventDate } from '../tz';
-import { getOrderById } from './queries';
+import { getOrderById, venueLineFor } from './queries';
 
 /**
  * Ticket transfers. The old ticket becomes 'transferred' (its QR stops scanning) and a new ticket with a
@@ -26,8 +27,8 @@ export async function transferTicket(input: TransferInput): Promise<{ newTicketI
   let result: { newTicketId: number; code: string; secret: string };
   try {
     await conn.beginTransaction();
-    const [[t]] = await conn.query<(Row & { id: number; order_id: number; order_item_id: number; event_id: number; ticket_type_id: number; attendee_name: string | null; attendee_email: string | null; seat_label: string | null; status: string })[]>(
-      `SELECT id, order_id, order_item_id, event_id, ticket_type_id, attendee_name, attendee_email, seat_label, status FROM tickets WHERE id = ? AND order_id = ? FOR UPDATE`,
+    const [[t]] = await conn.query<(Row & { id: number; order_id: number; order_item_id: number; event_id: number; ticket_type_id: number; attendee_name: string | null; attendee_email: string | null; seat_label: string | null; event_seat_id: number | null; status: string })[]>(
+      `SELECT id, order_id, order_item_id, event_id, ticket_type_id, attendee_name, attendee_email, seat_label, event_seat_id, status FROM tickets WHERE id = ? AND order_id = ? FOR UPDATE`,
       [input.ticketId, input.orderId],
     );
     if (!t) throw new TransferError('Ticket not found.');
@@ -35,9 +36,9 @@ export async function transferTicket(input: TransferInput): Promise<{ newTicketI
     await conn.query(`UPDATE tickets SET status = 'transferred' WHERE id = ?`, [t.id]);
     const code = humanCode(12), secret = randomBytes(16).toString('hex');
     const [ins] = await conn.query<import('mysql2').ResultSetHeader>(
-      `INSERT INTO tickets (code, secret, order_id, order_item_id, event_id, ticket_type_id, transferred_from_id, attendee_name, attendee_email, seat_label)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [code, secret, t.order_id, t.order_item_id, t.event_id, t.ticket_type_id, t.id, input.toName, input.toEmail.toLowerCase(), t.seat_label],
+      `INSERT INTO tickets (code, secret, order_id, order_item_id, event_id, ticket_type_id, transferred_from_id, attendee_name, attendee_email, seat_label, event_seat_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [code, secret, t.order_id, t.order_item_id, t.event_id, t.ticket_type_id, t.id, input.toName, input.toEmail.toLowerCase(), t.seat_label, t.event_seat_id],
     );
     await conn.query(
       `INSERT INTO ticket_transfers (event_id, order_id, from_ticket_id, to_ticket_id, from_name, from_email, to_name, to_email, initiated_by, actor_user_id, note)
@@ -68,13 +69,14 @@ export async function sendTransferEmail(ticketId: number, note: string | null): 
   if (!t?.attendee_email) return;
   const order = await getOrderById(Number(t.order_id));
   if (!order) return;
+  const wl = await orgMail(Number(order.organization_id));
   const mail = await renderEmail('ticket_transferred', {
     recipient_name: t.attendee_name ?? 'there', from_name: t.from_name ?? t.from_email ?? order.buyer_name ?? 'Someone',
-    event_title: order.event_title, event_when: formatEventDate(new Date(order.event_starts_at), order.event_timezone), venue_line: order.venue_name ?? '',
+    event_title: order.event_title, event_when: formatEventDate(new Date(order.event_starts_at), order.event_timezone), venue_line: venueLineFor(order),
     ticket_line: [t.ticket_type_name, t.day_label, t.seat_label].filter(Boolean).join(' · '), ticket_code: t.code, url: ticketUrl(t.code, t.secret),
     note: note ? `Message: “${note}”` : '', age_notice: order.age_restriction ? `This event is ${order.age_restriction}+. Bring a valid photo ID.` : '', find_tickets_url: `${env.APP_URL}/tickets/find`,
-  });
-  await sendEmail({ to: t.attendee_email, toName: t.attendee_name, subject: mail.subject, text: mail.text, html: mail.html, related: { type: 'order', id: order.id } });
+  }, withOrgMail({}, wl));
+  await sendEmail({ to: t.attendee_email, toName: t.attendee_name, subject: mail.subject, text: mail.text, html: mail.html, envelope: wl?.envelope, related: { type: 'order', id: order.id } });
 }
 
 /** True when the ticket is held by someone other than the buyer because it was transferred to them. */

@@ -9,6 +9,9 @@ import { PageHeader, Section, StatusBadge, Stat } from "@/components/shared";
 import { ConfirmButton } from "@/components/confirm-button";
 import { CampaignForm } from "@/components/ads/campaign-form";
 import { CreativesPanel } from "@/components/ads/creatives-panel";
+import { categoryNames } from "@/lib/site-content/categories";
+import { formatCents } from "@/lib/money";
+import { RejectCampaignForm } from "./reject-form";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -33,7 +36,7 @@ export default async function CampaignPage({ params }: PageProps<"/admin/ads/[id
   const id = Number((await params).id);
   const c = await getCampaign(id);
   if (!c) notFound();
-  const [creatives, stats] = await Promise.all([listCreatives(id), campaignStats(id)]);
+  const [creatives, stats, categories] = await Promise.all([listCreatives(id), campaignStats(id), categoryNames()]);
   const status = effectiveStatus(c);
   const imps = Number(c.impressions), clicks = Number(c.clicks);
   const statusButton = (to: "active" | "paused" | "draft", text: string, variant: "default" | "outline" | "ghost" = "outline") => (
@@ -48,10 +51,10 @@ export default async function CampaignPage({ params }: PageProps<"/admin/ads/[id
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <PageHeader
-        title={<span className="flex flex-wrap items-center gap-3">{c.name} <StatusBadge status={c.organization_id && c.status === "draft" ? "awaiting_approval" : status} /></span>}
+        title={<span className="flex flex-wrap items-center gap-3">{c.name} <StatusBadge status={(c.organization_id && c.status === "draft") || c.review_status === "submitted" ? "awaiting_approval" : status} /></span>}
         description={<>{c.kind} campaign{c.org_name ? ` · submitted by ${c.org_name}` : ""}{c.event_title ? ` · only on “${c.event_title}”` : ""}</>}
         actions={<>
-          {c.status !== "active" ? statusButton("active", c.organization_id ? "Approve & activate" : "Activate", "default") : statusButton("paused", "Pause")}
+          {c.status !== "active" ? statusButton("active", c.organization_id || c.advertiser_id ? "Approve & activate" : "Activate", "default") : statusButton("paused", "Pause")}
           {c.status === "paused" ? statusButton("draft", "Back to draft", "ghost") : null}
           <Button variant="outline" nativeButton={false} render={<a href={`/api/exports/ads?id=${id}`} />}><DownloadIcon /> Export</Button>
           <ConfirmButton action={remove} fields={{ id }} title="Delete this campaign?" description="Its creatives and statistics are removed. This cannot be undone." confirmText="Delete" variant="ghost">Delete</ConfirmButton>
@@ -62,10 +65,16 @@ export default async function CampaignPage({ params }: PageProps<"/admin/ads/[id
         <Stat label="Clicks" value={clicks.toLocaleString()} />
         <Stat label="CTR" value={ctr(imps, clicks)} />
       </div>
+      {c.advertiser_id ? (
+        <Section title={`Advertiser: ${c.advertiser_company ?? "—"}`} description={`Self-service campaign. Payment: ${c.payment_status ?? "unpaid"}${c.price_cents ? ` (${formatCents(Number(c.price_cents))} for ${Number(c.impressions_cap ?? 0).toLocaleString()} impressions; ${Number(c.impressions_served).toLocaleString()} delivered)` : ""}. Review: ${c.review_status}.${c.review_notes ? ` Note: ${c.review_notes}` : ""}`}>
+          {c.payment_status === "paid" && c.review_status !== "approved" ? <p className="mb-4 text-sm text-muted-foreground">Check the creatives, destination and targeting. “Approve &amp; activate” puts it live; rejecting refunds it in full.</p> : null}
+          {c.review_status !== "rejected" && c.payment_status !== "refunded" ? <RejectCampaignForm id={id} paid={c.payment_status === "paid"} /> : null}
+        </Section>
+      ) : null}
       <Section title="Creatives" description="One is picked at random each time the campaign is shown.">
         <CreativesPanel campaignId={id} creatives={creatives.map((x) => ({ id: Number(x.id), imageUrl: x.imageUrl ?? null, alt_text: x.alt_text, headline: x.headline, body: x.body }))} />
       </Section>
-      <Section title="Settings"><CampaignForm values={campaignFormValues(c)} /></Section>
+      <Section title="Settings"><CampaignForm values={campaignFormValues(c)} categories={categories} /></Section>
       <div className="grid gap-6 lg:grid-cols-2">
         <Section title="By placement"><StatTable rows={stats.byPlacement} first="Placement" /></Section>
         <Section title="By event"><StatTable rows={stats.byEvent} first="Event" /></Section>

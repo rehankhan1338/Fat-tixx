@@ -2,8 +2,10 @@ import 'server-only';
 import { execute } from '../db';
 import { audit } from '../audit';
 import { getActiveStripe, getStripe } from '../payments/stripe';
+import { connectDestinationFor, organizerShareCents } from '../payments/connect';
 import { finalizePaidOrder } from './checkout';
 import { handleOversoldAfterPayment } from './access';
+import { recordBuyerLocation } from './location';
 import type { OrderRow } from './queries';
 
 /**
@@ -19,10 +21,17 @@ export async function createPaymentIntentForOrder(order: OrderRow): Promise<Paym
   if (order.total_cents <= 0) return { error: 'This order is free.' };
   if (order.hold_expires_at && new Date(order.hold_expires_at).getTime() < Date.now()) return { error: 'Your reservation expired. Please start again.' };
   const { stripe: s } = await getStripe();
+  // Stripe Connect (src/lib/payments/connect.ts): the organizer's share goes to their account with the payment.
+  const destination = await connectDestinationFor(Number(order.organization_id), active.mode);
+  const share = destination ? organizerShareCents(order) : 0;
+  const transfer = destination && share > 0 ? { destination, amount: share } : null;
   if (order.stripe_payment_intent_id) {
     try {
       const existing = await s.paymentIntents.retrieve(order.stripe_payment_intent_id);
-      if (existing.status !== 'canceled' && existing.amount === order.total_cents) return { clientSecret: existing.client_secret ?? undefined, publishableKey: active.publishableKey, mode: active.mode };
+      const sameRoute = (typeof existing.transfer_data?.destination === 'string' ? existing.transfer_data.destination : existing.transfer_data?.destination?.id ?? null) === (transfer?.destination ?? null);
+      if (existing.status !== 'canceled' && existing.amount === order.total_cents && sameRoute) return { clientSecret: existing.client_secret ?? undefined, publishableKey: active.publishableKey, mode: active.mode };
+      // The organizer connected (or lost) their payout account mid-checkout: the old intent must never be paid.
+      if (!sameRoute && ['requires_payment_method', 'requires_confirmation', 'requires_action'].includes(existing.status)) await s.paymentIntents.cancel(existing.id).catch(() => {});
     } catch { /* intent from another mode/account: create a fresh one */ }
   }
   const pi = await s.paymentIntents.create({
@@ -30,8 +39,9 @@ export async function createPaymentIntentForOrder(order: OrderRow): Promise<Paym
     description: `${order.event_title} — order ${order.code}`,
     metadata: { order_id: String(order.id), order_code: order.code, event_id: String(order.event_id), organization_id: String(order.organization_id) },
     automatic_payment_methods: { enabled: true },
-  }, { idempotencyKey: `order-${order.id}-${order.total_cents}-${active.mode}` });
-  await execute(`UPDATE orders SET stripe_payment_intent_id = ? WHERE id = ?`, [pi.id, order.id]);
+    ...(transfer ? { transfer_data: transfer, transfer_group: `order-${order.code}` } : {}),
+  }, { idempotencyKey: `order-${order.id}-${order.total_cents}-${active.mode}-${transfer?.destination ?? 'platform'}` });
+  await execute(`UPDATE orders SET stripe_payment_intent_id = ?, connect_account_id = ?, connect_transfer_cents = ? WHERE id = ?`, [pi.id, transfer?.destination ?? null, transfer?.amount ?? null, order.id]);
   return { clientSecret: pi.client_secret ?? undefined, publishableKey: active.publishableKey, mode: active.mode };
 }
 
@@ -49,6 +59,7 @@ export async function confirmPaidOrderWithStripe(order: OrderRow): Promise<{ ok:
     const chargeId = typeof pi.latest_charge === 'string' ? pi.latest_charge : pi.latest_charge?.id ?? null;
     if (await finalizePaidOrder(order.id, { paymentIntentId: pi.id, chargeId })) {
       await audit('order.paid', { actorUserId: order.user_id, targetType: 'order', targetId: order.id, metadata: { pi: pi.id } });
+      await recordBuyerLocation(order.id, pi.latest_charge);
     }
   } catch (e) {
     if ((e as Error).message === 'OVERSOLD') { await handleOversoldAfterPayment(order, pi.id); return { ok: false, error: 'Those tickets were just taken. Your payment has been refunded.' }; }

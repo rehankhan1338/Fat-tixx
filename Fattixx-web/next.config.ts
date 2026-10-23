@@ -20,8 +20,9 @@ const nextConfig: NextConfig = {
   // next/image qualities used by the public site (the hero photos request 85).
   // Uploaded photos live on Vercel Blob in production (src/lib/uploads.ts).
   images: { qualities: [75, 85], remotePatterns: [{ protocol: "https", hostname: "*.public.blob.vercel-storage.com" }] },
-  // The policy pages read content/legal/*.md at request time; make sure the files ship with the server build.
-  outputFileTracingIncludes: { "/terms": ["./content/legal/**"], "/privacy": ["./content/legal/**"] },
+  // The policy pages read content/legal/*.md and Apple Wallet passes content/wallet/*.png at request time; make sure the
+  // files ship with the server build.
+  outputFileTracingIncludes: { "/terms": ["./content/legal/**"], "/privacy": ["./content/legal/**"], "/t/[code]/wallet/apple": ["./content/wallet/**"] },
   // Native / Node-only packages must not be bundled into the server build.
   serverExternalPackages: ["@node-rs/argon2", "mysql2"],
 };

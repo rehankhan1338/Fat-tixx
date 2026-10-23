@@ -2,7 +2,8 @@ import type { Place } from "./types";
 
 /* GeoJS supplies IP location; BigDataCloud reverse-geocodes browser GPS coordinates. */
 
-const STATES: Record<string, string> = {
+/** US state name → postal code */
+export const STATES: Record<string, string> = {
   Alabama: "AL", Alaska: "AK", Arizona: "AZ", Arkansas: "AR", California: "CA", Colorado: "CO", Connecticut: "CT",
   Delaware: "DE", "District of Columbia": "DC", Florida: "FL", Georgia: "GA", Hawaii: "HI", Idaho: "ID", Illinois: "IL",
   Indiana: "IN", Iowa: "IA", Kansas: "KS", Kentucky: "KY", Louisiana: "LA", Maine: "ME", Maryland: "MD",

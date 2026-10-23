@@ -40,7 +40,7 @@ export async function canAccessOrder(order: OrderRow, tokenFromUrl?: string | nu
 export async function handleOversoldAfterPayment(order: OrderRow, paymentIntentId: string): Promise<void> {
   const active = await getActiveStripe();
   if (active) {
-    try { await stripeClient(active.secretKey).refunds.create({ payment_intent: paymentIntentId, reason: 'requested_by_customer' }, { idempotencyKey: `oversold-${order.id}` }); } catch { /* recorded in audit */ }
+    try { await stripeClient(active.secretKey).refunds.create({ payment_intent: paymentIntentId, reason: 'requested_by_customer', ...(order.connect_account_id ? { reverse_transfer: true } : {}) },{ idempotencyKey: `oversold-${order.id}` }); } catch { /* recorded in audit */ }
   }
   await execute(`UPDATE orders SET status = 'cancelled', refunded_cents = total_cents WHERE id = ?`, [order.id]);
   await audit('order.cancelled', { targetType: 'order', targetId: order.id, metadata: { reason: 'oversold_after_payment', pi: paymentIntentId } });

@@ -42,3 +42,69 @@ export function watchConsole(page: Page) {
 }
 
 export const uniq = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+/**
+ * Creates a draft event from an organization's dashboard ("New event", the /create page embedded in the dashboard,
+ * plan 5.6.10) and returns its id. The page starts every event with one free "General Admission" ticket; pass
+ * `ticket` to rename it. `venue` picks a saved venue (Dashboard → Venues), otherwise the event is online.
+ * `base` is the origin serving the dashboard (the admin console for the Super Admin).
+ */
+export async function createEventInDashboard(page: Page, base: string, orgSlug: string, o: {
+  title: string; date: string; time: string; ticket?: string; price?: string; venue?: string; summary?: string; doors?: string; age?: "18+" | "21+";
+}): Promise<string> {
+  await page.goto(`${base}/org/${orgSlug}/events/new`);
+  await page.locator("#c-name-input").fill(o.title);
+  if (o.summary) {
+    await page.getByRole("button", { name: "Short summary" }).click();
+    await page.locator("#c-summary").fill(o.summary);
+  }
+  await page.locator("#c-category button").first().click();
+  await page.locator("#c-sd").fill(o.date);
+  await page.locator("#c-st").fill(o.time);
+  const loc = page.locator("#c-location");
+  if (o.venue) {
+    await loc.getByRole("button", { name: "Saved venue" }).click();
+    const value = await loc.locator("select option", { hasText: o.venue }).first().getAttribute("value");
+    await loc.locator("select").selectOption(value!);
+  } else {
+    await loc.getByRole("button", { name: "Online" }).click();
+    await loc.getByPlaceholder("https://").fill("https://meet.example.com/e2e");
+  }
+  if (o.ticket) await page.locator("#c-tickets").getByPlaceholder("e.g. General Admission").first().fill(o.ticket);
+  if (o.price) await page.locator("#c-tickets").getByPlaceholder("0.00").first().fill(o.price);
+  if (o.doors || o.age) {
+    await page.locator("#c-settings").getByRole("button").first().click();
+    if (o.doors) await page.locator("#c-doors").fill(o.doors);
+    if (o.age) await page.locator("#c-settings").getByRole("button", { name: o.age }).click();
+  }
+  await page.getByRole("button", { name: "Save as draft" }).first().click();
+  await expect(page.getByRole("heading", { name: "Your event is saved." })).toBeVisible();
+  await Promise.all([page.waitForURL(/\/events\/\d+/), page.getByRole("link", { name: "Go to dashboard" }).click()]);
+  return page.url().match(/events\/(\d+)/)![1];
+}
+
+/** Opens the event page's ticket pop-up (the fixed ticket button). */
+export async function openTickets(page: Page) {
+  const heading = page.locator("#tickets-h");
+  // retried until the page has hydrated; the fixed button hides over the footer, so #tickets in the address is the fallback
+  await expect(async () => {
+    if (await heading.isVisible()) return;
+    const pill = page.locator("button[aria-haspopup=dialog]").first();
+    if (await pill.isVisible()) await pill.click({ timeout: 2_000 });
+    else await page.evaluate(() => { window.location.hash = ""; window.location.hash = "tickets"; });
+    await expect(heading).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+}
+
+/** The pop-up's main button: "Checkout", "Get free tickets", or "Register" when every ticket is free. */
+export function ticketsSubmit(page: Page) {
+  return page.locator("#tickets").getByRole("button", { name: /^(Checkout|Get free tickets|Register)$/ }).last();
+}
+
+/** Adds `times` of a ticket type or add-on in the ticket pop-up: "Buy / Get / Register / Add <name>", then "Add one <name> ticket". */
+export async function pick(page: Page, name: string, times = 1) {
+  const esc = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  for (let i = 0; i < times; i++) {
+    await page.locator("#tickets").getByRole("button", { name: new RegExp(`^(Buy|Get|Register|Add|Add one) ${esc}( ticket)?$`) }).first().click();
+  }
+}

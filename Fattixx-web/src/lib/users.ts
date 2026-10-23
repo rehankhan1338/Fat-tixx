@@ -12,6 +12,7 @@ export const isEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) && e.
 export type UserRow = Row & {
   id: number; public_id: string; email: string; email_normalized: string; name: string; status: 'active' | 'suspended' | 'disabled';
   password_hash: string | null; email_verified_at: Date | null; last_login_at: Date | null; created_at: Date;
+  first_name: string | null; last_name: string | null; phone_e164: string | null; google_sub: string | null; terms_accepted_at: Date | null;
 };
 
 export async function findUserByEmail(email: string): Promise<UserRow | null> {

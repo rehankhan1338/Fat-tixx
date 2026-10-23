@@ -3,6 +3,7 @@ import sharp from "sharp";
 import { getTicketByCode, ticketDayLabel } from "@/lib/orders/queries";
 import { ticketQrDataUrl } from "@/lib/tickets";
 import { formatEventDate, formatTimeOnly } from "@/lib/tz";
+import { whiteLabelActive } from "@/lib/pro/white-label";
 
 /**
  * The full-screen ticket as a JPG, so holders can save it to their phone's photos. Same access rule as the
@@ -26,7 +27,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
       <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#f4f4f5", padding: 48 }}>
         <div style={{ width: "100%", display: "flex", flexDirection: "column", background: "#ffffff", borderRadius: 48, overflow: "hidden" }}>
           <div style={{ display: "flex", flexDirection: "column", background: "#18181b", color: "#ffffff", padding: "36px 48px" }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: "#fbbf24", textTransform: "uppercase", letterSpacing: 3 }}>{`Fattixx · ${t.org_name}`}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "#fbbf24", textTransform: "uppercase", letterSpacing: 3 }}>{whiteLabelActive({ white_label: t.org_white_label, pro_until: t.org_pro_until }) ? t.org_name : `Fattixx · ${t.org_name}`}</div>
             <div style={{ fontSize: 44, fontWeight: 700, marginTop: 10, lineHeight: 1.15 }}>{t.event_title}</div>
             <div style={{ fontSize: 24, color: "#d4d4d8", marginTop: 12 }}>{formatEventDate(new Date(t.event_starts_at), t.event_timezone)}</div>
             {t.venue_name ? <div style={{ fontSize: 24, color: "#d4d4d8" }}>{`${t.venue_name}${t.venue_city ? `, ${t.venue_city}` : ""}`}</div> : null}

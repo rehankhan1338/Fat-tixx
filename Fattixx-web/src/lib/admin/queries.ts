@@ -100,13 +100,15 @@ export async function getEmail(id: number) {
 export type AuditListRow = Row & { id: number; action: string; actor_email: string | null; target_type: string | null; target_id: string | null; ip: string | null; metadata: string | null; created_at: Date };
 
 export async function listAudit(limit = 200, actionPrefix = '', offset = 0): Promise<AuditListRow[]> {
-  return query<AuditListRow>(
+  const rows = await query<AuditListRow>(
     `SELECT a.id, a.action, u.email AS actor_email, a.target_type, a.target_id, a.ip, a.metadata, a.created_at
        FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
       WHERE (? = '' OR a.action LIKE ?)
       ORDER BY a.id DESC LIMIT ? OFFSET ?`,
     [actionPrefix, `${actionPrefix}%`, limit, offset],
   );
+  // a JSON column: MySQL 8 (and some MariaDB setups) hand it back already parsed, which React can't render
+  return rows.map((r) => ({ ...r, metadata: r.metadata == null || typeof r.metadata === 'string' ? r.metadata : JSON.stringify(r.metadata) }));
 }
 
 export async function countAudit(actionPrefix = ''): Promise<number> {

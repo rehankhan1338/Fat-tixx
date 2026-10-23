@@ -4,16 +4,24 @@ import type { FeeConfig } from './money';
 import { decryptSecret, encryptSecret } from './security/crypto';
 
 export type SettingKey =
-  | 'platform_fee_bps' | 'platform_fee_fixed_cents' | 'processing_fee_bps' | 'processing_fee_fixed_cents'
+  | 'platform_fee_bps' | 'platform_fee_fixed_cents' | 'platform_fee_cap_cents' | 'processing_fee_bps' | 'processing_fee_fixed_cents'
   | 'default_fee_mode' | 'default_currency' | 'hold_minutes' | 'platform_name' | 'support_email'
-  | 'brand_color' | 'brand_logo_path' | 'stripe_mode';
+  | 'brand_color' | 'brand_logo_path' | 'stripe_mode' | 'seat_map_setup_fee_cents'
+  | 'payout_mode' | 'connect_payout_delay_days' | 'ad_cpm_cents' | 'ad_min_impressions' | 'sponsorship_fee_bps';
 
 export type Settings = Record<SettingKey, string>;
 
+/** The plan's fee: 6.5% + $1.29 per paid ticket with card processing included, at most $19.95 per ticket. */
 const DEFAULTS: Settings = {
-  platform_fee_bps: '500', platform_fee_fixed_cents: '99', processing_fee_bps: '290', processing_fee_fixed_cents: '30',
+  platform_fee_bps: '650', platform_fee_fixed_cents: '129', platform_fee_cap_cents: '1995', processing_fee_bps: '0', processing_fee_fixed_cents: '0',
   default_fee_mode: 'buyer_pays', default_currency: 'USD', hold_minutes: '10', platform_name: 'Fattixx', support_email: 'support@fattixx.com',
   brand_color: '#f59e0b', brand_logo_path: '', stripe_mode: 'test',
+  // One-time fee for building a new seat map (reserved seating, Fattixx Pro); 0 = free
+  seat_map_setup_fee_cents: '9900',
+  // Phase 3: organizer payouts (manual | connect, src/lib/payments/connect.ts) and the days Stripe holds a connected
+  // account's balance before paying it out; the advertiser portal's price per 1,000 impressions and smallest purchase;
+  // Fattixx's share of a sponsorship deal in basis points.
+  payout_mode: 'manual', connect_payout_delay_days: '7', ad_cpm_cents: '1000', ad_min_impressions: '5000', sponsorship_fee_bps: '1000',
 };
 
 /** All settings rows (public + secret keys) keyed by name. */
@@ -42,14 +50,23 @@ export async function setSetting(key: string, value: string, userId: number | nu
   );
 }
 
-/** Fee configuration for an organization (org overrides → platform defaults). */
+/** Fee configuration for an organization (org overrides → platform defaults). The per-ticket cap is platform-wide. */
 export async function feeConfigForOrg(org: { fee_bps_override: number | null; fee_fixed_cents_override: number | null }): Promise<FeeConfig> {
-  const s = await getSettings();
+  return feeConfigFrom(await getSettings(), org);
+}
+
+/** The platform's default fees, for previews on the public pages. */
+export async function platformFeeConfig(): Promise<FeeConfig> {
+  return feeConfigFrom(await getSettings());
+}
+
+function feeConfigFrom(s: Settings, org: { fee_bps_override: number | null; fee_fixed_cents_override: number | null } = { fee_bps_override: null, fee_fixed_cents_override: null }): FeeConfig {
   return {
     platformFeeBps: org.fee_bps_override ?? Number(s.platform_fee_bps),
     platformFeeFixedCents: org.fee_fixed_cents_override ?? Number(s.platform_fee_fixed_cents),
     processingFeeBps: Number(s.processing_fee_bps),
     processingFeeFixedCents: Number(s.processing_fee_fixed_cents),
+    platformFeeCapCents: Number(s.platform_fee_cap_cents) || 0,
   };
 }
 

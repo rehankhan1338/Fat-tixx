@@ -8,10 +8,14 @@ export type CampaignRow = Row & {
   id: number; name: string; kind: string; organization_id: number | null; event_id: number | null; advertiser_name: string | null; advertiser_contact: string | null;
   status: string; starts_at: Date | null; ends_at: Date | null; weight: number; priority: number; destination_url: string; targeting: string | null;
   created_at: Date; org_name: string | null; event_title: string | null; placements: string | null; creatives: number; impressions: number; clicks: number;
+  /** Advertiser portal (migration 0014, lib/ads/advertisers.ts) */
+  advertiser_id: number | null; impressions_cap: number | null; impressions_served: number; price_cents: number | null;
+  payment_status: 'unpaid' | 'paid' | 'refunded' | null; review_status: 'none' | 'submitted' | 'approved' | 'rejected'; review_notes: string | null;
+  advertiser_company: string | null;
 };
 
 const CAMPAIGN_SELECT = `
-  SELECT c.*, g.name AS org_name, e.title AS event_title,
+  SELECT c.*, g.name AS org_name, e.title AS event_title, (SELECT a.company_name FROM advertisers a WHERE a.id = c.advertiser_id) AS advertiser_company,
          (SELECT GROUP_CONCAT(p.placement ORDER BY p.placement) FROM ad_campaign_placements p WHERE p.campaign_id = c.id) AS placements,
          (SELECT COUNT(*) FROM ad_creatives cr WHERE cr.campaign_id = c.id) AS creatives,
          (SELECT COALESCE(SUM(s.impressions),0) FROM ad_stats s WHERE s.campaign_id = c.id) AS impressions,
@@ -61,6 +65,7 @@ export function campaignFormValues(c: CampaignRow) {
     starts_at: wall(c.starts_at), ends_at: wall(c.ends_at), weight: Number(c.weight), priority: Number(c.priority), event_id: c.event_id ? String(c.event_id) : '',
     placements: (c.placements ?? '').split(',').filter(Boolean), t_regions: (t.regions ?? []).join(', '), t_cities: (t.cities ?? []).join(', '),
     t_age: tri(t.ageRestricted), t_signed: tri(t.signedIn), t_days: t.daysBeforeEvent ? String(t.daysBeforeEvent) : '',
+    t_categories: t.categories ?? [], t_kinds: (t.ticketKinds ?? []) as string[], t_roles: (t.roles ?? []) as string[],
   };
 }
 

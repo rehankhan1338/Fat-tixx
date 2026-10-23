@@ -5,7 +5,7 @@ import { getPublicEventBySlug, listAddons, listEventDates, listQuestions, listTi
 import { allInAddonCents, allInUnitCents, effectiveTaxBps, expireStaleHolds, feeConfigForEvent } from "@/lib/orders/checkout";
 import { query, type Row } from "@/lib/db";
 import { env } from "@/lib/env";
-import { formatCents } from "@/lib/money";
+import { processingLabel } from "@/lib/home/pricing";
 import { isSmsConfigured } from "@/lib/sms";
 import { formatEventDate } from "@/lib/tz";
 import { TicketSelector } from "@/app/events/[slug]/ticket-selector";
@@ -32,7 +32,9 @@ export default async function EmbedPage({ params, searchParams }: PageProps<"/em
   ]);
   const taxBps = effectiveTaxBps(event);
   const dayLabel = (id: number | null) => { const d = dates.find((x) => Number(x.id) === Number(id)); return d ? d.label ?? formatEventDate(new Date(d.starts_at), event.timezone, { withTime: false }) : null; };
-  const options = types.filter((t) => !t.hidden).map((t) => {
+  // Reserved seats are picked on the event page's seat map (too small to use inside someone else's page).
+  const seated = types.some((t) => t.seated && !t.hidden);
+  const options = types.filter((t) => !t.hidden && !t.seated).map((t) => {
     const sale = ticketTypeOnSale(t);
     return {
       id: Number(t.id), name: t.name, description: t.description, kind: t.kind, priceCents: Number(t.price_cents), allInCents: allInUnitCents(Number(t.price_cents), fees, taxBps, event.fee_mode),
@@ -51,14 +53,20 @@ export default async function EmbedPage({ params, searchParams }: PageProps<"/em
         <h1 className="text-lg font-semibold leading-tight">{event.title}</h1>
         <p className="text-sm text-muted-foreground">{formatEventDate(new Date(event.starts_at), event.timezone)}{event.venue_name ? ` · ${event.venue_name}` : ""}</p>
       </header>
-      {event.queue_enabled ? (
+      {event.access_password ? (
+        // a third-party iframe can't keep the unlock cookie; the password is typed on Fattixx itself
+        <p className="rounded-lg border p-3 text-sm">This event is password protected. <Link href={fullUrl} target="_blank" rel="noopener" className="font-medium underline">Open the event page</Link> and enter the password from the organizer.</p>
+      ) : event.queue_enabled ? (
         <p className="rounded-lg border p-3 text-sm">Tickets for this event are sold through a waiting room. <Link href={fullUrl} target="_blank" rel="noopener" className="font-medium underline">Open the event page to join the line</Link>.</p>
-      ) : options.length === 0 ? <p className="text-sm text-muted-foreground">No tickets available.</p> : (
+      ) : options.length === 0 && !seated ? <p className="text-sm text-muted-foreground">No tickets available.</p> : options.length === 0 ? null : (
         <TicketSelector eventSlug={event.slug} currency={event.currency} options={options} addons={addonOptions} channel="embed" attribution={attribution} hasPromo={Number(promos[0]?.n) > 0} smsEnabled={isSmsConfigured()}
           questions={questions.map((q) => ({ id: Number(q.id), label: q.label, kind: q.kind, required: !!q.required, options: questionOptions(q) }))} ageRestriction={event.age_restriction} />
       )}
+      {seated && !event.access_password && !event.queue_enabled ? (
+        <p className="rounded-lg border p-3 text-sm">This event has reserved seating. <Link href={fullUrl} target="_blank" rel="noopener" className="font-medium underline">Pick your seats on the seat map</Link>.</p>
+      ) : null}
       <p className="text-xs text-muted-foreground">
-        {event.fee_mode === "buyer_pays" ? `Prices include the service fee${taxBps ? " and tax" : ""}; a processing fee of ${(fees.processingFeeBps / 100).toFixed(1)}% + ${formatCents(fees.processingFeeFixedCents, event.currency)} is added at checkout.` : "Prices include all fees."}
+        {event.fee_mode === "buyer_pays" ? `Prices include the service fee${taxBps ? " and tax" : ""}${processingLabel(fees) ? `; a processing fee of ${processingLabel(fees)} is added at checkout.` : ". No additional charges at checkout."}` : "Prices include all fees."}
         {" "}Secure checkout by <Link href={fullUrl} target="_blank" rel="noopener" className="underline">Fattixx</Link>.
       </p>
     </main>

@@ -8,8 +8,12 @@ export type OrderRow = Row & {
   currency: string; subtotal_cents: number; discount_cents: number; promo_code_id: number | null; platform_fee_cents: number; processing_fee_cents: number; tax_cents: number; total_cents: number;
   absorbed_fee_cents: number; refunded_cents: number; fee_mode: 'buyer_pays' | 'organizer_absorbs'; hold_expires_at: Date | null; paid_at: Date | null;
   stripe_payment_intent_id: string | null; stripe_charge_id: string | null; created_at: Date;
+  /** Stripe Connect: the organizer's account that received its share with the payment, and how much (src/lib/payments/connect.ts) */
+  connect_account_id: string | null; connect_transfer_cents: number | null;
   event_title: string; event_slug: string; event_starts_at: Date; event_timezone: string; event_status: string; event_visibility: string; event_private_key: string | null; venue_name: string | null;
-  org_name: string; org_slug: string; refund_policy: string; refund_days_before: number | null; allow_transfers: number; age_restriction: number | null;
+  /** online events: the join link, for ticket holders only */
+  event_online_url: string | null;
+  org_name: string; org_slug: string; org_contact_email: string; refund_policy: string; refund_days_before: number | null; allow_transfers: number; age_restriction: number | null;
 };
 
 export type OrderItemRow = Row & { id: number; ticket_type_id: number; ticket_type_name: string; quantity: number; unit_price_cents: number; unit_discount_cents: number; unit_platform_fee_cents: number; unit_tax_cents: number };
@@ -19,6 +23,15 @@ export type TicketRow = Row & {
   id: number; code: string; secret: string; order_item_id: number; ticket_type_id: number; ticket_type_name: string; attendee_name: string | null; attendee_email: string | null;
   seat_label: string | null; status: string; checked_in_at: Date | null; day_label: string | null; day_starts_at: Date | null; transferred_from_id: number | null;
 };
+
+/**
+ * The "where" line of ticket emails. An online event's join link goes only to ticket holders (plan 5.6), so the
+ * emails that carry tickets are where it appears; the public event page never shows it.
+ */
+export function venueLineFor(o: { venue_name: string | null; event_online_url?: string | null }): string {
+  if (o.venue_name) return o.venue_name;
+  return o.event_online_url ? `Online event. Join here: ${o.event_online_url}` : '';
+}
 
 /** "Day 2" / "Sat, Jun 6" label for a ticket that is valid on one day of a multi-day event; null for passes and single-day events. */
 export function ticketDayLabel(t: { day_label: string | null; day_starts_at: Date | null }, timezone: string): string | null {
@@ -32,7 +45,7 @@ const DAY_LABEL_SQL = `COALESCE(d.label, DATE_FORMAT(d.starts_at, '%a, %b %e')) 
 
 const ORDER_SELECT = `
   SELECT o.*, e.title AS event_title, e.slug AS event_slug, e.starts_at AS event_starts_at, e.timezone AS event_timezone, e.status AS event_status, e.visibility AS event_visibility, e.private_key AS event_private_key,
-         e.refund_policy, e.refund_days_before, e.allow_transfers, e.age_restriction, v.name AS venue_name, g.name AS org_name, g.slug AS org_slug
+         e.online_url AS event_online_url, e.refund_policy, e.refund_days_before, e.allow_transfers, e.age_restriction, v.name AS venue_name, g.name AS org_name, g.slug AS org_slug, g.contact_email AS org_contact_email
     FROM orders o JOIN events e ON e.id = o.event_id JOIN organizations g ON g.id = o.organization_id LEFT JOIN venues v ON v.id = e.venue_id`;
 
 export async function getOrderByCode(code: string): Promise<OrderRow | null> {
@@ -63,15 +76,15 @@ export async function listOrderTickets(orderId: number): Promise<TicketRow[]> {
   );
 }
 
-export type TicketDetailRow = TicketRow & OrderRow & { ticket_id: number; ticket_code: string; ticket_status: string; ticket_order_id: number; order_code: string; venue_address: string | null; venue_city: string | null; venue_region: string | null; doors_at: Date | null };
+export type TicketDetailRow = TicketRow & OrderRow & { ticket_id: number; ticket_code: string; ticket_status: string; ticket_order_id: number; order_code: string; venue_address: string | null; venue_city: string | null; venue_region: string | null; doors_at: Date | null; event_ends_at: Date | null; org_white_label: number; org_pro_until: Date | null };
 
 export async function getTicketByCode(code: string): Promise<TicketDetailRow | null> {
   if (!/^[A-Z0-9]{12}$/.test(code)) return null;
   return queryOne<TicketDetailRow>(
     `SELECT k.id AS ticket_id, k.code AS ticket_code, k.status AS ticket_status, k.order_id AS ticket_order_id, k.transferred_from_id, k.secret, k.attendee_name, k.attendee_email, k.seat_label, k.checked_in_at, k.ticket_type_id, k.order_item_id,
             t.name AS ticket_type_name, ${DAY_LABEL_SQL}, o.code AS order_code, o.buyer_email, o.buyer_name, o.status, o.currency, o.event_id, o.organization_id, o.user_id,
-            e.title AS event_title, e.slug AS event_slug, e.starts_at AS event_starts_at, e.doors_at, e.timezone AS event_timezone, e.status AS event_status, e.age_restriction, e.allow_transfers,
-            v.name AS venue_name, v.address_line1 AS venue_address, v.city AS venue_city, v.region AS venue_region, g.name AS org_name, g.slug AS org_slug
+            e.title AS event_title, e.slug AS event_slug, e.starts_at AS event_starts_at, e.ends_at AS event_ends_at, e.doors_at, e.timezone AS event_timezone, e.status AS event_status, e.age_restriction, e.allow_transfers, e.online_url AS event_online_url,
+            v.name AS venue_name, v.address_line1 AS venue_address, v.city AS venue_city, v.region AS venue_region, g.name AS org_name, g.slug AS org_slug, g.white_label AS org_white_label, g.pro_until AS org_pro_until
        FROM tickets k JOIN ticket_types t ON t.id = k.ticket_type_id LEFT JOIN event_dates d ON d.id = t.event_date_id JOIN orders o ON o.id = k.order_id JOIN events e ON e.id = k.event_id
        JOIN organizations g ON g.id = e.organization_id LEFT JOIN venues v ON v.id = e.venue_id
       WHERE k.code = ?`,
@@ -99,17 +112,18 @@ export async function listEventAttendees(eventId: number): Promise<AttendeeRow[]
 
 export interface SalesSummary {
   paidOrders: number; ticketsSold: number; grossCents: number; refundedCents: number; netCents: number;
-  buyerFeesCents: number; absorbedFeesCents: number; processingFeesCents: number; taxCents: number; payoutCents: number; byType: { name: string; sold: number; grossCents: number }[];
+  buyerFeesCents: number; absorbedFeesCents: number; processingFeesCents: number; taxCents: number; payoutCents: number; connectTransferredCents: number; byType: { name: string; sold: number; grossCents: number }[];
   byAddon: { name: string; sold: number; grossCents: number }[]; addonGrossCents: number;
   refundsCount: number; compTickets: number;
 }
 
 /** Per-event settlement numbers: gross, fees, tax, refunds, net payout. */
 export async function eventSalesSummary(eventId: number): Promise<SalesSummary> {
-  const totals = await queryOne<Row & { orders: number; gross: number; refunded: number; buyer_fees: number; absorbed: number; processing: number; tax: number }>(
+  const totals = await queryOne<Row & { orders: number; gross: number; refunded: number; buyer_fees: number; absorbed: number; processing: number; tax: number; connect: number }>(
     `SELECT COUNT(*) AS orders, COALESCE(SUM(subtotal_cents),0) AS gross, COALESCE(SUM(refunded_cents),0) AS refunded,
             COALESCE(SUM(platform_fee_cents),0) AS buyer_fees, COALESCE(SUM(absorbed_fee_cents),0) AS absorbed,
-            COALESCE(SUM(processing_fee_cents),0) AS processing, COALESCE(SUM(tax_cents),0) AS tax
+            COALESCE(SUM(processing_fee_cents),0) AS processing, COALESCE(SUM(tax_cents),0) AS tax,
+            COALESCE(SUM(CASE WHEN connect_account_id IS NOT NULL THEN connect_transfer_cents END),0) AS connect
        FROM orders WHERE event_id = ? AND status IN ('paid','partially_refunded','refunded')`,
     [eventId],
   );
@@ -134,7 +148,7 @@ export async function eventSalesSummary(eventId: number): Promise<SalesSummary> 
   return {
     paidOrders: Number(totals?.orders ?? 0), ticketsSold: Number(sold?.n ?? 0), grossCents: gross, refundedCents: refunded, netCents: gross - refunded,
     buyerFeesCents: Number(totals?.buyer_fees ?? 0), absorbedFeesCents: absorbed, processingFeesCents: Number(totals?.processing ?? 0), taxCents: tax,
-    payoutCents: Math.max(0, gross - refunded - absorbed), byType: byType.map((r) => ({ name: r.name, sold: Number(r.sold), grossCents: Number(r.gross) })),
+    payoutCents: Math.max(0, gross - refunded - absorbed), connectTransferredCents: Number(totals?.connect ?? 0), byType: byType.map((r) => ({ name: r.name, sold: Number(r.sold), grossCents: Number(r.gross) })),
     byAddon: byAddon.map((r) => ({ name: r.name, sold: Number(r.sold), grossCents: Number(r.gross) })), addonGrossCents: byAddon.reduce((n, r) => n + Number(r.gross), 0),
     refundsCount: Number(refunds?.n ?? 0), compTickets: Number(sold?.comps ?? 0),
   };

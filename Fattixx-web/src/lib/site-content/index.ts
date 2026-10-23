@@ -1,8 +1,7 @@
 import "server-only";
 import { cache } from "react";
-import { getBranding, getSettings } from "../settings";
-import { feeLabel, formatCents, percent, processingLabel } from "../home/pricing";
-import type { FeeConfig } from "../money";
+import { getBranding, platformFeeConfig } from "../settings";
+import { feeCapLabel, feeLabel, formatCents, percent, processingLabel } from "../home/pricing";
 import { uploadUrl } from "../uploads";
 import { DEFAULTS, type FooterContent, type HomeContent, type PricingContent } from "./schema";
 
@@ -14,20 +13,20 @@ export * from "./schema";
 type Tokens = Record<string, string>;
 
 const tokenContext = cache(async (): Promise<Tokens> => {
-  const [s, brand] = await Promise.all([getSettings(), getBranding()]);
-  const fees: FeeConfig = {
-    platformFeeBps: Number(s.platform_fee_bps),
-    platformFeeFixedCents: Number(s.platform_fee_fixed_cents),
-    processingFeeBps: Number(s.processing_fee_bps),
-    processingFeeFixedCents: Number(s.processing_fee_fixed_cents),
-  };
+  const [fees, brand] = await Promise.all([platformFeeConfig(), getBranding()]);
   const processing = processingLabel(fees);
+  const cap = feeCapLabel(fees);
+  const fee = feeLabel(fees);
   const c = DEFAULTS.pricing.compare.competitor;
   return {
-    fee: feeLabel(fees),
+    fee,
+    // "" when there is no cap: copy built only from {fee_cap} is then left out (see homeContent / pricingContent)
+    fee_cap: cap ?? "",
+    fee_cap_clause: cap ? `, never more than ${cap} per ticket` : "",
     processing: processing ?? "included",
     processing_rate: processing ? processing.replace(" per order", "") : "Included",
     processing_clause: processing ? `, plus card processing of ${processing}` : ", with card processing included",
+    processing_answer: processing ? `Card processing is ${processing}, charged once per paid order. The ${fee} fee is per ticket.` : `No. Card processing is included in the ${fee} fee per ticket.`,
     platform_name: brand.name,
     support_email: brand.supportEmail,
     year: String(new Date().getFullYear()),
@@ -55,6 +54,7 @@ export async function homeContent(): Promise<HomeContent> {
   const home = fillDeep(DEFAULTS.home, await tokenContext());
   home.hero.go.image = uploadUrl(home.hero.go.image);
   home.hero.host.image = uploadUrl(home.hero.host.image);
+  home.host.stats = home.host.stats.filter((s) => s.big.trim()); // e.g. the fee-cap stat when no cap is set
   return home;
 }
 

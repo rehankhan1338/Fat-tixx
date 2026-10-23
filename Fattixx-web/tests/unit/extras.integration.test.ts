@@ -54,9 +54,9 @@ describe("add-ons", () => {
     expect(addonAvailable(held)).toBe(0);
     await expect(createPendingOrder({ ...buyer(13), lines: [{ ticketTypeId: gaId, quantity: 1 }], addons: [{ addonId: parkingId, quantity: 1 }] })).rejects.toThrow(/sold out/);
     const order = (await getOrderByCode(r.code))!;
-    // 2 × $10 add-on: 5 % fee but no $0.99 fixed fee; GA: 5 % + $0.99.
+    // 2 × $10 add-on: 6.5 % fee but no $1.29 fixed fee; GA: 6.5 % + $1.29.
     expect(Number(order.subtotal_cents)).toBe(2000 + 2000);
-    expect(Number(order.platform_fee_cents)).toBe(100 + 99 + 100);
+    expect(Number(order.platform_fee_cents)).toBe(130 + 129 + 2 * 65);
     expect(await finalizePaidOrder(r.orderId, {})).toBe(true);
     const addons = await listOrderAddons(order.id);
     expect(addons).toHaveLength(1);

@@ -1,5 +1,6 @@
 /* Everything an event page shows. src/lib/home/data.ts builds it from the database; the components only render it. */
 
+import type { Accessibility, Drawing, SeatStatus } from "../seating/layout";
 import { dateTimeInZone } from "./date-time";
 import type { FeePayer } from "./pricing";
 import type { EventItem, Organizer } from "./types";
@@ -29,6 +30,19 @@ export type TicketType = {
   presale?: boolean;
   /** valid on one day of a multi-day event */
   dayLabel?: string | null;
+  /** reserved seating tier: bought by picking seats on the map, not with the quantity stepper */
+  seated?: boolean;
+  /** the tier's colour on the seat map */
+  color?: string | null;
+};
+
+/** Reserved seating on the event page: the map, every seat's status, and the tiers a buyer can pick from. */
+export type SeatingView = {
+  drawing: Drawing;
+  seats: { id: number; x: number; y: number; label: string; access: Accessibility | null; tier: number | null; status: SeatStatus }[];
+  tiers: { id: number; name: string; color: string; priceCents: number; allInCents: number; max: number; status: TicketStatus; salesStart?: string | null }[];
+  /** private events: the link key, needed for the live refresh */
+  linkKey: string | null;
 };
 
 export type AddonType = {
@@ -53,11 +67,19 @@ export type EventPageData = {
   organizer: Organizer;
   /** one line under the title */
   summary: string;
-  /** "About this event", one string per paragraph */
-  about: string[];
+  /** "About this event": the description with its light formatting (src/lib/rich-text.ts) */
+  about: string;
+  /** photo gallery under the description (up to 5 image URLs) */
+  gallery: string[];
+  /** YouTube video shown under the description */
+  video: { id: string; title: string } | null;
+  /** an online event: the link is only given to ticket holders (order page, tickets, emails) */
+  online: boolean;
   /** venue-local "HH:MM"; the event's end (same day unless endDate is set) */
   endTime?: string;
   endDate?: string;
+  /** the organizer's "Show end time" switch; off = the page shows the start only */
+  showEndTime: boolean;
   /** multi-day events: every date, venue-local "YYYY-MM-DD", with a label each */
   days?: { date: string; label: string; time: string }[];
   doorsTime?: string;
@@ -88,6 +110,11 @@ export type EventPageData = {
   offers: { name: string; allInCents: number; status: TicketStatus }[];
   /** absolute origin for share images and structured data, e.g. https://fattixx.com */
   siteUrl: string;
+  /**
+   * Fattixx Pro organizer branding (null otherwise): the cover image on top of the page, and links that stay on the
+   * organizer's own pages (their page or custom domain) instead of Fattixx listings.
+   */
+  brand?: { cover: string | null; organizerHref: string } | null;
 };
 
 /* ---------- small helpers used by the page ---------- */

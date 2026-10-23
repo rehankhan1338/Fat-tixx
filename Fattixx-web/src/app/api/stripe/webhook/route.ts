@@ -6,6 +6,11 @@ import { finalizePaidOrder } from '@/lib/orders/checkout';
 import { getOrderById } from '@/lib/orders/queries';
 import { handleOversoldAfterPayment } from '@/lib/orders/access';
 import { notifyStaffOfNewDispute } from '@/lib/payments/dispute-alerts';
+import { recordBuyerLocation } from '@/lib/orders/location';
+import { applyNewPaymentMethod, syncInvoice, syncSubscription } from '@/lib/pro/subscription';
+import { applyFeeSession, FEE_KIND as SEATMAP_FEE_KIND } from '@/lib/seating/fee';
+import { markCampaignPaid } from '@/lib/ads/advertisers';
+import { markSponsorshipPaid } from '@/lib/sponsorships/deals';
 
 /**
  * Stripe → Fattixx. Signature-verified, idempotent (stripe_events table), and the source of truth
@@ -43,6 +48,10 @@ export async function POST(req: Request) {
           const chargeId = typeof pi.latest_charge === 'string' ? pi.latest_charge : pi.latest_charge?.id ?? null;
           if (await finalizePaidOrder(orderId, { paymentIntentId: pi.id, chargeId })) {
             await audit('order.paid', { targetType: 'order', targetId: orderId, metadata: { via: 'webhook', pi: pi.id } });
+          }
+          if (chargeId) {
+            const charge = await stripeClient(active.secretKey).charges.retrieve(chargeId).catch(() => null);
+            await recordBuyerLocation(orderId, charge);
           }
         } catch (e) {
           if ((e as Error).message === 'OVERSOLD') await handleOversoldAfterPayment(order, pi.id);
@@ -88,6 +97,38 @@ export async function POST(req: Request) {
         }
         break;
       }
+      // ---------- Fattixx Pro subscriptions ----------
+      case 'checkout.session.completed': {
+        const s = event.data.object;
+        const pi = typeof s.payment_intent === 'string' ? s.payment_intent : s.payment_intent?.id ?? null;
+        if (s.mode === 'payment' && s.metadata?.kind === SEATMAP_FEE_KIND) {
+          await applyFeeSession(s);
+        } else if (s.mode === 'payment' && s.payment_status === 'paid' && s.metadata?.kind === 'ad_campaign') {
+          // Advertiser portal (lib/ads/advertisers.ts): paid impressions go to review.
+          await markCampaignPaid(s.id, pi, s.amount_total, Number(s.metadata.campaign_id));
+        } else if (s.mode === 'payment' && s.payment_status === 'paid' && s.metadata?.kind === 'sponsorship') {
+          // Sponsorship marketplace (lib/sponsorships/deals.ts)
+          await markSponsorshipPaid(s.id, pi, s.amount_total, Number(s.metadata.deal_id));
+        } else if (s.mode === 'subscription' && s.metadata?.kind === 'fattixx_pro' && s.subscription) {
+          const sub = typeof s.subscription === 'string' ? await stripeClient(active.secretKey).subscriptions.retrieve(s.subscription) : s.subscription;
+          await syncSubscription(sub);
+        } else if (s.mode === 'setup') {
+          await applyNewPaymentMethod(s);
+        }
+        break;
+      }
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated':
+      case 'customer.subscription.deleted': {
+        const orgId = await syncSubscription(event.data.object);
+        if (orgId) await audit('pro.subscription.synced', { targetType: 'organization', targetId: orgId, metadata: { via: 'webhook', type: event.type, status: event.data.object.status } });
+        break;
+      }
+      case 'invoice.paid':
+      case 'invoice.payment_failed':
+      case 'invoice.finalized':
+        await syncInvoice(event.data.object);
+        break;
       default:
         break;
     }

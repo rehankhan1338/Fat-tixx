@@ -30,6 +30,13 @@ export type OrgRow = Row & {
   website: string | null; description: string | null; logo_path: string | null; status: 'active' | 'suspended';
   fee_bps_override: number | null; fee_fixed_cents_override: number | null; created_at: Date;
   verified_at: Date | null; meta_pixel_id: string | null; ga4_id: string | null;
+  /** Fattixx Pro (migration 0012): Pro features are on while pro_until is in the future; see lib/pro/status.ts */
+  pro_until: Date | null; pro_comp_until: Date | null;
+  brand_primary: string | null; brand_accent: string | null; brand_cover_path: string | null; brand_own_header: number; mailing_address: string | null;
+  /** White-label add-on (migration 0014, lib/pro/white-label.ts) */
+  white_label: number; email_sender_name: string | null;
+  /** Organizer sign-up questionnaire (migration 0015): NULL until answered or skipped */
+  questionnaire_done_at: Date | null;
 };
 
 export const getOrgBySlug = cache(async (slug: string): Promise<OrgRow | null> => {

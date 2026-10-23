@@ -17,7 +17,8 @@ const label = (k: string) => PLACEMENTS.find((p) => p.key === k)?.label ?? k;
 export default async function AdsPage() {
   await requireSuperAdmin();
   const campaigns = await listCampaigns();
-  const awaiting = campaigns.filter((c) => c.organization_id && c.status === "draft");
+  // organizer sponsor ads waiting for approval, and paid advertiser campaigns waiting for review
+  const awaiting = campaigns.filter((c) => (c.organization_id && c.status === "draft") || c.review_status === "submitted");
   const live = campaigns.filter((c) => effectiveStatus(c) === "active");
   const imps = campaigns.reduce((n, c) => n + Number(c.impressions), 0);
   const clicks = campaigns.reduce((n, c) => n + Number(c.clicks), 0);
@@ -30,19 +31,19 @@ export default async function AdsPage() {
       />
       <div className="grid gap-4 sm:grid-cols-4">
         <Stat label="Live campaigns" value={live.length} hint={`${campaigns.length} in total`} />
-        <Stat label="Awaiting approval" value={awaiting.length} hint="Organizer sponsor ads" />
+        <Stat label="Awaiting approval" value={awaiting.length} hint="Sponsor ads and paid advertiser campaigns" />
         <Stat label="Impressions" value={imps.toLocaleString()} hint="All time" />
         <Stat label="Clicks · CTR" value={`${clicks.toLocaleString()} · ${ctr(imps, clicks)}`} />
       </div>
       {awaiting.length ? (
-        <Section title="Sponsor ads awaiting approval" description="Submitted by organizers for their own events. Review the creatives and destination, then activate.">
+        <Section title="Awaiting approval" description="Sponsor ads submitted by organizers for their own events, and paid campaigns from self-service advertisers. Review the creatives and destination, then activate (or reject an advertiser campaign with a refund on its page).">
           <Table>
             <TableHeader><TableRow><TableHead>Campaign</TableHead><TableHead>Organization · event</TableHead><TableHead>Submitted</TableHead><TableHead /></TableRow></TableHeader>
             <TableBody>
               {awaiting.map((c) => (
                 <TableRow key={c.id}>
                   <TableCell><Link href={`/admin/ads/${c.id}`} className="font-medium hover:underline">{c.name}</Link><span className="block text-xs text-muted-foreground">{c.creatives} creative(s) · {c.destination_url}</span></TableCell>
-                  <TableCell>{c.org_name} · {c.event_title}</TableCell>
+                  <TableCell>{c.advertiser_company ? `Advertiser: ${c.advertiser_company}` : `${c.org_name} · ${c.event_title}`}</TableCell>
                   <TableCell className="text-muted-foreground">{formatDate(c.created_at)}</TableCell>
                   <TableCell className="text-right"><ConfirmButton action={setCampaignStatus} fields={{ id: c.id, status: "active" }} title={`Approve and activate “${c.name}”?`} description="It starts showing on the organizer's event pages within its dates." confirmText="Activate" variant="default">Approve</ConfirmButton></TableCell>
                 </TableRow>
@@ -59,7 +60,7 @@ export default async function AdsPage() {
               {campaigns.map((c) => (
                 <TableRow key={c.id}>
                   <TableCell><Link href={`/admin/ads/${c.id}`} className="font-medium hover:underline">{c.name}</Link><span className="block text-xs text-muted-foreground capitalize">{c.kind}{c.advertiser_name ? ` · ${c.advertiser_name}` : ""}{c.org_name ? ` · ${c.org_name}` : ""}</span></TableCell>
-                  <TableCell><StatusBadge status={c.organization_id && c.status === "draft" ? "awaiting_approval" : effectiveStatus(c)} /></TableCell>
+                  <TableCell><StatusBadge status={(c.organization_id && c.status === "draft") || c.review_status === "submitted" ? "awaiting_approval" : effectiveStatus(c)} /></TableCell>
                   <TableCell className="max-w-56 text-xs text-muted-foreground">{(c.placements ?? "").split(",").filter(Boolean).map(label).join(", ") || "—"}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{c.starts_at ? formatDate(c.starts_at) : "now"} → {c.ends_at ? formatDate(c.ends_at) : "open"}</TableCell>
                   <TableCell className="text-right tabular-nums">{Number(c.impressions).toLocaleString()}</TableCell>

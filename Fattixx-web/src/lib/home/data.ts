@@ -6,9 +6,12 @@ import {
 } from '../events/queries';
 import { allInUnitCents, effectiveTaxBps, feeConfigForEvent } from '../orders/checkout';
 import type { FeeConfig } from '../money';
-import { getSettings } from '../settings';
+import { platformFeeConfig } from '../settings';
 import { utcToWallClock } from '../tz';
 import { uploadUrl } from '../uploads';
+import { orgBrandFrom } from '../pro/branding';
+import { sitePageLinks } from '../pro/white-label';
+import { isProActive } from '../pro/status';
 import { listUpcoming } from './events';
 import { citiesOf, type OrganizerPageData } from './organizer-page';
 import type { EventItem, Organizer } from './types';
@@ -19,8 +22,8 @@ export function initialsOf(name: string): string {
 }
 
 /** The organizer as the public pages show it. */
-export function organizerOf(e: Pick<PublicEventRow, 'org_slug' | 'org_name' | 'org_logo'>, extra: Partial<Organizer> = {}): Organizer {
-  return { id: e.org_slug, name: e.org_name, initials: initialsOf(e.org_name), logo: uploadUrl(e.org_logo), pro: false, ...extra };
+export function organizerOf(e: Pick<PublicEventRow, 'org_slug' | 'org_name' | 'org_logo'> & Partial<Pick<PublicEventRow, 'org_pro_until'>>, extra: Partial<Organizer> = {}): Organizer {
+  return { id: e.org_slug, name: e.org_name, initials: initialsOf(e.org_name), logo: uploadUrl(e.org_logo), pro: isProActive(e.org_pro_until), ...extra };
 }
 
 /**
@@ -57,12 +60,12 @@ export async function toEventItems(events: PublicEventRow[], opts: { requireTick
       organizerName: e.org_name,
       organizerInitials: initialsOf(e.org_name),
       organizerLogo: uploadUrl(e.org_logo),
-      organizerPro: false,
+      organizerPro: isProActive(e.org_pro_until),
       title: e.title,
       category: e.category ?? 'Other',
       date: wall.slice(0, 10),
       time: wall.slice(11, 16),
-      venue: e.venue_name ?? 'Venue to be announced',
+      venue: e.venue_name ?? (e.online_url ? 'Online event' : 'Venue to be announced'),
       city: [e.venue_city, e.venue_region].filter(Boolean).join(', ') || 'Online',
       lat: pos?.latitude == null ? null : Number(pos.latitude),
       lon: pos?.longitude == null ? null : Number(pos.longitude),
@@ -83,17 +86,7 @@ export async function publicEvents(): Promise<EventItem[]> {
 
 /** The platform's default fee configuration, for fee previews on the public pages. */
 export async function siteFees(): Promise<FeeConfig> {
-  return feeConfigForOrgDefaults();
-}
-
-async function feeConfigForOrgDefaults(): Promise<FeeConfig> {
-  const s = await getSettings();
-  return {
-    platformFeeBps: Number(s.platform_fee_bps),
-    platformFeeFixedCents: Number(s.platform_fee_fixed_cents),
-    processingFeeBps: Number(s.processing_fee_bps),
-    processingFeeFixedCents: Number(s.processing_fee_fixed_cents),
-  };
+  return platformFeeConfig();
 }
 
 /** "More from <organizer>" when they have at least two other upcoming events; otherwise similar events. */
@@ -119,10 +112,12 @@ export async function organizerPage(slug: string): Promise<OrganizerPageData | n
   const upcoming = listUpcoming(upcomingItems, null);
   const past = listUpcoming(pastItems, null).reverse();
   const organizer: Organizer = {
-    id: org.slug, name: org.name, initials: initialsOf(org.name), logo: uploadUrl(org.logo_path), pro: false,
+    id: org.slug, name: org.name, initials: initialsOf(org.name), logo: uploadUrl(org.logo_path), pro: isProActive(org.pro_until),
     bio: org.description, website: org.website, eventCount: upcoming.length + past.length,
   };
-  return { organizer, upcoming, past, cities: citiesOf(upcoming) };
+  const brand = orgBrandFrom(org);
+  if (brand?.whiteLabel) brand.pages = await sitePageLinks(org);
+  return { organizer, upcoming, past, cities: citiesOf(upcoming), brand };
 }
 
 /** How many public events (upcoming and past) an organization has on Fattixx, for the event page's organizer card. */

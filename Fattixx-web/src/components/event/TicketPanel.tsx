@@ -11,8 +11,10 @@ import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { BotFields } from "@/components/bot-fields";
+import { Captcha } from "@/components/captcha";
 import { button, cx } from "@/components/ui/styles";
-import type { AddonType, QuestionView, TicketType } from "@/lib/home/event-page";
+import type { AddonType, QuestionView, SeatingView, TicketType } from "@/lib/home/event-page";
+import SeatPicker from "./SeatPicker";
 import type { FeePayer } from "@/lib/home/pricing";
 import { startCheckout } from "@/lib/orders/actions";
 import { formatCents } from "@/lib/money";
@@ -49,6 +51,8 @@ export type TicketPanelProps = {
   smsEnabled: boolean;
   presale: { enabled: boolean; linkKey: string | null; codeRejected: boolean; unlocked: string[] };
   waitlist: { show: boolean; soldOutTypes: { id: number; name: string }[]; allSoldOut: boolean };
+  /** reserved seating: seated tiers are bought by picking seats on this map */
+  seating?: SeatingView | null;
 };
 
 const input =
@@ -148,6 +152,7 @@ function Heading({ children, note }: { children: ReactNode; note?: ReactNode }) 
 export default function TicketPanel(p: TicketPanelProps) {
   const [qty, setQty] = useState<Record<number, number>>({});
   const [addonQty, setAddonQty] = useState<Record<number, number>>({});
+  const [seatSel, setSeatSel] = useState<number[]>([]);
   const [state, action] = useActionState(startCheckout, undefined);
   const ended = useEventEnded(p.endIso);
   const errorRef = useRef<HTMLParagraphElement>(null);
@@ -158,21 +163,30 @@ export default function TicketPanel(p: TicketPanelProps) {
 
   const rows = useMemo(
     () =>
-      p.tickets.map((t) => {
+      // seated tiers are picked on the seat map instead
+      p.tickets.filter((t) => !t.seated || !p.seating).map((t) => {
         const limit = Math.max(0, Math.min(t.maxPerOrder, t.remaining));
         return { t, limit, buyable: t.status === "on_sale" && limit > 0 };
       }),
-    [p.tickets],
+    [p.tickets, p.seating],
   );
-  const count = rows.reduce((n, r) => n + (qty[r.t.id] ?? 0), 0);
+  const seatTier = (id: number) => {
+    const tier = p.seating?.seats.find((s) => s.id === id)?.tier;
+    return tier ? p.seating?.tiers.find((t) => t.id === tier) : undefined;
+  };
+  const seatTiers = seatSel.map(seatTier);
+  const count = rows.reduce((n, r) => n + (qty[r.t.id] ?? 0), 0) + seatSel.length;
   const addonCount = p.addons.reduce((n, a) => n + (addonQty[a.id] ?? 0), 0);
-  const ticketTotal = rows.reduce((n, r) => n + (qty[r.t.id] ?? 0) * r.t.allInCents, 0);
+  const ticketTotal = rows.reduce((n, r) => n + (qty[r.t.id] ?? 0) * r.t.allInCents, 0) + seatTiers.reduce((n, t) => n + (t?.allInCents ?? 0), 0);
   const addonTotal = p.addons.reduce((n, a) => n + (addonQty[a.id] ?? 0) * a.allInCents, 0);
   const total = ticketTotal + addonTotal;
-  const fees = p.feePayer === "buyer" ? rows.reduce((n, r) => n + (qty[r.t.id] ?? 0) * Math.max(0, r.t.allInCents - r.t.priceCents), 0) : 0;
-  const anyBuyable = rows.some((r) => r.buyable);
-  const upcoming = rows.some((r) => r.t.status === "scheduled");
-  const allFree = rows.length > 0 && rows.every((r) => r.t.allInCents === 0);
+  const fees = p.feePayer === "buyer"
+    ? rows.reduce((n, r) => n + (qty[r.t.id] ?? 0) * Math.max(0, r.t.allInCents - r.t.priceCents), 0) + seatTiers.reduce((n, t) => n + Math.max(0, (t?.allInCents ?? 0) - (t?.priceCents ?? 0)), 0)
+    : 0;
+  const seatsOnSale = !!p.seating?.tiers.some((t) => t.status === "on_sale");
+  const anyBuyable = rows.some((r) => r.buyable) || seatsOnSale;
+  const upcoming = rows.some((r) => r.t.status === "scheduled") || !!p.seating?.tiers.some((t) => t.status === "scheduled");
+  const allFree = p.tickets.length > 0 && p.tickets.every((t) => t.allInCents === 0);
 
   const set = (t: TicketType, limit: number, next: number) => setQty((q) => ({ ...q, [t.id]: Math.max(0, Math.min(next, limit)) }));
   const setAddon = (a: AddonType, next: number) => setAddonQty((q) => ({ ...q, [a.id]: Math.max(0, Math.min(next, a.max, a.available ?? Infinity)) }));
@@ -240,6 +254,7 @@ export default function TicketPanel(p: TicketPanelProps) {
   }
 
   return (
+    <>
     <form action={action} className="relative">
       <BotFields />
       <input type="hidden" name="event" value={p.eventSlug} />
@@ -247,7 +262,13 @@ export default function TicketPanel(p: TicketPanelProps) {
       {Object.entries(p.attribution).map(([k, v]) => (v ? <input key={k} type="hidden" name={k} value={v} /> : null))}
       {p.accessCode && <input type="hidden" name="access_code" value={p.accessCode} />}
 
-      <Heading note={!p.rsvp && p.feePayer === "buyer" ? "Prices include fees" : undefined}>{p.rsvp ? "Registration" : "Tickets"}</Heading>
+      <Heading note={!p.rsvp && p.feePayer === "buyer" ? "Prices include fees" : undefined}>{p.rsvp ? "Registration" : p.seating ? "Choose your seats" : "Tickets"}</Heading>
+
+      {p.seating ? (
+        <div className="pt-2 pb-5">
+          <SeatPicker eventSlug={p.eventSlug} seating={p.seating} currency={p.currency} selected={seatSel} onChange={setSeatSel} />
+        </div>
+      ) : null}
 
       <ul>
         {rows.map(({ t, limit, buyable }) => {
@@ -383,6 +404,8 @@ export default function TicketPanel(p: TicketPanelProps) {
         </div>
       )}
 
+      <Captcha className="mt-5" />
+
       {/* pinned to the bottom of the pop-up: total and checkout side by side, one line of small print */}
       <div className="sticky bottom-0 -mb-8 border-t border-dashed border-fx-red/25 bg-fx-ivory pt-4 pb-5 max-[721px]:-mx-5 max-[721px]:-mb-[max(20px,env(safe-area-inset-bottom))] max-[721px]:px-5 max-[721px]:pb-[max(16px,env(safe-area-inset-bottom))]">
         {state?.error && (
@@ -396,7 +419,7 @@ export default function TicketPanel(p: TicketPanelProps) {
               {allFree && !addonTotal ? "Free" : formatCents(total, p.currency)}
             </span>
             <span className="block text-[13px] text-fx-red/78 tabular-nums">
-              {count ? `${count} ${count === 1 ? "ticket" : "tickets"}${addonCount ? ` + ${addonCount} add-on${addonCount === 1 ? "" : "s"}` : ""}` : p.rsvp ? "Choose how many are coming" : "Choose your tickets"}
+              {count ? `${count} ${seatSel.length === count ? (count === 1 ? "seat" : "seats") : count === 1 ? "ticket" : "tickets"}${addonCount ? ` + ${addonCount} add-on${addonCount === 1 ? "" : "s"}` : ""}` : p.rsvp ? "Choose how many are coming" : p.seating ? "Pick seats on the map" : "Choose your tickets"}
               {fees > 0 && ` · includes ${formatCents(fees, p.currency)} in fees`}
             </span>
           </div>
@@ -418,13 +441,14 @@ export default function TicketPanel(p: TicketPanelProps) {
           )}
         </p>
       </div>
-
-      {presaleForm}
-      {p.waitlist.show && (
-        <div className="fx-form mt-5 rounded-[18px] bg-white p-1">
-          <WaitlistForm eventSlug={p.eventSlug} soldOutTypes={p.waitlist.soldOutTypes} allSoldOut={p.waitlist.allSoldOut} defaultEmail={p.defaultEmail} defaultName={p.defaultName} />
-        </div>
-      )}
     </form>
+    {/* their own forms, beside the checkout form: a form inside a form is invalid HTML (the browser drops the inner one) */}
+    {presaleForm}
+    {p.waitlist.show && (
+      <div className="fx-form mt-5 rounded-[18px] bg-white p-1">
+        <WaitlistForm eventSlug={p.eventSlug} soldOutTypes={p.waitlist.soldOutTypes} allSoldOut={p.waitlist.allSoldOut} defaultEmail={p.defaultEmail} defaultName={p.defaultName} />
+      </div>
+    )}
+    </>
   );
 }

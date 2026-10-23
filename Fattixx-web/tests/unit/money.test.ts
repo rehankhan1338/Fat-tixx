@@ -66,6 +66,22 @@ describe("priceOrder", () => {
     expect(p.totalCents).toBe(1000 + 149 + p.processingFeeCents);
   });
 
+  it("caps the platform fee per ticket (the plan's 6.5% + $1.29, at most $19.95, processing included)", () => {
+    const plan: FeeConfig = { platformFeeBps: 650, platformFeeFixedCents: 129, processingFeeBps: 0, processingFeeFixedCents: 0, platformFeeCapCents: 1995 };
+    // $50: 3.25 + 1.29 = 4.54, under the cap
+    expect(priceOrder([{ unitPriceCents: 5000, quantity: 1 }], plan, 0, "buyer_pays").perUnitPlatformFee).toEqual([454]);
+    // $500: 32.50 + 1.29 = 33.79, capped at 19.95 per ticket
+    const p = priceOrder([{ unitPriceCents: 50000, quantity: 2 }], plan, 0, "buyer_pays");
+    expect(p.perUnitPlatformFee).toEqual([1995]);
+    expect(p.platformFeeCents).toBe(3990);
+    expect(p.processingFeeCents).toBe(0);
+    expect(p.totalCents).toBe(100000 + 3990);
+    // organizer absorbs: the capped fee comes off the payout
+    expect(priceOrder([{ unitPriceCents: 50000, quantity: 1 }], plan, 0, "organizer_absorbs").absorbedFeeCents).toBe(1995);
+    // no cap configured: unchanged
+    expect(priceOrder([{ unitPriceCents: 50000, quantity: 1 }], { ...plan, platformFeeCapCents: 0 }, 0, "buyer_pays").perUnitPlatformFee).toEqual([3379]);
+  });
+
   it("never produces negative or fractional cents", () => {
     for (const price of [1, 7, 33, 999, 12345]) {
       const p = priceOrder([{ unitPriceCents: price, quantity: 3 }], fees, 725, "buyer_pays");
