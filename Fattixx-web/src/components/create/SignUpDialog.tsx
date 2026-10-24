@@ -12,7 +12,8 @@ import type { FormEvent } from "react";
 import { button, cx } from "@/components/ui/styles";
 import { Captcha, captchaOn, type CaptchaHandle } from "@/components/captcha";
 import { checkSignInCode, finishSignup, requestSignInCode } from "@/lib/auth/passwordless-actions";
-import { COUNTRIES, flag, toE164, type Country } from "@/lib/home/countries";
+import { COUNTRIES, toE164, type Country } from "@/lib/home/countries";
+import { CountryPicker } from "./CountryPicker";
 import { FieldError, input, labelCls, Segmented } from "./ui";
 
 export type Organization = { slug: string; name: string; verified: boolean };
@@ -301,18 +302,7 @@ export default function SignUpDialog({
                   <label htmlFor="su-country" className="sr-only">
                     Country
                   </label>
-                  <select
-                    id="su-country"
-                    className={cx(input, "cursor-pointer px-3")}
-                    value={country.code}
-                    onChange={(e) => setCountry(COUNTRIES.find((c) => c.code === e.target.value) ?? COUNTRIES[0])}
-                  >
-                    {COUNTRIES.map((c) => (
-                      <option key={c.code} value={c.code}>
-                        {flag(c.code)} {c.name} +{c.dial}
-                      </option>
-                    ))}
-                  </select>
+                  <CountryPicker id="su-country" value={country} onChange={setCountry} />
                   <input
                     id="su-phone"
                     type="tel"
