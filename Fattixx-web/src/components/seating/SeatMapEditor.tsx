@@ -213,7 +213,7 @@ export function SeatMapEditor({ requestId, mapName, initial, editable, floorPlan
             </label>
           ) : null}
           <label className="grid gap-1 text-xs">Zoom
-            <NativeSelect value={String(zoom)} onChange={(e) => setZoom(Number(e.target.value))} className="h-8">
+            <NativeSelect value={String(zoom)} onChange={(e) => setZoom(Number(e.target.value))}>
               {[0.5, 0.75, 1, 1.5, 2, 3].map((z) => <NativeSelectOption key={z} value={String(z)}>{z * 100}%</NativeSelectOption>)}
             </NativeSelect>
           </label>
@@ -323,7 +323,7 @@ export function SeatMapEditor({ requestId, mapName, initial, editable, floorPlan
                     </div>
                     <div className="grid gap-1">
                       <Label htmlFor="ed-numbering" className="text-xs">Seat numbers</Label>
-                      <NativeSelect id="ed-numbering" value={section.numbering} onChange={(e) => setSection(section.id, { numbering: e.target.value as RowsSection["numbering"] })} className="h-8">
+                      <NativeSelect id="ed-numbering" value={section.numbering} onChange={(e) => setSection(section.id, { numbering: e.target.value as RowsSection["numbering"] })}>
                         <NativeSelectOption value="ltr">Rise left to right</NativeSelectOption>
                         <NativeSelectOption value="rtl">Rise right to left</NativeSelectOption>
                       </NativeSelect>
@@ -341,7 +341,7 @@ export function SeatMapEditor({ requestId, mapName, initial, editable, floorPlan
                     <Num label="Seats" value={section.seats} min={1} max={30} onChange={(n) => setSection(section.id, { seats: n })} />
                     <div className="grid gap-1">
                       <Label htmlFor="ed-shape" className="text-xs">Shape</Label>
-                      <NativeSelect id="ed-shape" value={section.shape} onChange={(e) => setSection(section.id, { shape: e.target.value as TableSection["shape"] })} className="h-8">
+                      <NativeSelect id="ed-shape" value={section.shape} onChange={(e) => setSection(section.id, { shape: e.target.value as TableSection["shape"] })}>
                         <NativeSelectOption value="round">Round</NativeSelectOption>
                         <NativeSelectOption value="rect">Long</NativeSelectOption>
                       </NativeSelect>
@@ -378,7 +378,7 @@ export function SeatMapEditor({ requestId, mapName, initial, editable, floorPlan
                 <Text label="Text" value={shape.text} onChange={(v) => setShape(shape.id, { text: v })} />
                 <div className="grid gap-1">
                   <Label htmlFor="ed-kind" className="text-xs">Kind</Label>
-                  <NativeSelect id="ed-kind" value={shape.kind} onChange={(e) => setShape(shape.id, { kind: e.target.value as Shape["kind"] })} className="h-8">
+                  <NativeSelect id="ed-kind" value={shape.kind} onChange={(e) => setShape(shape.id, { kind: e.target.value as Shape["kind"] })}>
                     <NativeSelectOption value="stage">Stage</NativeSelectOption>
                     <NativeSelectOption value="area">Area (standing, bar…)</NativeSelectOption>
                     <NativeSelectOption value="label">Label</NativeSelectOption>
