@@ -7,7 +7,7 @@ import { deviceLabel, fail, handle, json, readJson, v } from '@/lib/mobile/http'
 export const dynamic = 'force-dynamic';
 
 /**
- * POST { name, email, password, device?, startedAt? } → { token, expiresAt, account } or { pending: true, message }.
+ * POST { name, email, password, device?, startedAt? } → { token, expiresAt, account }; 409 when the email already has an account.
  * `startedAt` (ms since epoch when the form opened) plays the role of the website's fill-time bot check.
  */
 export const POST = handle(async (req) => {
@@ -20,7 +20,6 @@ export const POST = handle(async (req) => {
     password: v.raw(body.password, 128, 'password'),
   });
   if (result.kind === 'error') return fail(result.status, result.error, result.field);
-  if (result.kind === 'existing') return json({ pending: true, message: result.message });
   const { token, expiresAt } = await createBearerSession(result.userId, deviceLabel(body));
   await audit('auth.session.created', { actorUserId: result.userId, metadata: { client: 'mobile' } });
   const account = await mobileAccount(result.userId);

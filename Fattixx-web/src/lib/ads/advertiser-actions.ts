@@ -7,6 +7,7 @@ import { audit } from '../audit';
 import { assertSuperAdmin } from '../auth/guard';
 import { getSession } from '../auth/session';
 import { env } from '../env';
+import { stripeReturnUrl } from '../return-url';
 import { getStripe } from '../payments/stripe';
 import { clientIp } from '../request';
 import { BOT_MESSAGE, CAPTCHA_MESSAGE, humanCheck, rateLimited } from '../security/bot';
@@ -100,8 +101,8 @@ export async function buyImpressions(_prev: ActionState, fd: FormData): Promise<
       line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: price, product_data: { name: `Fattixx ad campaign: ${c.name}`.slice(0, 250), description: `${impressions.toLocaleString()} impressions` } } }],
       metadata: { kind: 'ad_campaign', campaign_id: String(c.id), impressions: String(impressions), advertiser_id: String(adv.id) },
       payment_intent_data: { metadata: { kind: 'ad_campaign', campaign_id: String(c.id) }, description: `Ad campaign ${c.id} (${adv.company_name})` },
-      success_url: `${env.APP_URL}/advertiser/campaigns/${c.id}?paid=1`,
-      cancel_url: `${env.APP_URL}/advertiser/campaigns/${c.id}`,
+      success_url: stripeReturnUrl(`/advertiser/campaigns/${c.id}?paid=1`),
+      cancel_url: stripeReturnUrl(`/advertiser/campaigns/${c.id}`),
     });
     if (!checkout.url) throw new Error('Stripe did not return a checkout page.');
     await execute(`UPDATE ad_campaigns SET impressions_cap = ?, price_cents = ?, stripe_checkout_session = ? WHERE id = ? AND (payment_status IS NULL OR payment_status = 'unpaid')`, [impressions, price, checkout.id, c.id]);

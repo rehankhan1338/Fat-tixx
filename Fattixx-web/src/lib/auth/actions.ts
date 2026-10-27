@@ -141,7 +141,6 @@ export async function registerAttendee(_prev: ActionState, formData: FormData): 
     email: String(formData.get('email') ?? ''), name: String(formData.get('name') ?? ''), password: String(formData.get('password') ?? ''),
   });
   if (result.kind === 'error') return { error: result.error, field: result.field };
-  if (result.kind === 'existing') return { ok: true, message: result.message };
   await createSession(result.userId);
   const next = safeNext(formData.get('next'));
   redirect(next ? `${next}${next.includes('?') ? '&' : '?'}verify=sent` : '/account?verify=sent');
