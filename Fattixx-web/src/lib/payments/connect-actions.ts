@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { audit } from '../audit';
 import { assertOrg } from '../authz';
-import { env } from '../env';
+import { stripeReturnUrl } from '../return-url';
 import { getActiveStripe } from './stripe';
 import { ensureConnectAccount, expressDashboardLink, getConnectAccount, onboardingLink, payoutMode, syncConnectAccount } from './connect';
 
@@ -20,11 +20,11 @@ export async function startPayoutSetup(fd: FormData): Promise<ActionState> {
   try { ctx = await assertOrg(slugOf(fd), 'org_admin'); } catch (e) { return { error: (e as Error).message }; }
   if ((await payoutMode()) !== 'connect') return { error: 'Automatic payouts are not switched on yet. Fattixx pays you after each event as before.' };
   if (!(await getActiveStripe())) return { error: 'Payments are not configured yet. Contact Fattixx support.' };
-  const base = `${env.APP_URL}/org/${ctx.org.slug}/payouts`;
+  const base = `/org/${ctx.org.slug}/payouts`;
   let url: string;
   try {
     const accountId = await ensureConnectAccount(ctx.org, ctx.session.user.id);
-    url = await onboardingLink(accountId, `${base}?stripe=return`, `${base}?stripe=refresh`);
+    url = await onboardingLink(accountId, stripeReturnUrl(`${base}?stripe=return`), stripeReturnUrl(`${base}?stripe=refresh`));
   } catch (e) {
     console.error('[connect] onboarding failed', e);
     return { error: `Stripe could not start the setup: ${(e as Error).message}` };

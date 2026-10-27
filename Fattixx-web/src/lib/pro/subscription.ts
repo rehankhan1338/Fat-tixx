@@ -1,12 +1,12 @@
 import 'server-only';
 import type Stripe from 'stripe';
 import { execute, query, queryOne, type Row } from '../db';
-import { env } from '../env';
 import { sendEmail } from '../email';
 import { renderEmail, type TemplateKey } from '../email-templates';
 import { formatCents } from '../money';
 import { getActiveStripe, getStripe, stripeClient } from '../payments/stripe';
 import { getSettingValue } from '../settings';
+import { stripeReturnUrl } from '../return-url';
 import { PRO_MONTHLY_CENTS, PRO_YEARLY_CENTS } from '../home/pro';
 import { DEFAULT_GRACE_DAYS, isProActive, proState, proUntil, type BillingInterval, type ProState, type SubscriptionSnapshot, type SubscriptionStatus } from './status';
 
@@ -89,7 +89,7 @@ async function customerFor(stripe: Stripe, mode: 'test' | 'live', org: { id: num
   return c.id;
 }
 
-const proPageUrl = (slug: string, q = '') => `${env.APP_URL}/org/${slug}/pro${q}`;
+const proPageUrl = (slug: string, q = '') => stripeReturnUrl(`/org/${slug}/pro${q}`);
 
 /** Checkout page for a new subscription. */
 export async function createProCheckout(org: { id: number; slug: string; name: string; legal_name: string | null; contact_email: string }, interval: BillingInterval, userId: number): Promise<string> {

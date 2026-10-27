@@ -10,7 +10,7 @@ import { createOneTimeToken } from '../tokens';
 import { sendEmail } from '../email';
 import { renderEmail } from '../email-templates';
 import { env } from '../env';
-import { findUserByEmail, isEmail, normalizeEmail, sendSetPasswordLink } from '../users';
+import { findUserByEmail, isEmail, normalizeEmail } from '../users';
 import type { PlatformRole } from './session';
 
 /**
@@ -22,6 +22,7 @@ import type { PlatformRole } from './session';
 /** One generic message for every credential failure: never reveal which part was wrong. */
 export const GENERIC_LOGIN_ERROR = 'Incorrect email or password.';
 export const THROTTLED_ERROR = 'Too many attempts from this network. Try again later.';
+export const LOCKED_ERROR = 'Too many failed sign-in attempts. Please wait a few minutes and try again, or reset your password.';
 
 type UserRow = Row & {
   id: number; email: string; name: string; password_hash: string | null; status: string;
@@ -65,7 +66,7 @@ export async function authenticateWithPassword(emailRaw: string, password: strin
     await verifyAgainstDummy(password);
     await recordAttempt({ emailNormalized: emailNorm, userId: user.id, ip, success: false, reason: 'locked', userAgent: ua });
     await audit('auth.login.locked', { actorUserId: user.id });
-    return { ok: false, error: GENERIC_LOGIN_ERROR, status: 400 };
+    return { ok: false, error: LOCKED_ERROR, status: 429 };
   }
 
   if (user.status !== 'active') {
@@ -79,7 +80,7 @@ export async function authenticateWithPassword(emailRaw: string, password: strin
     const { lockedMinutes } = await registerAccountFailure(user.id);
     await recordAttempt({ emailNormalized: emailNorm, userId: user.id, ip, success: false, reason: 'bad_password', userAgent: ua });
     await audit('auth.login.failed', { actorUserId: user.id, metadata: lockedMinutes ? { lockedMinutes } : undefined });
-    return { ok: false, error: GENERIC_LOGIN_ERROR, status: 400 };
+    return lockedMinutes ? { ok: false, error: LOCKED_ERROR, status: 429 } : { ok: false, error: GENERIC_LOGIN_ERROR, status: 400 };
   }
 
   if (needsRehash(user.password_hash)) {
@@ -105,9 +106,7 @@ export async function platformRolesOf(userId: number): Promise<PlatformRole[]> {
 
 export type RegisterResult =
   | { kind: 'created'; userId: number; email: string; name: string }
-  /** The address already has an account: a reset link was sent instead, and the caller must not reveal that. */
-  | { kind: 'existing'; message: string }
-  | { kind: 'error'; error: string; field?: string; status: 400 | 429 };
+  | { kind: 'error'; error: string; field?: string; status: 400 | 409 | 429 };
 
 /**
  * Attendee self-registration. Validates the password policy and breach status, never discloses whether
@@ -128,9 +127,8 @@ export async function registerAttendeeAccount(input: { email: string; name: stri
 
   const existing = await findUserByEmail(email);
   if (existing?.password_hash) {
-    // Do not reveal that the account exists: behave as if registration succeeded and send a reset link.
-    await sendSetPasswordLink(existing, { invitedBy: null, context: 'Fattixx', purpose: 'reset_password' });
-    return { kind: 'existing', message: 'Check your email to finish setting up your account.' };
+    // The sign-up window already tells people an address is taken, so say so here too rather than pretend it worked.
+    return { kind: 'error', error: 'An account with this email already exists. Sign in instead, or reset your password if you have forgotten it.', field: 'email', status: 409 };
   }
   const hash = await hashPassword(password);
   let userId: number;

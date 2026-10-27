@@ -2,7 +2,7 @@ import 'server-only';
 import type Stripe from 'stripe';
 import { execute } from '../db';
 import { audit } from '../audit';
-import { env } from '../env';
+import { stripeReturnUrl } from '../return-url';
 import { getStripe } from '../payments/stripe';
 import { getSeatMapRequest, type SeatMapRequestRow } from './queries';
 
@@ -18,7 +18,7 @@ export function feeSettled(r: Pick<SeatMapRequestRow, 'fee_status' | 'fee_cents'
   return r.fee_status !== 'unpaid' || Number(r.fee_cents) === 0;
 }
 
-const requestUrl = (slug: string, id: number, q = '') => `${env.APP_URL}/org/${slug}/seating/${id}${q}`;
+const requestUrl = (slug: string, id: number, q = '') => stripeReturnUrl(`/org/${slug}/seating/${id}${q}`);
 
 /** Stripe Checkout page for a request's set-up fee. */
 export async function createFeeCheckout(r: SeatMapRequestRow, payerEmail: string): Promise<string> {

@@ -9,6 +9,7 @@ import { assertPlatformRole } from '../auth/guard';
 import { getSession } from '../auth/session';
 import { getEvent } from '../events/queries';
 import { env } from '../env';
+import { stripeReturnUrl } from '../return-url';
 import { formatCents, parseDollarsToCents } from '../money';
 import { connectDestinationFor } from '../payments/connect';
 import { getStripe } from '../payments/stripe';
@@ -142,8 +143,8 @@ export async function payDeal(fd: FormData): Promise<ActionState> {
         description: `Sponsorship ${d.id}: ${d.sponsor_name} → ${d.org_name}`.slice(0, 500),
         ...(destination && share > 0 ? { transfer_data: { destination, amount: share }, transfer_group: `sponsorship-${d.id}` } : {}),
       },
-      success_url: `${env.APP_URL}/sponsorships/deals?paid=${d.id}`,
-      cancel_url: `${env.APP_URL}/sponsorships/deals`,
+      success_url: stripeReturnUrl(`/sponsorships/deals?paid=${d.id}`),
+      cancel_url: stripeReturnUrl('/sponsorships/deals'),
     });
     if (!checkout.url) throw new Error('Stripe did not return a checkout page.');
     await execute(`UPDATE sponsorship_deals SET stripe_checkout_session = ?, connect_account_id = ? WHERE id = ? AND status = 'accepted'`, [checkout.id, destination && share > 0 ? destination : null, d.id]);
