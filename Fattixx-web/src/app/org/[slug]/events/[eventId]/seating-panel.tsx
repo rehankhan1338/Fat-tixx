@@ -183,7 +183,7 @@ function ManageSeats({ base, currency, seating }: { base: { org: string; event_i
             <div className="flex flex-wrap items-end gap-2">
               {seating.tiers.length ? (
                 <>
-                  <NativeSelect aria-label="Pricing tier" value={tierId} onChange={(e) => setTierId(e.target.value)} className="h-8 min-w-40">
+                  <NativeSelect aria-label="Pricing tier" value={tierId} onChange={(e) => setTierId(e.target.value)} className="min-w-40">
                     {seating.tiers.map((t) => <NativeSelectOption key={t.id} value={String(t.id)}>{t.name} · {t.priceCents ? formatCents(t.priceCents, currency) : "Free"}</NativeSelectOption>)}
                   </NativeSelect>
                   <Button type="button" size="sm" disabled={pending || !tierId} onClick={() => run(updateEventSeats, { op: "assign", tier_id: tierId, seat_ids: ids }, clear)}>Assign to tier</Button>
