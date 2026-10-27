@@ -44,7 +44,9 @@ export default async function ProPage({ params, searchParams }: PageProps<"/org/
   const ctx = await requireOrg(slug, "org_admin");
   let notice: string | null = null;
   if (sp.checkout === "success" && typeof sp.session_id === "string") {
-    try { await syncCheckoutSession(ctx.org.id, sp.session_id); notice = "Thanks! Your subscription is active."; } catch { notice = "Payment received. Your plan updates in a moment."; }
+    let active = false;
+    try { active = await syncCheckoutSession(ctx.org.id, sp.session_id); } catch (e) { console.error("[pro] checkout sync failed", e); }
+    notice = active ? "Thanks! Your subscription is active." : "Payment received. Your plan updates in a moment.";
   } else if (sp.checkout === "cancelled") notice = "Checkout was cancelled. Nothing was charged.";
   else if (sp.card === "updated") notice = "Card updated.";
 

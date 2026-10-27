@@ -6,7 +6,8 @@ import { env } from './env';
  * public page that forwards to `path` from our own origin, and that second navigation carries the cookie again.
  */
 export function stripeReturnUrl(path: string): string {
-  return `${env.APP_URL}/return?to=${encodeURIComponent(path)}`;
+  // Stripe fills in {CHECKOUT_SESSION_ID} only when the braces appear literally, so keep that placeholder unencoded.
+  return `${env.APP_URL}/return?to=${encodeURIComponent(path).replace('%7BCHECKOUT_SESSION_ID%7D', '{CHECKOUT_SESSION_ID}')}`;
 }
 
 /** A same-origin path that is safe to forward to, or null. */

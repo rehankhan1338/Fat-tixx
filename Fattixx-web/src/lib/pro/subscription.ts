@@ -118,12 +118,13 @@ export async function createProCheckout(org: { id: number; slug: string; name: s
 }
 
 /** After the organizer returns from Checkout: read the session's subscription now instead of waiting for the webhook. */
-export async function syncCheckoutSession(orgId: number, sessionId: string): Promise<void> {
-  if (!/^cs_[A-Za-z0-9_]+$/.test(sessionId)) return;
+export async function syncCheckoutSession(orgId: number, sessionId: string): Promise<boolean> {
+  if (!/^cs_[A-Za-z0-9_]+$/.test(sessionId)) return false;
   const { stripe } = await getStripe();
   const s = await stripe.checkout.sessions.retrieve(sessionId, { expand: ['subscription'] });
-  if (s.metadata?.organization_id !== String(orgId) || !s.subscription || typeof s.subscription === 'string') return;
+  if (s.metadata?.organization_id !== String(orgId) || !s.subscription || typeof s.subscription === 'string') return false;
   await syncSubscription(s.subscription);
+  return isOrgPro(orgId);
 }
 
 /** Organizer-facing actions on the live subscription. */
