@@ -382,8 +382,7 @@ export default function SiteNav({ account = null, overHero = false }: { account?
 
         {account?.canCreateEvents !== false && (
           <a href="/create" className="rounded-full bg-fx-yellow px-5 py-[11px] text-[15px] font-semibold whitespace-nowrap text-fx-red max-[901px]:px-4 max-[721px]:px-3 max-[721px]:py-[9px] max-[721px]:text-[14px]">
-            <span className="max-[421px]:hidden">Create event</span>
-            <span className="hidden max-[421px]:inline">Create</span>
+            Create event
           </a>
         )}
       </div>
