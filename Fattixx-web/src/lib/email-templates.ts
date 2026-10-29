@@ -18,7 +18,7 @@ const APP = env.APP_URL;
 export type TemplateKey =
   | 'order_confirmation' | 'tickets_resent' | 'refund_issued' | 'order_cancelled' | 'event_cancelled' | 'event_postponed'
   | 'organizer_update' | 'invitation' | 'password_reset' | 'tickets_link' | 'waitlist_available' | 'ticket_transferred'
-  | 'event_reminder' | 'verify_email' | 'application_received' | 'application_approved' | 'application_rejected' | 'reconciliation_alert'
+  | 'event_reminder' | 'verify_email' | 'application_received' | 'application_approved' | 'application_rejected' | 'org_verified' | 'reconciliation_alert'
   | 'dispute_opened' | 'sign_in_code' | 'event_updated'
   | 'pro_activated' | 'pro_payment_failed' | 'pro_grace_ending' | 'pro_ended' | 'support_request_staff' | 'support_reply'
   | 'seatmap_staff' | 'seatmap_organizer';
@@ -206,6 +206,15 @@ ${BUTTON('{{order_url}}', 'Show my tickets')}
 <p><strong>{{org_name}}</strong> is verified and ready to sell tickets. You are the Organization Admin.</p>
 ${BUTTON('{{url}}', 'Open your organizer dashboard')}`,
     sample: { contact_name: 'Jane', org_name: 'Lowcountry Live', url: `${APP}/set-password/example` },
+  },
+  {
+    key: 'org_verified', name: 'Organization verified', description: 'Sent when platform staff approve the verification of an organization that signed up on the Create event page. Its paid events held in review go live.',
+    variables: ['contact_name', 'org_name', 'live_line', 'url'],
+    subject: '{{org_name}} is verified on {{platform_name}}',
+    body: `<p>Hi {{contact_name}},</p>
+<p><strong>{{org_name}}</strong> is verified. {{live_line}}</p>
+${BUTTON('{{url}}', 'Open your organizer dashboard')}`,
+    sample: { contact_name: 'Jane', org_name: 'Lowcountry Live', live_line: 'Your event “Summer Jazz Night” is now live and on sale.', url: `${APP}/org/lowcountry-live` },
   },
   {
     key: 'application_rejected', name: 'Organizer application declined', description: 'Sent when platform staff decline an organizer application.',

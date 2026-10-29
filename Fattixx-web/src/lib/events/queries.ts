@@ -9,7 +9,7 @@ export type EventRow = Row & {
   /** online events: the join link, shown to ticket holders only */
   online_url: string | null;
   image_path: string | null; video_url: string | null; starts_at: Date; ends_at: Date | null; show_end_time: number; doors_at: Date | null; timezone: string; capacity: number | null; waitlist_enabled: number; queue_enabled: number; queue_rate_per_min: number; reminder_sent_at: Date | null;
-  status: 'draft' | 'published' | 'cancelled' | 'postponed' | 'completed'; visibility: 'public' | 'private' | 'unlisted'; private_key: string | null;
+  status: 'draft' | 'in_review' | 'published' | 'cancelled' | 'postponed' | 'completed'; visibility: 'public' | 'private' | 'unlisted'; private_key: string | null;
   /** encrypted event password (src/lib/events/password.ts); null = none */
   access_password: string | null;
   age_restriction: number | null; fee_mode: 'buyer_pays' | 'organizer_absorbs'; tax_bps: number | null; tax_label: string | null; currency: string;

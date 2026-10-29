@@ -13,6 +13,10 @@ import { BOT_MESSAGE, CAPTCHA_MESSAGE, humanCheck, rateLimited } from '../securi
 import { slugify, shortSuffix } from '../slug';
 import { ensureUser, isEmail } from '../users';
 import { createOneTimeToken } from '../tokens';
+import { assertOrg } from '../authz';
+import { revokeAllUserSessions } from '../auth/session';
+import { releaseHeldEvents } from '../orgs/verification';
+import { hashPassword, passwordPolicyErrors, pwnedPasswordCount } from '../security/password';
 import { readAnswers, type QuestionName } from './questionnaire';
 
 /**
@@ -21,15 +25,18 @@ import { readAnswers, type QuestionName } from './questionnaire';
  * is created. Approved organizations are marked verified; the applicant becomes their Organization Admin.
  * When Stripe Connect is adopted, its identity verification plugs in at the approval step.
  * The application opens with a skippable questionnaire about the organizer's events (questionnaire.ts).
+ * An organization made on /create is unverified; its organizer sends the same details from /org/<slug>/verify
+ * (submitOrgVerification), and approving that application verifies the organization and publishes its paid events
+ * held in review (src/lib/orgs/verification.ts).
  */
 export type ActionState = { error?: string; ok?: boolean; message?: string; field?: string } | undefined;
 const str = (fd: FormData, k: string, max = 500) => String(fd.get(k) ?? '').trim().slice(0, max);
 
-export async function submitApplication(_prev: ActionState, fd: FormData): Promise<ActionState> {
-  const ip = await clientIp();
-  if (rateLimited(`apply:${ip}`, 5, 60 * 60_000)) return { error: 'Too many applications from this network. Try again later.' };
-  const bot = await humanCheck(fd, ip);
-  if (bot) return { error: bot === 'captcha' ? CAPTCHA_MESSAGE : BOT_MESSAGE };
+type Fields = {
+  contactName: string; email: string; phone: string; orgName: string; legalName: string; type: string; taxLast4: string; website: string; address: string; events: string;
+};
+
+function readFields(fd: FormData): Fields | { error: string; field: string } {
   const v = {
     contactName: str(fd, 'contact_name', 160), email: str(fd, 'contact_email', 254).toLowerCase(), phone: str(fd, 'contact_phone', 40),
     orgName: str(fd, 'org_name', 160), legalName: str(fd, 'legal_name', 200), type: str(fd, 'business_type', 20), taxLast4: str(fd, 'tax_id_last4', 4),
@@ -44,6 +51,16 @@ export async function submitApplication(_prev: ActionState, fd: FormData): Promi
   if (v.website && !/^https?:\/\/\S+$/i.test(v.website)) return { error: 'The website must start with http:// or https://', field: 'website' };
   if (v.address.length < 5) return { error: 'Enter the business address.', field: 'address' };
   if (!fd.get('agree')) return { error: 'Please accept the Organizer Agreement.', field: 'agree' };
+  return v;
+}
+
+export async function submitApplication(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const ip = await clientIp();
+  if (rateLimited(`apply:${ip}`, 5, 60 * 60_000)) return { error: 'Too many applications from this network. Try again later.' };
+  const bot = await humanCheck(fd, ip);
+  if (bot) return { error: bot === 'captcha' ? CAPTCHA_MESSAGE : BOT_MESSAGE };
+  const v = readFields(fd);
+  if ('error' in v) return v;
   const open = await queryOne(`SELECT 1 FROM organizer_applications WHERE contact_email = ? AND status = 'pending'`, [v.email]);
   if (open) return { ok: true, message: 'You already have an application in review. We will email you when it is done.' };
   const session = await getSession();
@@ -61,12 +78,90 @@ export async function submitApplication(_prev: ActionState, fd: FormData): Promi
   return { ok: true, message: 'Thanks! Your application is in review. We verify every organizer before they can sell, and will email you the result.' };
 }
 
-type AppRow = Row & { id: number; contact_name: string; contact_email: string; contact_phone: string | null; org_name: string; legal_name: string; website: string | null; status: string; expected_events: string | null } & Record<QuestionName, string | null>;
+/**
+ * Verification for an organization made on /create, sent by its Organization Admin. A password is set here when the
+ * account has none (one-time-code sign-ups), since a verified organization sells paid tickets.
+ */
+export async function submitOrgVerification(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const ctx = await assertOrg(str(fd, 'org', 64), 'org_admin');
+  const org = ctx.org;
+  if (org.verified_at) return { ok: true, message: `${org.name} is already verified.` };
+  if (rateLimited(`verify-org:${ctx.session.user.id}`, 5, 60 * 60_000)) return { error: 'Too many attempts. Try again later.' };
+  if (await queryOne(`SELECT 1 FROM organizer_applications WHERE organization_id = ? AND status = 'pending'`, [org.id])) {
+    return { ok: true, message: 'Your verification is already in review. We will email you when it is done.' };
+  }
+  fd.set('org_name', org.name);
+  const v = readFields(fd);
+  if ('error' in v) return v;
+
+  const user = await queryOne<Row & { id: number; email: string; password_hash: string | null }>(`SELECT id, email, password_hash FROM users WHERE id = ?`, [ctx.session.user.id]);
+  if (!user) return { error: 'Please sign in again.' };
+  if (!user.password_hash) {
+    const password = String(fd.get('password') ?? '');
+    const errs = passwordPolicyErrors(password, user.email);
+    if (errs.length) return { error: errs.join(' '), field: 'password' };
+    if (password !== String(fd.get('confirm') ?? '')) return { error: 'The two passwords do not match.', field: 'confirm' };
+    const pwned = await pwnedPasswordCount(password);
+    if (pwned && pwned > 0) return { error: `That password has appeared in ${pwned.toLocaleString()} data breaches. Choose a different one.`, field: 'password' };
+    await execute(`UPDATE users SET password_hash = ?, password_changed_at = NOW() WHERE id = ?`, [await hashPassword(password), user.id]);
+    await revokeAllUserSessions(user.id, 'password_changed', ctx.session.id);
+    await audit('auth.password.set', { actorUserId: user.id, metadata: { via: 'org_verification' } });
+  }
+
+  const q = await queryOne<Row & Record<QuestionName, string | null>>(
+    `SELECT event_types, expected_revenue, events_per_year, typical_attendance, attendee_ages, audiences FROM organizations WHERE id = ?`, [org.id],
+  );
+  const r = await execute(
+    `INSERT INTO organizer_applications (user_id, contact_name, contact_email, contact_phone, org_name, legal_name, business_type, tax_id_last4, website, address, expected_events,
+       event_types, expected_revenue, events_per_year, typical_attendance, attendee_ages, audiences, organization_id, ip)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [user.id, v.contactName, v.email, v.phone || null, org.name, v.legalName, v.type, v.taxLast4 || null, v.website || null, v.address, v.events || null,
+      q?.event_types ?? null, q?.expected_revenue ?? null, q?.events_per_year ?? null, q?.typical_attendance ?? null, q?.attendee_ages ?? null, q?.audiences ?? null, org.id, await clientIp()],
+  );
+  await audit('application.submitted', { actorUserId: user.id, targetType: 'organizer_application', targetId: r.insertId, metadata: { org: org.name, orgId: Number(org.id) } });
+  const mail = await renderEmail('application_received', { contact_name: v.contactName, org_name: org.name });
+  await sendEmail({ to: v.email, toName: v.contactName, subject: mail.subject, text: mail.text, html: mail.html, related: { type: 'organizer_application', id: r.insertId } });
+  revalidatePath(`/org/${org.slug}`, 'layout');
+  return { ok: true, message: 'Thanks! Your verification is in review. Most reviews take one to two business days, and we will email you the result. Your paid events go live as soon as it is approved.' };
+}
+
+type AppRow = Row & { id: number; contact_name: string; contact_email: string; contact_phone: string | null; org_name: string; legal_name: string; website: string | null; status: string; expected_events: string | null; organization_id: number | null } & Record<QuestionName, string | null>;
+
+/** Approving the verification of an organization made on /create: mark it verified and publish its held paid events. */
+async function approveExistingOrg(app: AppRow, reviewerId: number, notes: string | null): Promise<ActionState> {
+  const orgId = Number(app.organization_id);
+  const org = await queryOne<Row & { slug: string; name: string }>(`SELECT slug, name FROM organizations WHERE id = ?`, [orgId]);
+  if (!org) return { error: 'The organization no longer exists.' };
+  const claim = await execute(
+    `UPDATE organizer_applications SET status = 'approved', reviewed_by = ?, reviewed_at = NOW(), review_notes = ? WHERE id = ? AND status = 'pending'`,
+    [reviewerId, notes, app.id],
+  );
+  if (!claim.affectedRows) return { error: 'Someone else reviewed this application just now.' };
+  await execute(
+    `UPDATE organizations SET verified_at = COALESCE(verified_at, NOW()), legal_name = ?, website = COALESCE(website, ?), contact_phone = COALESCE(contact_phone, ?) WHERE id = ?`,
+    [app.legal_name, app.website, app.contact_phone, orgId],
+  );
+  const released = await releaseHeldEvents(orgId, reviewerId);
+  const live = released.length
+    ? `${released.length === 1 ? 'Your event' : 'Your events'} ${released.map((e) => `“${e.title}”`).join(', ')} ${released.length === 1 ? 'is' : 'are'} now live and on sale.`
+    : 'You can now sell paid tickets.';
+  const mail = await renderEmail('org_verified', { contact_name: app.contact_name, org_name: org.name, live_line: live, url: `${env.APP_URL}/org/${org.slug}` });
+  await sendEmail({ to: app.contact_email, toName: app.contact_name, subject: mail.subject, text: mail.text, html: mail.html, related: { type: 'organization', id: orgId } });
+  await audit('application.approved', { actorUserId: reviewerId, targetType: 'organizer_application', targetId: app.id, metadata: { orgId, slug: org.slug, existingOrg: true, released: released.map((e) => e.id) } });
+  await audit('org.verified', { actorUserId: reviewerId, targetType: 'organization', targetId: orgId, metadata: { viaApplication: app.id } });
+  revalidatePath('/admin/applications');
+  revalidatePath('/admin/organizations');
+  revalidatePath('/');
+  revalidatePath('/events');
+  for (const e of released) revalidatePath(`/events/${e.slug}`);
+  return { ok: true, message: `Approved. ${org.name} is verified${released.length ? ` and ${released.length} held event${released.length === 1 ? ' is' : 's are'} now live` : ''}.` };
+}
 
 export async function approveApplication(fd: FormData): Promise<ActionState> {
   const session = await assertPlatformRole(['super_admin', 'support']);
   const app = await queryOne<AppRow>(`SELECT * FROM organizer_applications WHERE id = ?`, [Number(fd.get('id'))]);
   if (!app || app.status !== 'pending') return { error: 'Application not found or already reviewed.' };
+  if (app.organization_id) return approveExistingOrg(app, session.user.id, str(fd, 'notes', 1000) || null);
   let slug = slugify(app.org_name);
   if (await queryOne(`SELECT 1 FROM organizations WHERE slug = ?`, [slug])) slug = `${slug}-${shortSuffix()}`;
   const org = await execute(

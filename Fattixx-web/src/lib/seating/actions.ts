@@ -12,6 +12,7 @@ import { parseDollarsToCents } from '../money';
 import { orgIsPro } from '../pro/gate';
 import { diffLayouts, expandLayout, parseLayout, seatCount, TIER_COLORS } from './layout';
 import { createFeeCheckout, feeSettled } from './fee';
+import { holdIfUnverified } from '../orgs/verification';
 import { lockSeatsForChange, seatingInUse, syncSeatedQuantities } from './inventory';
 import { getEventSeating, getSeatMap, getSeatMapRequest, mapLayout, mapUsableBy, type SeatMapRequestRow } from './queries';
 import { addNote, createSeatMapRequest, ensureDraftMap, logMapChange, moveRequest, notifyOrganizer, notifyStaff } from './requests';
@@ -386,8 +387,9 @@ export async function createSeatTier(_prev: ActionState, fd: FormData): Promise<
       [event.id, name, price, color, Number(count?.sort ?? -1) + 1],
     );
     await audit('seating.tier.created', { actorUserId: ctx.session.user.id, targetType: 'ticket_type', targetId: r.insertId, metadata: { eventId: event.id, price } });
+    const held = await holdIfUnverified(event.id, !!ctx.org.verified_at, ctx.session.user.id);
     revalidateSeating(ctx.org.slug, event);
-    return { ok: true, message: `${name} created. Select seats on the map and assign them to it.` };
+    return { ok: true, message: `${name} created. Select seats on the map and assign them to it.${held ? ' Paid tickets need a verified organization, so the event is in review and hidden until then.' : ''}` };
   } catch (e) { return fail(e); }
 }
 

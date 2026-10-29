@@ -96,7 +96,7 @@ export type EventPageData = {
   ageText: string;
   refundText: string;
   feeText: string;
-  status: "draft" | "published" | "cancelled" | "postponed" | "completed";
+  status: "draft" | "in_review" | "published" | "cancelled" | "postponed" | "completed";
   /** draft / private preview for the organizer's team */
   preview: boolean;
   /** other dates of a recurring event */

@@ -134,6 +134,29 @@ export async function setPasswordWithToken(_prev: ActionState, formData: FormDat
 // ---------------------------------------------------------------------------
 // Attendee self-registration (optional accounts; guest checkout stays available)
 // ---------------------------------------------------------------------------
+/**
+ * A signed-in account without a password (signed up with a one-time code or Google) sets its first one: offered after
+ * an organizer's first event and as a dashboard reminder. Changing an existing password goes through the reset link.
+ */
+export async function setFirstPassword(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const session = await getSession();
+  if (!session) return { error: 'Please sign in again.' };
+  if (rateLimited(`first-password:${session.user.id}`, 10, 60 * 60_000)) return { error: 'Too many attempts. Try again later.' };
+  const user = await queryOne<Row & { id: number; email: string; password_hash: string | null }>(`SELECT id, email, password_hash FROM users WHERE id = ?`, [session.user.id]);
+  if (!user) return { error: 'Please sign in again.' };
+  if (user.password_hash) return { error: 'Your account already has a password. Use “Forgot password” to change it.' };
+  const password = String(formData.get('password') ?? '');
+  const errs = passwordPolicyErrors(password, user.email);
+  if (errs.length) return { error: errs.join(' '), field: 'password' };
+  if (password !== String(formData.get('confirm') ?? '')) return { error: 'The two passwords do not match.', field: 'confirm' };
+  const pwned = await pwnedPasswordCount(password);
+  if (pwned && pwned > 0) return { error: `That password has appeared in ${pwned.toLocaleString()} data breaches. Choose a different one.`, field: 'password' };
+  await execute(`UPDATE users SET password_hash = ?, password_changed_at = NOW() WHERE id = ? AND password_hash IS NULL`, [await hashPassword(password), user.id]);
+  await revokeAllUserSessions(user.id, 'password_changed', session.id);
+  await audit('auth.password.set', { actorUserId: user.id, metadata: { via: 'first_password' } });
+  return { ok: true };
+}
+
 export async function registerAttendee(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const bot = await humanCheck(formData, await clientIp());
   if (bot) return { error: bot === 'captcha' ? CAPTCHA_MESSAGE : BOT_MESSAGE };

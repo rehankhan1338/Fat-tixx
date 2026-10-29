@@ -32,8 +32,9 @@ export async function createOrganization(_prev: ActionState, fd: FormData): Prom
   if (await queryOne(`SELECT 1 FROM organizations WHERE slug = ?`, [slug])) slug = `${slug}-${shortSuffix()}`;
 
   const r = await execute(
-    `INSERT INTO organizations (slug, name, legal_name, contact_email, contact_phone, website, description, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    // set up by platform staff, so verified (paid events need a verified organization: src/lib/orgs/verification.ts)
+    `INSERT INTO organizations (slug, name, legal_name, contact_email, contact_phone, website, description, created_by, verified_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
     [slug, name, str(fd, 'legal_name', 200) || null, contactEmail, str(fd, 'contact_phone', 40) || null, str(fd, 'website', 255) || null, str(fd, 'description', 2000) || null, session.user.id],
   );
   const orgId = r.insertId;

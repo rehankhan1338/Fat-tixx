@@ -22,6 +22,12 @@ vi.mock("next/headers", () => ({
   }),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+// Platform staff are never signed in on the public site: the review step runs as a reviewer set by the test.
+const reviewer = vi.hoisted(() => ({ id: 0 }));
+vi.mock("@/lib/auth/guard", async (original) => ({
+  ...(await original<typeof import("@/lib/auth/guard")>()),
+  assertPlatformRole: async () => ({ user: { id: reviewer.id, roles: ["support"] } }),
+}));
 
 import { db, execute, query, queryOne, type Row } from "@/lib/db";
 import { completeSignup, MAX_TRIES, normalizeDestination, readPendingSignup, sendSignInCode, verifySignInCode } from "@/lib/auth/passwordless";
@@ -30,6 +36,9 @@ import { decryptEventPassword } from "@/lib/events/password";
 import { emptyDraft, type EventDraft } from "@/lib/home/create";
 import { publishDraft, saveEventEdits } from "@/lib/home/create-actions";
 import { saveOrgQuestionnaire } from "@/lib/applications/org-questionnaire";
+import { approveApplication, submitOrgVerification } from "@/lib/applications/actions";
+import { createTicketType, setEventStatus } from "@/lib/events/actions";
+import { listPublicEvents } from "@/lib/events/queries";
 import { createPendingOrder, finalizePaidOrder } from "@/lib/orders/checkout";
 import { categoryNames } from "@/lib/site-content/categories";
 
@@ -198,18 +207,85 @@ describe("creating and editing from /create", () => {
     expect(decryptEventPassword(ev!.access_password)).toBe("letmein");
   });
 
-  it("a paid event goes live at once and asks the new organizer to set up payouts (plan 5.6.9, option A)", async () => {
+  it("offers a password to an organizer who signed up with a code", async () => {
     const fd = new FormData();
-    const tickets = [{ ...emptyDraft().tickets[0], name: "GA", price: "25", quantity: "100" }];
-    fd.set("draft", JSON.stringify({ ...draft({ category: (await categoryNames())[0], name: `Paid ${tag}`, tickets }), gallery: [] }));
+    fd.set("draft", JSON.stringify({ ...draft({ category: (await categoryNames())[0], name: `Free again ${tag}` }), gallery: [] }));
     fd.set("org", orgSlug);
     const r = await publishDraft(undefined, fd);
-    expect(r && "ok" in r && r.ok).toBe(true);
-    if (!r || !("ok" in r)) return;
-    expect(r.published).toBe(true);
-    expect(r.payoutsNeeded).toBe(true); // not verified, manual payouts: Fattixx can't pay it yet
-    const ev = await queryOne<Row & { status: string }>(`SELECT status FROM events WHERE id = ?`, [Number(r.manageUrl.split("/").pop())]);
-    expect(ev?.status).toBe("published");
+    expect(r && "ok" in r && r.passwordFor).toBe(email);
+  });
+
+  describe("paid events of an unverified organization", () => {
+    let paidId = 0;
+    let freeId = 0;
+
+    it("holds a paid event in review, hidden from the public", async () => {
+      const fd = new FormData();
+      const tickets = [{ ...emptyDraft().tickets[0], name: "GA", price: "25", quantity: "100" }];
+      fd.set("draft", JSON.stringify({ ...draft({ category: (await categoryNames())[0], name: `Paid ${tag}`, tickets }), gallery: [] }));
+      fd.set("org", orgSlug);
+      const r = await publishDraft(undefined, fd);
+      expect(r && "ok" in r && r.ok).toBe(true);
+      if (!r || !("ok" in r)) return;
+      expect(r).toMatchObject({ published: false, inReview: true, payoutsNeeded: false });
+      paidId = Number(r.manageUrl.split("/").pop());
+      const ev = await queryOne<Row & { status: string; slug: string }>(`SELECT status, slug FROM events WHERE id = ?`, [paidId]);
+      expect(ev?.status).toBe("in_review");
+      expect((await listPublicEvents()).map((e) => e.slug)).not.toContain(ev!.slug);
+    });
+
+    it("can't be put on sale from the dashboard either", async () => {
+      await execute(`UPDATE events SET status = 'draft' WHERE id = ?`, [paidId]);
+      const fd = new FormData();
+      fd.set("org", orgSlug);
+      fd.set("event_id", String(paidId));
+      fd.set("status", "published");
+      expect(await setEventStatus(fd)).toMatchObject({ ok: true, message: expect.stringContaining("In review") });
+      expect((await queryOne<Row & { status: string }>(`SELECT status FROM events WHERE id = ?`, [paidId]))?.status).toBe("in_review");
+    });
+
+    it("a paid ticket added to a live free event puts it back in review", async () => {
+      const fd = new FormData();
+      fd.set("draft", JSON.stringify({ ...draft({ category: (await categoryNames())[0], name: `Free then paid ${tag}` }), gallery: [] }));
+      fd.set("org", orgSlug);
+      const r = await publishDraft(undefined, fd);
+      if (!r || !("ok" in r)) throw new Error("not created");
+      freeId = Number(r.manageUrl.split("/").pop());
+      expect(r.published).toBe(true);
+      const t = new FormData();
+      for (const [k, v] of Object.entries({ org: orgSlug, event_id: String(freeId), name: "VIP", kind: "general", price: "40", quantity: "20", min_per_order: "1", max_per_order: "4" })) t.set(k, v);
+      expect(await createTicketType(undefined, t)).toMatchObject({ ok: true, message: expect.stringContaining("in review") });
+      expect((await queryOne<Row & { status: string }>(`SELECT status FROM events WHERE id = ?`, [freeId]))?.status).toBe("in_review");
+    });
+
+    it("verification needs a password, then approval verifies the organization and puts the held events on sale", async () => {
+      const fd = new FormData();
+      for (const [k, v] of Object.entries({ org: orgSlug, contact_name: "Jo Organizer", contact_email: email, legal_name: "Jo Presents LLC", business_type: "company", address: "1 King St, Charleston SC", agree: "1" })) fd.set(k, v);
+      expect(await submitOrgVerification(undefined, fd)).toMatchObject({ field: "password" });
+      fd.set("password", "a long test passphrase 42");
+      fd.set("confirm", "a long test passphrase 42");
+      expect(await submitOrgVerification(undefined, fd)).toMatchObject({ ok: true });
+      const user = await queryOne<Row & { id: number; password_hash: string | null }>(`SELECT id, password_hash FROM users WHERE email_normalized = ?`, [email]);
+      expect(user?.password_hash).not.toBeNull();
+      const org = await queryOne<Row & { id: number }>(`SELECT id FROM organizations WHERE slug = ?`, [orgSlug]);
+      const app = await queryOne<Row & { id: number; status: string }>(`SELECT id, status FROM organizer_applications WHERE organization_id = ?`, [org!.id]);
+      expect(app?.status).toBe("pending");
+
+      // platform support approves it
+      reviewer.id = Number(user!.id);
+      try {
+        const review = new FormData();
+        review.set("id", String(app!.id));
+        expect(await approveApplication(review)).toMatchObject({ ok: true, message: expect.stringContaining("2 held events are now live") });
+      } finally {
+        await execute(`DELETE FROM organizer_applications WHERE id = ?`, [app!.id]);
+      }
+      expect((await queryOne<Row & { verified_at: Date | null }>(`SELECT verified_at FROM organizations WHERE id = ?`, [org!.id]))?.verified_at).not.toBeNull();
+      const statuses = await query<Row & { status: string }>(`SELECT status FROM events WHERE id IN (?, ?)`, [paidId, freeId]);
+      expect(statuses.map((s) => s.status)).toEqual(["published", "published"]);
+      const mail = await queryOne<Row & { subject: string }>(`SELECT subject FROM email_outbox WHERE to_email = ? ORDER BY id DESC LIMIT 1`, [email]);
+      expect(mail?.subject).toContain("is verified");
+    });
   });
 
   it("a signed-in organizer can still save a draft (plan 5.6.10)", async () => {

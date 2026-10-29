@@ -4,8 +4,9 @@ import { uniq, watchConsole } from "./helpers/ui";
 
 /**
  * The public create flow (plan 5.6) as a new organizer, in a real browser: no login wall, the checks before sign-up,
- * the live fee preview, the passwordless sign-up with a 6-digit code, the event going live at once with the payout
- * banner (5.6.9, option A), and the organizer sign-up questionnaire on the way into the dashboard.
+ * the live fee preview, the passwordless sign-up with a 6-digit code, the paid event held in review until the new
+ * organization is verified (hidden from the public, previewed by the organizer), the password and verification
+ * reminders, and the organizer sign-up questionnaire on the way into the dashboard.
  * Runs without an email provider, so the sign-up window shows the code in its test-mode notice.
  */
 test.describe.configure({ mode: "serial" });
@@ -14,6 +15,16 @@ const id = uniq();
 const email = `e2e-create-${id}@fattixx.local`;
 const name = `E2E Create ${id}`;
 const nextYear = new Date().getFullYear() + 1;
+
+async function orgSlug(): Promise<string> {
+  const conn = await testDb();
+  try {
+    const [rows] = await conn.query<import("mysql2").RowDataPacket[]>(`SELECT slug FROM organizations WHERE name = ?`, [`E2E Host ${id}`]);
+    return rows[0].slug;
+  } finally {
+    await conn.end();
+  }
+}
 
 test.afterAll(async () => {
   const conn = await testDb();
@@ -26,7 +37,7 @@ test.afterAll(async () => {
   }
 });
 
-test("a new organizer goes from /create to a live event and the sign-up questionnaire", async ({ page }) => {
+test("a new organizer’s paid event waits for verification, and the sign-up questionnaire comes next", async ({ page, browser }) => {
   const consoleLog = watchConsole(page);
   await page.goto("/create");
   await expect(page).toHaveURL(/\/create$/); // no login wall (5.6.2)
@@ -68,11 +79,11 @@ test("a new organizer goes from /create to a live event and the sign-up question
   await dialog.getByRole("checkbox").check();
   await dialog.getByRole("button", { name: "Create account and event" }).click();
 
-  // live at once, with the payout banner (5.6.9 option A) and a working link (5.6.11)
-  await expect(page.getByRole("heading", { name: "Your event is live." })).toBeVisible();
-  await expect(page.getByText("Set up payouts to get paid for your ticket sales.")).toBeVisible();
+  // a paid event of an unverified organization is held in review, with the way to verification
+  await expect(page.getByRole("heading", { name: "One step before you sell." })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Verify your organization" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "WhatsApp", exact: true })).toHaveCount(0); // nothing to share yet
   const url = await page.locator("#event-url").inputValue();
-  for (const share of ["Text message", "WhatsApp", "X", "Facebook", "Email"]) await expect(page.getByRole("link", { name: share, exact: true })).toBeVisible();
 
   // the sign-up questionnaire on the way into the dashboard ("Organizer Sign Up")
   await page.getByRole("link", { name: "Go to dashboard" }).click();
@@ -82,12 +93,26 @@ test("a new organizer goes from /create to a live event and the sign-up question
   await page.getByRole("button", { name: "Next", exact: true }).click();
   for (let i = 2; i <= 6; i++) await page.getByRole("button", { name: "Skip", exact: true }).click();
   await expect(page).toHaveURL(/\/org\/[^/]+$/);
-  await expect(page.getByText("Set up payouts to get paid for your ticket sales.")).toBeVisible();
+  await expect(page.getByText("Your paid event is in review.")).toBeVisible();
+  await expect(page.getByText("Set a password for your account")).toBeVisible();
 
-  // the public event page is live
+  // the organizer previews the event with the "In review" banner; everyone else gets nothing
   const res = await page.goto(new URL(url).pathname);
   expect(res?.status()).toBe(200);
   await expect(page.getByText(name).first()).toBeVisible();
+  await expect(page.getByText("In review", { exact: true })).toBeVisible();
+  const visitor = await browser.newContext();
+  try {
+    const anon = await (await visitor.newPage()).goto(new URL(url).pathname);
+    expect(anon?.status()).toBe(404);
+  } finally {
+    await visitor.close();
+  }
+
+  // the verification form starts from what the organizer already gave, and asks for a password
+  await page.goto(`${new URL(page.url()).origin}/org/${(await orgSlug())}/verify`);
+  await expect(page.getByLabel("Email")).toHaveValue(email);
+  await expect(page.getByLabel("New password")).toBeVisible();
 
   const conn = await testDb();
   try {
