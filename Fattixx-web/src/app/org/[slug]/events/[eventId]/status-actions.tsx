@@ -41,7 +41,8 @@ export function EventStatusActions({ orgSlug, eventId, status, hasTicketTypes, c
           </Tooltip>
         )
       ) : null}
-      {status === "published" ? <Button variant="outline" disabled={pending} onClick={() => run(setEventStatus, { org: orgSlug, event_id: eventId, status: "draft" }, "Event unpublished")}>Unpublish</Button> : null}
+      {status === "in_review" ? <Button render={<a href={`/org/${orgSlug}/verify`} />}>Verify organization</Button> : null}
+      {status === "published" || status === "in_review" ? <Button variant="outline" disabled={pending} onClick={() => run(setEventStatus, { org: orgSlug, event_id: eventId, status: "draft" }, "Event unpublished")}>Unpublish</Button> : null}
 
       <DropdownMenu>
         <DropdownMenuTrigger render={<Button variant="outline" size="icon" aria-label="More actions" />}><MoreHorizontalIcon /></DropdownMenuTrigger>

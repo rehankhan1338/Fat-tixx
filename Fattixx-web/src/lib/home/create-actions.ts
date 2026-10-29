@@ -4,8 +4,10 @@
  * Saves the event drafted on /create (plan 5.6). Anyone can fill in the page; the sign-up window at the end signs the
  * visitor in (src/lib/auth/passwordless-actions.ts), and publishDraft() then saves the event under their organization,
  * creating that organization on the spot for a new organizer (with the Organizer Agreement acceptance recorded).
- * The event goes live at once (plan 5.6.9, option A: "live now, payouts later"); a paid event whose organization
- * can't be paid yet gets the "Set up payouts" banner and reminder emails, and payouts wait until setup is done. saveEventEdits() saves the same page when it edits an existing event (plan 5.6.12).
+ * A free event goes live at once. A paid event goes live at once only for a verified organization; otherwise it is held
+ * 'in_review' until the organization's verification is approved (src/lib/orgs/verification.ts). A live paid event whose
+ * organization can't be paid yet gets the "Set up payouts" banner and reminder emails, and payouts wait until setup is
+ * done (plan 5.6.9, "live now, payouts later"). saveEventEdits() saves the same page when it edits an existing event (plan 5.6.12).
  */
 
 import { revalidatePath } from 'next/cache';
@@ -18,6 +20,7 @@ import { encryptEventPassword } from '../events/password';
 import { getEvent, listEventDates, listEventPhotos, listTicketTypes, MAX_EVENT_PHOTOS, publicEventPath, type EventListRow } from '../events/queries';
 import { eventSnapshot, notifyEventChanged } from '../events/notify';
 import { geocodeAddress } from '../places';
+import { holdIfUnverified, liveStatus } from '../orgs/verification';
 import { payoutsReady } from '../payments/connect';
 import { rateLimited } from '../security/bot';
 import { randomToken } from '../security/crypto';
@@ -31,7 +34,7 @@ import { parseDollars } from './pricing';
 
 export type CreateState =
   | { error: string; needsAuth?: boolean }
-  | { ok: true; url: string; manageUrl: string; editUrl: string; published: boolean; verified: boolean; payoutsNeeded: boolean; orgName: string; orgSlug: string; dashboardUrl: string; notified?: number }
+  | { ok: true; url: string; manageUrl: string; editUrl: string; published: boolean; inReview: boolean; verified: boolean; payoutsNeeded: boolean; passwordFor: string | null; orgName: string; orgSlug: string; dashboardUrl: string; notified?: number }
   | undefined;
 
 const MAX_QUANTITY = 1_000_000;
@@ -291,6 +294,11 @@ function revalidateEventPages(orgSlug: string, eventId: number, slugs: string[])
   for (const s of slugs) revalidatePath(`/events/${s}`);
 }
 
+/** Organizers who signed up with a one-time code have no password yet; the confirmation screen offers to set one. */
+async function needsPassword(userId: number): Promise<boolean> {
+  return !!(await queryOne(`SELECT 1 FROM users WHERE id = ? AND password_hash IS NULL`, [userId]));
+}
+
 // ---------------------------------------------------------------------------
 // New event
 // ---------------------------------------------------------------------------
@@ -319,21 +327,24 @@ export async function publishDraft(_prev: CreateState, fd: FormData): Promise<Cr
   const tickets: TicketValues[] = draft.mode === 'rsvp'
     ? [{ name: 'Free admission', priceCents: 0, quantity: cols.capacity ?? MAX_QUANTITY, min: 1, max: 10, salesStart: null, salesEnd: null, description: null, hidden: 0 }]
     : draft.tickets.map((t) => ticketValues(t, draft.timeZone, cols.capacity));
-  const published = tickets.length > 0 && fd.get('save_as') !== 'draft';
+  const publish = tickets.length > 0 && fd.get('save_as') !== 'draft';
   const paid = tickets.some((t) => t.priceCents > 0);
+  const status = !publish ? 'draft' : paid && !org.verified ? 'in_review' : 'published';
+  const published = status === 'published';
   const r = await execute(
     `INSERT INTO events (organization_id, venue_id, online_url, slug, title, summary, description, image_path, video_url, starts_at, ends_at, show_end_time, doors_at, timezone, capacity, waitlist_enabled, status,
        visibility, private_key, access_password, age_restriction, fee_mode, tax_bps, tax_label, currency, refund_policy, refund_days_before, allow_transfers, category, featured, created_by)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'USD', ?, ?, ?, ?, ?, ?)`,
     [org.id, where.venueId, where.onlineUrl, slug, cols.title, cols.summary, cols.description, images.cover, cols.videoUrl, cols.startsAt, cols.endsAt, cols.showEnd, cols.doorsAt, cols.timezone,
-      cols.capacity, cols.waitlist, published ? 'published' : 'draft', cols.visibility, privateKey, cols.password, cols.age, cols.feeMode, cols.taxBps, cols.taxLabel,
+      cols.capacity, cols.waitlist, status, cols.visibility, privateKey, cols.password, cols.age, cols.feeMode, cols.taxBps, cols.taxLabel,
       cols.refundPolicy, cols.refundDays, cols.allowTransfers, cols.category, featured, session.user.id],
   );
   const eventId = r.insertId;
   let sort = 0;
   for (const t of tickets) await insertTicket(eventId, t, sort++, session.user.id);
   await saveGallery(eventId, draft.galleryPost, images.photos, session.user.id);
-  await audit('event.created', { actorUserId: session.user.id, targetType: 'event', targetId: eventId, metadata: { title: cols.title, viaCreatePage: true, published } });
+  await audit('event.created', { actorUserId: session.user.id, targetType: 'event', targetId: eventId, metadata: { title: cols.title, viaCreatePage: true, status } });
+  if (status === 'in_review') await audit('event.held_for_review', { actorUserId: session.user.id, targetType: 'event', targetId: eventId, metadata: { reason: 'paid_tickets_unverified_org' } });
   if (published) await audit('event.published', { actorUserId: session.user.id, targetType: 'event', targetId: eventId, metadata: { status: 'published' } });
   revalidateEventPages(org.slug, eventId, [slug]);
 
@@ -343,8 +354,10 @@ export async function publishDraft(_prev: CreateState, fd: FormData): Promise<Cr
     manageUrl: `/org/${org.slug}/events/${eventId}`,
     editUrl: `/org/${org.slug}/events/${eventId}/edit`,
     published,
+    inReview: status === 'in_review',
     verified: org.verified,
-    payoutsNeeded: paid && !(await payoutsReady(org.id, org.verified)),
+    payoutsNeeded: published && paid && !(await payoutsReady(org.id, org.verified)),
+    passwordFor: (await needsPassword(session.user.id)) ? session.user.email : null,
     orgSlug: org.slug,
     // a new organizer answers the sign-up questionnaire on the way into the dashboard
     dashboardUrl: (await queryOne(
@@ -400,6 +413,7 @@ export async function saveEventEdits(_prev: CreateState, fd: FormData): Promise<
   else if (coverState === 'none') imagePath = null;
 
   if (ticketPlan) await applyTicketPlan(event.id, ticketPlan, ctx.session.user.id);
+  const verified = !!ctx.org.verified_at;
 
   const privateKey = cols.visibility === 'private' ? (event.private_key ?? randomToken(12).slice(0, 16)) : null;
   await execute(
@@ -421,10 +435,13 @@ export async function saveEventEdits(_prev: CreateState, fd: FormData): Promise<
   if (fd.get('save_as') === 'publish' && event.status === 'draft') {
     const tt = await queryOne<Row & { n: number }>(`SELECT COUNT(*) AS n FROM ticket_types WHERE event_id = ?`, [event.id]);
     if (Number(tt?.n ?? 0) > 0) {
-      await execute(`UPDATE events SET status = 'published' WHERE id = ?`, [event.id]);
-      await audit('event.published', { actorUserId: ctx.session.user.id, targetType: 'event', targetId: event.id, metadata: { status: 'published' } });
-      status = 'published';
+      status = await liveStatus(event.id, verified);
+      await execute(`UPDATE events SET status = ? WHERE id = ?`, [status, event.id]);
+      await audit(status === 'published' ? 'event.published' : 'event.held_for_review', { actorUserId: ctx.session.user.id, targetType: 'event', targetId: event.id, metadata: { status } });
     }
+  } else if (await holdIfUnverified(event.id, verified, ctx.session.user.id)) {
+    // a paid ticket added to a live free event
+    status = 'in_review';
   }
   const notified = await notifyEventChanged(before, ctx.session.user.id);
   revalidateEventPages(ctx.org.slug, event.id, [...new Set([event.slug, slug])]);
@@ -435,8 +452,10 @@ export async function saveEventEdits(_prev: CreateState, fd: FormData): Promise<
     manageUrl: `/org/${ctx.org.slug}/events/${event.id}`,
     editUrl: `/org/${ctx.org.slug}/events/${event.id}/edit`,
     published: status === 'published',
-    verified: !!ctx.org.verified_at,
+    inReview: status === 'in_review',
+    verified,
     payoutsNeeded: false,
+    passwordFor: null,
     orgSlug: ctx.org.slug,
     dashboardUrl: `/org/${ctx.org.slug}/events/${event.id}`,
     orgName: ctx.org.name,

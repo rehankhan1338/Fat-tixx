@@ -26,7 +26,7 @@ function TicketTypeDialog({ orgSlug, eventId, tt, trigger, days = [] }: { orgSlu
   const [kind, setKind] = useState(tt?.kind ?? "general");
   const [state, action] = useActionState(async (prev: ActionState, fd: FormData) => {
     const r = tt ? await updateTicketType(prev, fd) : await createTicketType(prev, fd);
-    if (r?.ok) { toast.success(tt ? "Ticket type updated" : "Ticket type added"); setOpen(false); }
+    if (r?.ok) { toast.success(r.message ?? (tt ? "Ticket type updated" : "Ticket type added")); setOpen(false); }
     return r;
   }, undefined);
   return (

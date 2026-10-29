@@ -12,6 +12,7 @@ import { isValidTimeZone, shiftWallClock, wallClockToUtc } from '../tz';
 import { copyUpload, deleteUpload } from '../uploads';
 import { getEvent, listEventDates, listEventPhotos, type EventRow } from './queries';
 import { eventSnapshot, notifyEventChanged } from './notify';
+import { holdIfUnverified, liveStatus } from '../orgs/verification';
 
 /*
  * Event details are created and edited on the /create page (src/lib/home/create-actions.ts, plan 5.6); this file
@@ -302,16 +303,21 @@ export async function duplicateEvent(_prev: ActionState, fd: FormData): Promise<
 
 export async function setEventStatus(fd: FormData): Promise<ActionState> {
   const { ctx, event } = await loadEventForEdit(str(fd, 'org', 64), Number(fd.get('event_id')));
-  const status = str(fd, 'status', 20);
+  let status = str(fd, 'status', 20);
   if (!['draft', 'published', 'completed'].includes(status)) return { error: 'Invalid status.' };
+  if (status === 'completed' && event.status === 'in_review') return { error: 'This event is waiting for verification.' };
   if (status === 'published') {
     const tt = await queryOne<Row & { n: number }>(`SELECT COUNT(*) AS n FROM ticket_types WHERE event_id = ?`, [event.id]);
     if (!Number(tt?.n ?? 0)) return { error: 'Add at least one ticket type before publishing.' };
     if (event.status === 'cancelled') return { error: 'A cancelled event cannot be re-published. Create a new event.' };
+    // a paid event of an unverified organization waits for verification (src/lib/orgs/verification.ts)
+    status = await liveStatus(event.id, !!ctx.org.verified_at);
   }
   await execute(`UPDATE events SET status = ? WHERE id = ?`, [status, event.id]);
-  await audit(status === 'published' ? 'event.published' : status === 'draft' ? 'event.unpublished' : 'event.updated', { actorUserId: ctx.session.user.id, targetType: 'event', targetId: event.id, metadata: { status } });
+  const action = status === 'published' ? 'event.published' : status === 'in_review' ? 'event.held_for_review' : status === 'draft' ? 'event.unpublished' : 'event.updated';
+  await audit(action, { actorUserId: ctx.session.user.id, targetType: 'event', targetId: event.id, metadata: { status } });
   revalidateEvent(ctx.org.slug, event.id, event.slug);
+  if (status === 'in_review') return { ok: true, message: 'In review: paid events go live once your organization is verified.' };
   return { ok: true };
 }
 
@@ -367,6 +373,8 @@ function ticketTypeFields(fd: FormData, timezone: string, dateIds: number[]) {
   };
 }
 
+const HELD_MESSAGE = 'Saved. Paid tickets need a verified organization, so the event is in review and hidden until then.';
+
 export async function createTicketType(_prev: ActionState, fd: FormData): Promise<ActionState> {
   const { ctx, event } = await loadEventForEdit(str(fd, 'org', 64), Number(fd.get('event_id')));
   const f = ticketTypeFields(fd, event.timezone, (await listEventDates(event.id)).map((d) => Number(d.id)));
@@ -376,8 +384,9 @@ export async function createTicketType(_prev: ActionState, fd: FormData): Promis
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [event.id, ...f.values],
   );
   await audit('ticket_type.created', { actorUserId: ctx.session.user.id, targetType: 'ticket_type', targetId: r.insertId, metadata: { eventId: event.id } });
+  const held = await holdIfUnverified(event.id, !!ctx.org.verified_at, ctx.session.user.id);
   revalidateEvent(ctx.org.slug, event.id, event.slug);
-  return { ok: true };
+  return held ? { ok: true, message: HELD_MESSAGE } : { ok: true };
 }
 
 export async function updateTicketType(_prev: ActionState, fd: FormData): Promise<ActionState> {
@@ -401,8 +410,9 @@ export async function updateTicketType(_prev: ActionState, fd: FormData): Promis
     [...values, id, event.id],
   );
   await audit('ticket_type.updated', { actorUserId: ctx.session.user.id, targetType: 'ticket_type', targetId: id });
+  const held = await holdIfUnverified(event.id, !!ctx.org.verified_at, ctx.session.user.id);
   revalidateEvent(ctx.org.slug, event.id, event.slug);
-  return { ok: true };
+  return held ? { ok: true, message: HELD_MESSAGE } : { ok: true };
 }
 
 export async function deleteTicketType(fd: FormData): Promise<ActionState> {

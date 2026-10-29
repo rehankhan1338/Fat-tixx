@@ -55,7 +55,9 @@ export default function EventPage({ data, panel, ad, notices = [] }: { data: Eve
           <img src={data.brand.cover} alt="" className="mb-8 h-[clamp(140px,22vw,300px)] w-full rounded-[28px] object-cover" />
         )}
         <Breadcrumb category={e.category} preview={data.preview} organizer={data.brand ? { name: v.org.name, href: data.brand.organizerHref } : null} />
-        {data.preview && <Notice title={`This event is ${data.status}.`} text="Only your team can see this page until it is published." />}
+        {data.preview && (data.status === "in_review"
+          ? <Notice title="In review" text="Only your team can see this page. Paid events go live once your organization is verified." />
+          : <Notice title={`This event is ${data.status}.`} text="Only your team can see this page until it is published." />)}
         {data.status === "postponed" && <Notice title="This event has been postponed." text="Existing tickets remain valid for the new date." />}
         {data.status === "cancelled" && <Notice title="This event has been cancelled." text="Paid orders are refunded in full." />}
         {notices.map((n) => (

@@ -1,15 +1,20 @@
 "use client";
 
-/* Shown once the event is saved: the live link (or the draft notice), share buttons and the way to the dashboard. */
+/*
+ * Shown once the event is saved: the live link (or the draft or in-review notice), share buttons and the way to the
+ * dashboard. A paid event of an unverified organization is held in review until the organization is verified; an
+ * account without a password is offered one here (skippable: the dashboard keeps reminding).
+ */
 
 import { useState } from "react";
+import { SetFirstPassword } from "@/components/set-first-password";
 import { button, cx } from "@/components/ui/styles";
 import { toLocal } from "@/lib/home/create";
 import type { EventDraft } from "@/lib/home/create";
 import { whenText } from "@/lib/home/events";
 import { storyImage } from "@/lib/home/story-image";
 
-export type Created = { url: string; manageUrl: string; editUrl: string; published: boolean; verified: boolean; payoutsNeeded: boolean; orgName: string; orgSlug: string; dashboardUrl: string };
+export type Created = { url: string; manageUrl: string; editUrl: string; published: boolean; inReview: boolean; verified: boolean; payoutsNeeded: boolean; passwordFor: string | null; orgName: string; orgSlug: string; dashboardUrl: string };
 
 /**
  * Instagram has no web link for posting a Story. On phones the picture goes to the share sheet, where Instagram offers
@@ -63,7 +68,9 @@ function InstagramStoryButton({ d, url, when, where }: { d: EventDraft; url: str
 
 export default function Confirmation({ d, created, onAnother }: { d: EventDraft; created: Created; onAnother: () => void }) {
   const [copied, setCopied] = useState(false);
-  const { url, published } = created;
+  const [passwordSkipped, setPasswordSkipped] = useState(false);
+  const { url, published, inReview } = created;
+  const verifyUrl = `/org/${created.orgSlug}/verify`;
   const start = toLocal(d.startDate, d.startTime);
   const where = d.location.kind === "online" ? "Online" : d.location.kind === "saved" ? d.location.venueName : d.location.venueName || d.location.address || d.location.city;
   const text = encodeURIComponent(`${d.name}: get your tickets on Fattixx`);
@@ -91,9 +98,9 @@ export default function Confirmation({ d, created, onAnother }: { d: EventDraft;
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M5 12l5 5 9-10" />
           </svg>
-          {published ? (d.visibility === "public" ? "Live on Fattixx" : d.visibility === "private" ? "Live, private link" : "Live, link only") : "Saved as a draft"}
+          {published ? (d.visibility === "public" ? "Live on Fattixx" : d.visibility === "private" ? "Live, private link" : "Live, link only") : inReview ? "In review" : "Saved as a draft"}
         </div>
-        <h1 className="mt-4 font-display text-[clamp(36px,4.6vw,56px)] leading-[.98] font-semibold tracking-[-0.045em]">{published ? "Your event is live." : "Your event is saved."}</h1>
+        <h1 className="mt-4 font-display text-[clamp(36px,4.6vw,56px)] leading-[.98] font-semibold tracking-[-0.045em]">{published ? "Your event is live." : inReview ? "One step before you sell." : "Your event is saved."}</h1>
         <p className="mt-3 text-[17px] leading-[1.55] text-fx-red/78">
           <b className="text-fx-red">{d.name}</b>
           <br />
@@ -101,7 +108,30 @@ export default function Confirmation({ d, created, onAnother }: { d: EventDraft;
           {where ? `, ${where}` : ""}
         </p>
 
-        {!published && (
+        {inReview && (
+          <div role="status" className="mt-6 rounded-[18px] bg-fx-yellow p-4">
+            <b className="block text-[15px]">Verify your organization to start selling paid tickets.</b>
+            <span className="mt-1 block text-[14px] leading-[1.5] text-fx-red/78">
+              Your event is saved and only you can see it. We verify every organizer before their first paid event, which protects buyers and you. Most reviews take one to two business days, and your event goes live as soon as it is approved.
+            </span>
+            <a href={verifyUrl} className={cx(button("red"), "mt-3")}>
+              Verify your organization
+            </a>
+          </div>
+        )}
+
+        {created.passwordFor && !inReview && !passwordSkipped && (
+          <div className="mt-6 rounded-[18px] border border-fx-red/14 bg-white p-4">
+            <b className="block text-[15px]">Set a password for your account</b>
+            <span className="mt-1 mb-3 block text-[14px] leading-[1.5] text-fx-red/78">So you can sign in with {created.passwordFor} and a password, as well as a one-time code.</span>
+            <SetFirstPassword
+              email={created.passwordFor}
+              skip={<button type="button" onClick={() => setPasswordSkipped(true)} className="min-h-11 cursor-pointer px-2 text-[14px] font-semibold text-fx-red-second underline underline-offset-4">Skip for now</button>}
+            />
+          </div>
+        )}
+
+        {!published && !inReview && (
           <div className="mt-6 rounded-[18px] border border-fx-red/14 bg-white p-4">
             <b className="block text-[15px]">Nothing is on sale yet.</b>
             <span className="mt-1 block text-[14px] leading-[1.5] text-fx-red/78">Add anything else you need in the dashboard (add-ons, promo codes, checkout questions), then publish the event when you are ready to sell.</span>
@@ -137,7 +167,7 @@ export default function Confirmation({ d, created, onAnother }: { d: EventDraft;
               {copied ? "Copied" : "Copy link"}
             </button>
           </div>
-          {!published && <p className="mt-2 text-[13px] text-fx-red/78">The link works for you now; everyone else sees it once the event is published.</p>}
+          {!published && <p className="mt-2 text-[13px] text-fx-red/78">The link works for you now; everyone else sees it once the event is {inReview ? "approved" : "published"}.</p>}
         </div>
 
         {published && (
