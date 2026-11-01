@@ -41,7 +41,7 @@ export type AuditAction =
   | 'seating.attached' | 'seating.detached' | 'seating.tier.created' | 'seating.seats.updated' | 'seating.ticket.moved'
   | 'audit.cleared' | 'auth.attempts.cleared' | 'auth.attempt.deleted'
   | 'ticket.wallet_pass'
-  | 'connect.onboarding.started' | 'connect.dashboard.opened' | 'settings.payouts'
+  | 'connect.onboarding.started' | 'connect.dashboard.opened' | 'connect.event_payout' | 'settings.payouts'
   | 'advertiser.applied' | 'advertiser.reviewed' | 'ad.checkout.started' | 'ad.paid' | 'ad.reviewed' | 'ad.refunded'
   | 'sponsorship.package.saved' | 'sponsorship.package.deleted' | 'sponsorship.requested' | 'sponsorship.decided' | 'sponsorship.paid' | 'sponsorship.cancelled' | 'sponsorship.refunded'
   | 'whitelabel.updated' | 'site_page.saved' | 'site_page.deleted';

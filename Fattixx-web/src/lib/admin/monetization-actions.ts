@@ -8,7 +8,7 @@ import { setSetting } from '../settings';
 /**
  * Super Admin → Payments → Payouts & marketplace: the Phase 3 money settings.
  *   payout_mode               manual (Admin → Payouts, as before) or connect (Stripe Connect, src/lib/payments/connect.ts)
- *   connect_payout_delay_days days Stripe holds an organizer's balance before paying it out (new accounts; 2–30)
+ *   connect_payout_delay_days days after an event ends before its held Stripe Connect payout is released (0–30)
  *   ad_cpm_cents              advertiser portal price per 1,000 impressions
  *   ad_min_impressions        smallest impression purchase
  *   sponsorship_fee_bps       Fattixx's share of a sponsorship deal
@@ -22,7 +22,7 @@ export async function saveMonetizationSettings(_prev: ActionState, fd: FormData)
   const mode = String(fd.get('payout_mode') ?? '');
   if (mode !== 'manual' && mode !== 'connect') return { error: 'Choose how organizers are paid.' };
   const delay = num(fd, 'connect_payout_delay_days');
-  if (!Number.isInteger(delay) || delay < 2 || delay > 30) return { error: 'Payout delay: 2 to 30 days.' };
+  if (!Number.isInteger(delay) || delay < 0 || delay > 30) return { error: 'Payout after event: 0 to 30 days.' };
   const cpm = Math.round(num(fd, 'ad_cpm_dollars') * 100);
   if (!Number.isFinite(cpm) || cpm < 50 || cpm > 100_000) return { error: 'Price per 1,000 impressions: $0.50 to $1,000.' };
   const minImp = num(fd, 'ad_min_impressions');

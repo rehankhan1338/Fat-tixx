@@ -129,7 +129,7 @@ test("verification starts from the organizer's details and requires a password",
   await expect(page.getByLabel("Your name")).toHaveValue(`Vee Host${id}`);
 
   await page.getByLabel("Legal name (for payouts)").fill("E2E Verify Events LLC");
-  await page.getByLabel("Tax ID (last 4 digits)").fill("4321");
+  await page.getByLabel("EIN (last 4 digits)").fill("4321");
   await page.getByLabel("Business address").fill("1 King St, Charleston SC");
   await page.locator("#vf-agree").check();
 

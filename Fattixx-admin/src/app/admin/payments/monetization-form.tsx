@@ -20,7 +20,7 @@ export function MonetizationForm({ values, canEdit }: { values: MonetizationValu
             { value: "connect", label: "Automatically with Stripe Connect (organizers set up under Dashboard → Payouts)" },
           ]}
           hint="With Stripe Connect, an organization stays on manual payouts until Stripe has verified it. Fattixx stays seller of record; fees and tax stay with Fattixx." />
-        <TextField label="Payout delay (days)" id="m-delay" name="connect_payout_delay_days" type="number" min={2} max={30} defaultValue={values.connect_payout_delay_days} hint="How long Stripe holds an organizer's balance before paying it out. Applies to accounts set up after the change." />
+        <TextField label="Payout after event (days)" id="m-delay" name="connect_payout_delay_days" type="number" min={0} max={30} defaultValue={values.connect_payout_delay_days} hint="Ticket money is held in the organizer's Stripe balance and paid out this many days after each event ends (US accounts can hold funds up to 2 years)." />
         <TextField label="Sponsorship fee (%)" id="m-sp" name="sponsorship_fee_pct" type="number" min={0} max={50} step="0.1" defaultValue={String(Number(values.sponsorship_fee_bps) / 100)} hint="Fattixx's share of each sponsorship deal paid on the marketplace" />
         <TextField label="Advertiser price per 1,000 impressions ($)" id="m-cpm" name="ad_cpm_dollars" type="number" min={0.5} step="0.01" defaultValue={(Number(values.ad_cpm_cents) / 100).toFixed(2)} hint="Self-service advertiser portal (/advertise)" />
         <TextField label="Smallest impression purchase" id="m-min" name="ad_min_impressions" type="number" min={1000} step={1000} defaultValue={values.ad_min_impressions} />

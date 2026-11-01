@@ -4,6 +4,9 @@ import { requirePlatformStaff } from "@/lib/auth/guard";
 import { query, queryOne, type Row } from "@/lib/db";
 import { QUESTIONS, answerLabels, type QuestionName } from "@/lib/applications/questionnaire";
 import { parsePagination } from "@/lib/pagination";
+import { STRIPE_STATUS } from "@/lib/payments/connect";
+import { stripeStep, type StripeStep } from "@/lib/orgs/verification";
+import { Badge } from "@/components/ui/badge";
 import { PageHeader, Section, StatusBadge, EmptyState, formatDate } from "@/components/shared";
 import { TablePagination } from "@/components/table-pagination";
 import { ReviewButtons } from "./review-buttons";
@@ -13,13 +16,20 @@ export const metadata: Metadata = { title: "Organizer applications" };
 type App = Row & {
   id: number; contact_name: string; contact_email: string; contact_phone: string | null; org_name: string; legal_name: string; business_type: string; tax_id_last4: string | null;
   website: string | null; address: string | null; expected_events: string | null; status: string; review_notes: string | null; reviewed_at: Date | null; reviewer: string | null;
-  created_at: Date; org_slug: string | null; ip: string | null; same_email_orgs: number; held_events: number;
+  created_at: Date; org_slug: string | null; organization_id: number | null; ip: string | null; same_email_orgs: number; held_events: number;
 } & Partial<Record<QuestionName, string | null>>; // the sign-up questionnaire's answers
 
 const APP_SELECT = `SELECT a.*, u.name AS reviewer, g.slug AS org_slug,
             (SELECT COUNT(*) FROM organizations o WHERE o.contact_email = a.contact_email AND o.id <> COALESCE(a.organization_id, 0)) AS same_email_orgs,
             (SELECT COUNT(*) FROM events e WHERE e.organization_id = a.organization_id AND e.status = 'in_review') AS held_events
        FROM organizer_applications a LEFT JOIN users u ON u.id = a.reviewed_by LEFT JOIN organizations g ON g.id = a.organization_id`;
+
+const BUSINESS_TYPE: Record<string, string> = { individual: "Individual / sole proprietor", company: "Company / promoter", venue: "Venue", nonprofit: "Nonprofit" };
+const STRIPE_TONE = { not_started: "border-amber-500/40 text-amber-700", incomplete: "border-amber-500/40 text-amber-700", pending: "border-sky-500/40 text-sky-700", restricted: "border-red-500/40 text-red-700", active: "border-emerald-500/40 text-emerald-700" };
+
+function StripeBadge({ step }: { step: StripeStep }) {
+  return <Badge variant="outline" className={STRIPE_TONE[step.state]}>Stripe: {STRIPE_STATUS[step.state]}</Badge>;
+}
 
 export default async function ApplicationsPage({ searchParams }: PageProps<"/admin/applications">) {
   await requirePlatformStaff(["super_admin", "support"]);
@@ -31,6 +41,8 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/adm
     queryOne<Row & { n: number }>(`SELECT COUNT(*) AS n FROM organizer_applications WHERE status <> 'pending'`),
   ]);
   const doneTotal = Number(doneTotalRow?.n ?? 0);
+  // Stripe Connect status of each pending organization (read fresh from Stripe: approval needs it to be Verified).
+  const stripe = new Map<number, StripeStep>(await Promise.all(pending.filter((a) => a.organization_id).map(async (a) => [Number(a.id), await stripeStep(Number(a.organization_id), true)] as const)));
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <PageHeader title="Organizer applications" description="Verify identity and business details before an organizer can sell. Approving a new application creates a verified organization with the applicant as its Organization Admin; approving an existing organization (signed up on Create event) verifies it and puts its paid events held in review on sale." />
@@ -40,10 +52,14 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/adm
             {pending.map((a) => (
               <li key={a.id} className="space-y-3 rounded-xl border p-4">
                 <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div><p className="text-lg font-semibold">{a.org_name}</p><p className="text-sm text-muted-foreground">{a.legal_name} · <span className="capitalize">{a.business_type}</span> · applied {formatDate(a.created_at)}</p>
+                  <div><p className="text-lg font-semibold">{a.org_name}</p><p className="text-sm text-muted-foreground">{a.legal_name} · {BUSINESS_TYPE[a.business_type] ?? a.business_type} · applied {formatDate(a.created_at)}</p>
                     {a.org_slug ? <p className="text-sm">Existing organization: <Link href={`/admin/organizations/${a.org_slug}`} className="underline">{a.org_slug}</Link>{Number(a.held_events) ? ` · ${a.held_events} paid event${Number(a.held_events) === 1 ? "" : "s"} waiting in review` : ""}</p> : null}</div>
-                  {Number(a.same_email_orgs) ? <StatusBadge status="pending" /> : null}
+                  <div className="flex items-center gap-2">
+                    {stripe.get(Number(a.id))?.required ? <StripeBadge step={stripe.get(Number(a.id))!} /> : null}
+                    {Number(a.same_email_orgs) ? <StatusBadge status="pending" /> : null}
+                  </div>
                 </div>
+                {stripe.get(Number(a.id))?.required && stripe.get(Number(a.id))!.state !== "active" ? <p className="text-sm text-amber-700 dark:text-amber-300">Approval opens once Stripe has verified this organizer{stripe.get(Number(a.id))!.due.length ? ` (Stripe needs: ${stripe.get(Number(a.id))!.due.slice(0, 4).join(", ")})` : ""}.</p> : null}
                 <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
                   <div><dt className="inline text-muted-foreground">Contact: </dt><dd className="inline">{a.contact_name} · <a href={`mailto:${a.contact_email}`} className="underline">{a.contact_email}</a>{a.contact_phone ? ` · ${a.contact_phone}` : ""}</dd></div>
                   <div><dt className="inline text-muted-foreground">Tax ID last 4: </dt><dd className="inline font-mono">{a.tax_id_last4 ?? "not given"}</dd></div>

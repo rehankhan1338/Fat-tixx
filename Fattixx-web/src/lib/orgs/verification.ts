@@ -1,6 +1,8 @@
 import 'server-only';
 import { audit } from '../audit';
 import { execute, query, queryOne, type Row } from '../db';
+import { connectState, getConnectAccount, parseDue, payoutMode, syncConnectAccount, type ConnectState } from '../payments/connect';
+import { getActiveStripe } from '../payments/stripe';
 
 /**
  * Paid events need a verified organization. An organization made on /create starts unverified: its free events go live
@@ -38,6 +40,22 @@ export async function verificationState(org: { id: number; verified_at: Date | n
     queryOne<Row & { n: number }>(`SELECT COUNT(*) AS n FROM events WHERE organization_id = ? AND status = 'in_review'`, [org.id]),
   ]);
   return { verified: false, pending: app?.status === 'pending', rejectedNotes: app?.status === 'rejected' ? app.review_notes : null, heldEvents: Number(held?.n ?? 0) };
+}
+
+/**
+ * The Stripe step of verification. Required while payouts run through Stripe Connect (Admin → Payments → Payouts):
+ * the organizer finishes Stripe's onboarding (embedded on the verify page) before sending the verification, and staff
+ * can approve only once Stripe has verified the account.
+ */
+export type StripeStep = { required: boolean; state: ConnectState; publishableKey: string | null; due: string[] };
+
+/** `fresh`: read an account that isn't verified yet from Stripe first (no webhook tells us when Stripe finishes). */
+export async function stripeStep(orgId: number, fresh = false): Promise<StripeStep> {
+  const [mode, active] = await Promise.all([payoutMode(), getActiveStripe()]);
+  if (mode !== 'connect' || !active) return { required: false, state: 'not_started', publishableKey: null, due: [] };
+  let acct = await getConnectAccount(orgId, active.mode);
+  if (fresh && acct && connectState(acct) !== 'active') acct = await syncConnectAccount(orgId);
+  return { required: true, state: connectState(acct), publishableKey: active.publishableKey, due: parseDue(acct?.requirements_due ?? null) };
 }
 
 /** On approval: publish the organization's held events. Returns their titles for the email. */

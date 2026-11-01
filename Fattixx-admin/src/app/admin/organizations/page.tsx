@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requirePlatformStaff, hasPlatformRole } from "@/lib/auth/guard";
 import { countOrganizations, listOrganizations } from "@/lib/admin/queries";
 import { formatCents } from "@/lib/money";
+import { STRIPE_STATUS, connectState, payoutMode } from "@/lib/payments/connect";
 import { DEFAULT_PER_PAGE, parsePagination } from "@/lib/pagination";
 import { PageHeader, StatusBadge, formatDate, EmptyState } from "@/components/shared";
 import { TablePagination } from "@/components/table-pagination";
@@ -22,7 +23,8 @@ export default async function OrganizationsPage({ searchParams }: PageProps<"/ad
   const sp = await searchParams;
   const q = typeof sp.q === "string" ? sp.q : "";
   const { page, perPage, offset } = parsePagination(sp);
-  const [orgs, total] = await Promise.all([listOrganizations(q, perPage, offset), countOrganizations(q)]);
+  const [orgs, total, mode] = await Promise.all([listOrganizations(q, perPage, offset), countOrganizations(q), payoutMode()]);
+  const connect = mode === "connect";
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -37,7 +39,7 @@ export default async function OrganizationsPage({ searchParams }: PageProps<"/ad
           </form>
           {orgs.length === 0 ? <EmptyState title={q ? "No matches" : total === 0 ? "No organizations yet" : "No organizations on this page"} description={q ? "Try a different search." : total === 0 ? "Create the first organization to start selling tickets." : undefined} action={!q && total === 0 && isSuper ? <NewOrganizationDialog /> : undefined} /> : (
             <Table>
-              <TableHeader><TableRow><TableHead>Organization</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Members</TableHead><TableHead className="text-right">Events</TableHead><TableHead className="text-right">Orders</TableHead><TableHead className="text-right">Gross sales</TableHead><TableHead>Created</TableHead>{isSuper ? <TableHead className="w-0" /> : null}</TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Organization</TableHead><TableHead>Status</TableHead>{connect ? <TableHead>Stripe</TableHead> : null}<TableHead className="text-right">Members</TableHead><TableHead className="text-right">Events</TableHead><TableHead className="text-right">Orders</TableHead><TableHead className="text-right">Gross sales</TableHead><TableHead>Created</TableHead>{isSuper ? <TableHead className="w-0" /> : null}</TableRow></TableHeader>
               <TableBody>
                 {orgs.map((o) => (
                   <TableRow key={o.id}>
@@ -46,6 +48,7 @@ export default async function OrganizationsPage({ searchParams }: PageProps<"/ad
                       <span className="block text-xs text-muted-foreground">/{o.slug} · {o.contact_email}</span>
                     </TableCell>
                     <TableCell><StatusBadge status={o.status} /></TableCell>
+                    {connect ? <TableCell className="text-sm">{STRIPE_STATUS[connectState(o.stripe_account ? { details_submitted: Number(o.details_submitted), transfers_active: Number(o.transfers_active), payouts_enabled: Number(o.payouts_enabled), requirements_due: o.requirements_due, disabled_reason: o.disabled_reason } : null)]}</TableCell> : null}
                     <TableCell className="text-right tabular-nums">{o.members}</TableCell>
                     <TableCell className="text-right tabular-nums">{o.events}</TableCell>
                     <TableCell className="text-right tabular-nums">{o.orders}</TableCell>
