@@ -101,7 +101,10 @@ export function proxy(request: NextRequest) {
   // from the first page stuck to the scanner and getUserMedia was rejected with NotAllowedError. `self` still
   // blocks third-party frames and the user must still grant permission. Payment for Stripe's frames (Apple/Google Pay).
   response.headers.set('Permissions-Policy', 'camera=(self), microphone=(), geolocation=(self), payment=(self "https://js.stripe.com"), usb=()');
-  response.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
+  // `allow-popups`: Stripe's embedded onboarding signs the organizer in through a stripe.com popup that reports back to
+  // this page; with `same-origin` the popup loses its opener and spins forever. Set site-wide for the same client-side
+  // navigation reason as above. Other sites that open Fattixx still can't reach it.
+  response.headers.set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
   // The widget script, email ad pixel, campaign open pixel and uploaded images are loaded by other sites / mail clients.
   const shared = pathname === '/embed.js' || pathname === '/api/ads/px' || pathname.startsWith('/api/email/o/') || pathname.startsWith('/api/uploads/');
   response.headers.set('Cross-Origin-Resource-Policy', shared ? 'cross-origin' : 'same-origin');
