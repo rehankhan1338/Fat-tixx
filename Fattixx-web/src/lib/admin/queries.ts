@@ -1,23 +1,29 @@
 import 'server-only';
 import { query, queryOne, type Row } from '../db';
+import { getStripeSettings } from '../settings';
 
 export type OrgListRow = Row & {
   id: number; slug: string; name: string; contact_email: string; status: string; created_at: Date;
   members: number; events: number; gross_cents: number; orders: number;
+  /** Stripe Connect account in the active Stripe mode (connectState() reads these), or nulls */
+  details_submitted: number | null; transfers_active: number | null; payouts_enabled: number | null; requirements_due: string | null; disabled_reason: string | null; stripe_account: string | null;
 };
 
 export async function listOrganizations(search = '', limit = 50, offset = 0): Promise<OrgListRow[]> {
   const like = `%${search}%`;
+  const { mode } = await getStripeSettings();
   return query<OrgListRow>(
     `SELECT o.id, o.slug, o.name, o.contact_email, o.status, o.created_at,
             (SELECT COUNT(*) FROM organization_members m WHERE m.organization_id = o.id) AS members,
             (SELECT COUNT(*) FROM events e WHERE e.organization_id = o.id) AS events,
             (SELECT COUNT(*) FROM orders x WHERE x.organization_id = o.id AND x.status IN ('paid','partially_refunded','refunded')) AS orders,
-            (SELECT COALESCE(SUM(x.subtotal_cents),0) FROM orders x WHERE x.organization_id = o.id AND x.status IN ('paid','partially_refunded')) AS gross_cents
+            (SELECT COALESCE(SUM(x.subtotal_cents),0) FROM orders x WHERE x.organization_id = o.id AND x.status IN ('paid','partially_refunded')) AS gross_cents,
+            sa.account_id AS stripe_account, sa.details_submitted, sa.transfers_active, sa.payouts_enabled, sa.requirements_due, sa.disabled_reason
        FROM organizations o
+       LEFT JOIN org_stripe_accounts sa ON sa.organization_id = o.id AND sa.stripe_mode = ?
       WHERE (? = '' OR o.name LIKE ? OR o.slug LIKE ? OR o.contact_email LIKE ?)
       ORDER BY o.created_at DESC LIMIT ? OFFSET ?`,
-    [search, like, like, like, limit, offset],
+    [mode, search, like, like, like, limit, offset],
   );
 }
 

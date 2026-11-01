@@ -15,7 +15,8 @@ import { ensureUser, isEmail } from '../users';
 import { createOneTimeToken } from '../tokens';
 import { assertOrg } from '../authz';
 import { revokeAllUserSessions } from '../auth/session';
-import { releaseHeldEvents } from '../orgs/verification';
+import { releaseHeldEvents, stripeStep } from '../orgs/verification';
+import { STRIPE_STATUS } from '../payments/connect';
 import { hashPassword, passwordPolicyErrors, pwnedPasswordCount } from '../security/password';
 import { readAnswers, type QuestionName } from './questionnaire';
 
@@ -23,7 +24,7 @@ import { readAnswers, type QuestionName } from './questionnaire';
  * Organizer onboarding with verification (Phase 2). Anyone can apply to sell tickets; platform staff
  * verify the person and business (legal name, tax ID last 4, website, address) before an organization
  * is created. Approved organizations are marked verified; the applicant becomes their Organization Admin.
- * When Stripe Connect is adopted, its identity verification plugs in at the approval step.
+ * With Stripe Connect payouts on, Stripe's onboarding is a step of verification (stripeStep) and approval waits for it.
  * The application opens with a skippable questionnaire about the organizer's events (questionnaire.ts).
  * An organization made on /create is unverified; its organizer sends the same details from /org/<slug>/verify
  * (submitOrgVerification), and approving that application verifies the organization and publishes its paid events
@@ -47,6 +48,7 @@ function readFields(fd: FormData): Fields | { error: string; field: string } {
   if (v.orgName.length < 2) return { error: 'Enter the name buyers will see.', field: 'org_name' };
   if (v.legalName.length < 2) return { error: 'Enter the legal name of the person or business that will be paid.', field: 'legal_name' };
   if (!['individual', 'company', 'nonprofit', 'venue'].includes(v.type)) return { error: 'Choose the type of organizer.', field: 'business_type' };
+  if (v.type === 'individual') v.taxLast4 = ''; // individuals / sole proprietors need no EIN; Stripe verifies the person
   if (v.taxLast4 && !/^\d{4}$/.test(v.taxLast4)) return { error: 'Tax ID: enter the last 4 digits only.', field: 'tax_id_last4' };
   if (v.website && !/^https?:\/\/\S+$/i.test(v.website)) return { error: 'The website must start with http:// or https://', field: 'website' };
   if (v.address.length < 5) return { error: 'Enter the business address.', field: 'address' };
@@ -93,6 +95,10 @@ export async function submitOrgVerification(_prev: ActionState, fd: FormData): P
   fd.set('org_name', org.name);
   const v = readFields(fd);
   if ('error' in v) return v;
+  const stripe = await stripeStep(Number(org.id), true);
+  if (stripe.required && (stripe.state === 'not_started' || stripe.state === 'incomplete')) {
+    return { error: 'Finish the payouts setup with Stripe (step 2) before sending your verification.', field: 'stripe' };
+  }
 
   const user = await queryOne<Row & { id: number; email: string; password_hash: string | null }>(`SELECT id, email, password_hash FROM users WHERE id = ?`, [ctx.session.user.id]);
   if (!user) return { error: 'Please sign in again.' };
@@ -132,6 +138,11 @@ async function approveExistingOrg(app: AppRow, reviewerId: number, notes: string
   const orgId = Number(app.organization_id);
   const org = await queryOne<Row & { slug: string; name: string }>(`SELECT slug, name FROM organizations WHERE id = ?`, [orgId]);
   if (!org) return { error: 'The organization no longer exists.' };
+  // Stripe Connect: the organizer must be verified by Stripe before their first paid event goes on sale.
+  const stripe = await stripeStep(orgId, true);
+  if (stripe.required && stripe.state !== 'active') {
+    return { error: `Stripe setup isn't complete (status: ${STRIPE_STATUS[stripe.state]}). ${org.name} must finish it before you can approve.` };
+  }
   const claim = await execute(
     `UPDATE organizer_applications SET status = 'approved', reviewed_by = ?, reviewed_at = NOW(), review_notes = ? WHERE id = ? AND status = 'pending'`,
     [reviewerId, notes, app.id],

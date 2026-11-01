@@ -1,18 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Loader2Icon } from "lucide-react";
 import { submitOrgVerification, type ActionState } from "@/lib/applications/actions";
 import { CheckField, FormStatus, SelectField, TextAreaField, TextField } from "@/components/form-fields";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import type { StripeStep as StripeStepData } from "@/lib/orgs/verification";
+import { StripeStep } from "./stripe-step";
 
 type Defaults = { contactName: string; email: string; phone: string; legalName: string; businessType: string; taxLast4: string; website: string; address: string; events: string };
 
-/** The "Start hosting" application's details for an existing organization, plus a required password when the account has none. */
-export function VerifyForm({ org, orgName, needsPassword, defaults: d }: { org: string; orgName: string; needsPassword: boolean; defaults: Defaults }) {
+/**
+ * The "Start hosting" application's details for an existing organization, plus a required password when the account has
+ * none, and (with Stripe Connect payouts on) Stripe's embedded onboarding as step 2.
+ */
+export function VerifyForm({ org, orgName, needsPassword, stripe, defaults: d }: { org: string; orgName: string; needsPassword: boolean; stripe: StripeStepData | null; defaults: Defaults }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(submitOrgVerification, undefined);
+  const [type, setType] = useState(d.businessType);
+  const individual = type === "individual";
   if (state?.ok) {
     return (
       <Alert>
@@ -36,16 +43,18 @@ export function VerifyForm({ org, orgName, needsPassword, defaults: d }: { org: 
       </fieldset>
 
       <fieldset className="space-y-4">
-        <legend className="text-base font-semibold">{orgName}</legend>
+        <legend className="text-base font-semibold">{stripe ? "Step 1: " : ""}{orgName}</legend>
         <div className="grid gap-4 sm:grid-cols-2">
-          <SelectField label="Type" id="vf-type" name="business_type" defaultValue={d.businessType} options={[{ value: "company", label: "Company / promoter" }, { value: "venue", label: "Venue" }, { value: "nonprofit", label: "Nonprofit" }, { value: "individual", label: "Individual" }]} />
-          <TextField label="Legal name (for payouts)" id="vf-legal" name="legal_name" required minLength={2} maxLength={200} defaultValue={d.legalName} hint="Person or registered business that will be paid" />
-          <TextField label="Tax ID (last 4 digits)" id="vf-tax" name="tax_id_last4" inputMode="numeric" maxLength={4} pattern="\d{4}" defaultValue={d.taxLast4} hint="EIN or SSN; we never ask for the full number here" />
+          <SelectField label="Type" id="vf-type" name="business_type" value={type} onChange={(e) => setType(e.target.value)} options={[{ value: "company", label: "Company / promoter" }, { value: "venue", label: "Venue" }, { value: "nonprofit", label: "Nonprofit" }, { value: "individual", label: "Individual / sole proprietor" }]} />
+          <TextField label={individual ? "Your legal name (for payouts)" : "Legal name (for payouts)"} id="vf-legal" name="legal_name" required minLength={2} maxLength={200} defaultValue={d.legalName} hint={individual ? "As on your ID" : "Registered business that will be paid"} />
+          {individual ? null : <TextField label="EIN (last 4 digits)" id="vf-tax" name="tax_id_last4" inputMode="numeric" maxLength={4} pattern="\d{4}" defaultValue={d.taxLast4} hint="Optional; we never ask for the full number here" />}
           <TextField label="Website or social page" id="vf-web" name="website" type="url" placeholder="https://" pattern="https?://\S+" title="Starts with http:// or https://" defaultValue={d.website} />
-          <TextField label="Business address" id="vf-addr" name="address" required minLength={5} maxLength={300} autoComplete="street-address" defaultValue={d.address} className="sm:col-span-2" />
+          <TextField label={individual ? "Address" : "Business address"} id="vf-addr" name="address" required minLength={5} maxLength={300} autoComplete="street-address" defaultValue={d.address} className="sm:col-span-2" />
           <TextAreaField label="What events will you sell?" id="vf-events" name="expected_events" rows={3} maxLength={500} defaultValue={d.events} className="sm:col-span-2" hint="Optional. A sentence or two about your events" />
         </div>
       </fieldset>
+
+      {stripe?.required && stripe.publishableKey ? <StripeStep org={org} type={type} state={stripe.state} publishableKey={stripe.publishableKey} due={stripe.due} /> : null}
 
       {needsPassword ? (
         <fieldset className="space-y-4">

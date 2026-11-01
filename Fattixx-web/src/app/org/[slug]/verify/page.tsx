@@ -2,23 +2,26 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireOrg } from "@/lib/authz";
 import { queryOne, type Row } from "@/lib/db";
-import { verificationState } from "@/lib/orgs/verification";
+import { stripeStep, verificationState } from "@/lib/orgs/verification";
 import { PageHeader, Section } from "@/components/shared";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { StripeStep } from "./stripe-step";
 import { VerifyForm } from "./verify-form";
 
 export const metadata: Metadata = { title: "Verify your organization" };
 
 /**
  * Verification for an organization made on /create (src/lib/orgs/verification.ts): the same details as the "Start
- * hosting" application, filled in from what the organizer already gave, plus a password when the account has none.
+ * hosting" application, filled in from what the organizer already gave, plus a password when the account has none, and
+ * with Stripe Connect payouts on, Stripe's onboarding embedded as step 2 (required before staff can approve).
  */
 export default async function VerifyPage({ params }: PageProps<"/org/[slug]/verify">) {
   const { slug } = await params;
   const ctx = await requireOrg(slug, "org_admin");
-  const [state, user, last] = await Promise.all([
+  const [state, stripe, user, last] = await Promise.all([
     verificationState(ctx.org),
+    stripeStep(Number(ctx.org.id), true),
     queryOne<Row & { name: string; email: string; phone: string | null; password_hash: string | null }>(`SELECT name, email, phone, password_hash FROM users WHERE id = ?`, [ctx.session.user.id]),
     queryOne<Row & { contact_name: string; contact_phone: string | null; legal_name: string; business_type: string; tax_id_last4: string | null; website: string | null; address: string | null; expected_events: string | null }>(
       `SELECT contact_name, contact_phone, legal_name, business_type, tax_id_last4, website, address, expected_events FROM organizer_applications WHERE organization_id = ? ORDER BY id DESC LIMIT 1`, [ctx.org.id],
@@ -37,6 +40,11 @@ export default async function VerifyPage({ params }: PageProps<"/org/[slug]/veri
               : `Most reviews take one to two business days. We will email you the result${state.heldEvents ? `, and your ${state.heldEvents === 1 ? "paid event goes" : `${state.heldEvents} paid events go`} live as soon as it is approved` : ""}.`}
           </AlertDescription>
         </Alert>
+        {state.pending && stripe.required && stripe.publishableKey && stripe.state !== "active" ? (
+          <Section>
+            <StripeStep org={slug} type={last?.business_type ?? "company"} state={stripe.state} publishableKey={stripe.publishableKey} due={stripe.due} />
+          </Section>
+        ) : null}
         <Button variant="outline" render={<Link href={`/org/${slug}/events`} />}>Back to events</Button>
       </div>
     );
@@ -66,6 +74,7 @@ export default async function VerifyPage({ params }: PageProps<"/org/[slug]/veri
           org={slug}
           orgName={ctx.org.name}
           needsPassword={!user?.password_hash}
+          stripe={stripe.required ? stripe : null}
           defaults={{
             contactName: last?.contact_name ?? user?.name ?? "",
             email: user?.email ?? ctx.org.contact_email,

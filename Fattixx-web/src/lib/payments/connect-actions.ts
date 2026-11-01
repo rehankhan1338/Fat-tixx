@@ -6,7 +6,7 @@ import { audit } from '../audit';
 import { assertOrg } from '../authz';
 import { stripeReturnUrl } from '../return-url';
 import { getActiveStripe } from './stripe';
-import { ensureConnectAccount, expressDashboardLink, getConnectAccount, onboardingLink, payoutMode, syncConnectAccount } from './connect';
+import { ensureConnectAccount, expressDashboardLink, getConnectAccount, onboardingClientSecret, onboardingLink, payoutMode, stripeBusinessType, syncConnectAccount } from './connect';
 
 /**
  * Organization Admin: set up or finish Stripe Connect payouts (Dashboard → Payouts) and open the Stripe Express
@@ -31,6 +31,33 @@ export async function startPayoutSetup(fd: FormData): Promise<ActionState> {
   }
   await audit('connect.onboarding.started', { actorUserId: ctx.session.user.id, targetType: 'organization', targetId: ctx.org.id });
   redirect(url);
+}
+
+/**
+ * Embedded onboarding (verification step on /org/<slug>/verify): create the Express account for the organizer type
+ * chosen in the form and return a client secret for Stripe's onboarding component. Nothing leaves the page.
+ */
+export async function startEmbeddedOnboarding(org: string, type: string): Promise<{ clientSecret?: string; error?: string }> {
+  let ctx;
+  try { ctx = await assertOrg(String(org).slice(0, 64), 'org_admin'); } catch (e) { return { error: (e as Error).message }; }
+  if ((await payoutMode()) !== 'connect') return { error: 'Payouts with Stripe are not switched on yet.' };
+  if (!(await getActiveStripe())) return { error: 'Payments are not configured yet. Contact Fattixx support.' };
+  try {
+    const accountId = await ensureConnectAccount(ctx.org, ctx.session.user.id, stripeBusinessType(type));
+    const clientSecret = await onboardingClientSecret(accountId);
+    await audit('connect.onboarding.started', { actorUserId: ctx.session.user.id, targetType: 'organization', targetId: ctx.org.id, metadata: { embedded: true, type } });
+    return { clientSecret };
+  } catch (e) {
+    console.error('[connect] embedded onboarding failed', e);
+    return { error: `Stripe could not start the setup: ${(e as Error).message}` };
+  }
+}
+
+/** After the embedded onboarding closes: read the account's state from Stripe. */
+export async function finishEmbeddedOnboarding(org: string): Promise<void> {
+  const ctx = await assertOrg(String(org).slice(0, 64), 'org_admin');
+  await syncConnectAccount(ctx.org.id);
+  revalidatePath(`/org/${ctx.org.slug}`, 'layout');
 }
 
 export async function openStripeDashboard(fd: FormData): Promise<ActionState> {

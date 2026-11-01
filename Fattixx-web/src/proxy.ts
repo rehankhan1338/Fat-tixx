@@ -64,14 +64,14 @@ export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
   const csp = [
     `default-src 'self'`,
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://js.stripe.com${captcha}${isDev ? " 'unsafe-eval'" : ''}`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://js.stripe.com https://connect-js.stripe.com${captcha}${isDev ? " 'unsafe-eval'" : ''}`,
     `style-src 'self' 'unsafe-inline'`,
     `img-src 'self' blob: data: https://*.stripe.com https://*.public.blob.vercel-storage.com${pixelImg}${videoImg}`,
     `font-src 'self'`,
-    `connect-src 'self' https://api.stripe.com https://m.stripe.com https://r.stripe.com${captcha}${pixelConnect}${geoConnect}`,
+    `connect-src 'self' https://api.stripe.com https://connect-js.stripe.com https://m.stripe.com https://r.stripe.com${captcha}${pixelConnect}${geoConnect}`,
     `worker-src 'self'`,
     // Stripe Elements renders card fields inside iframes hosted by Stripe.
-    `frame-src https://js.stripe.com https://hooks.stripe.com https://m.stripe.network${captcha}${videoFrame}`,
+    `frame-src https://js.stripe.com https://connect-js.stripe.com https://hooks.stripe.com https://m.stripe.network${captcha}${videoFrame}`,
     `object-src 'none'`,
     `base-uri 'self'`,
     `form-action 'self'`,

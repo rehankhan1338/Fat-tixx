@@ -25,7 +25,7 @@ import { ProCompForm } from "./pro-comp-form";
 import { WhiteLabelForm } from "./white-label-form";
 import { orgIsPro } from "@/lib/pro/gate";
 import { getActiveStripe } from "@/lib/payments/stripe";
-import { connectState, getConnectAccount, parseDue } from "@/lib/payments/connect";
+import { STRIPE_STATUS, connectState, getConnectAccount, parseDue } from "@/lib/payments/connect";
 
 export const metadata: Metadata = { title: "Organization" };
 
@@ -89,7 +89,7 @@ export default async function AdminOrganizationPage({ params, searchParams }: Pa
           <Section title="White-label" description={org.white_label ? (orgIsPro(org) ? "On." : "On, but inactive while the organization is not on Pro.") : "Off."}>
             {isSuper ? <WhiteLabelForm orgSlug={org.slug} on={!!org.white_label} /> : null}
           </Section>
-          <Section title="Stripe Connect payouts" description={connect ? `${connect.stripe_mode} account ${connect.account_id}: ${connectState(connect).replace("_", " ")}${connect.disabled_reason ? ` (${connect.disabled_reason})` : ""}. Last synced ${formatDate(connect.synced_at)}.` : "No Stripe account; paid manually through Admin → Payouts."}>
+          <Section title="Stripe Connect payouts" description={connect ? `${connect.stripe_mode} account ${connect.account_id}: ${STRIPE_STATUS[connectState(connect)]}${connect.disabled_reason ? ` (${connect.disabled_reason})` : ""}. Last synced ${formatDate(connect.synced_at)}.` : "No Stripe account; paid manually through Admin → Payouts."}>
             {connect && parseDue(connect.requirements_due).length ? <p className="text-sm text-muted-foreground">Stripe needs: {parseDue(connect.requirements_due).join(", ")}</p> : null}
           </Section>
         </TabsContent>
