@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkDraft, dataUrlToFile, emptyDraft, fromRefundChoice, migrateRefund, parseDraftForServer, refundChoice, refundPolicyOf, type EventDraft } from "@/lib/home/create";
+import { checkDraft, dataUrlToFile, emptyDraft, fromRefundChoice, migrateRefund, parseDraftForServer, refundChoice, refundPolicyOf, seatMapPatch, type EventDraft } from "@/lib/home/create";
 
 /** a draft that passes every check: next year, saved venue, one ticket */
 function validDraft(): EventDraft {
@@ -131,5 +131,41 @@ describe("create-page draft", () => {
     expect(checkDraft({ ...validDraft(), refund: "days_before", refundDays: "30" })).toEqual([]);
     expect(checkDraft({ ...validDraft(), taxPct: "31" }).map((p) => p.field)).toEqual(["tickets"]);
     expect(checkDraft({ ...validDraft(), taxPct: "7.5" })).toEqual([]);
+  });
+});
+
+describe("create-page draft on a seat map", () => {
+  const seated = (over: Partial<EventDraft> = {}): EventDraft => ({ ...validDraft(), mode: "seated", tickets: [], seatMapId: "7", ...over });
+  const maps = [{ id: 7, name: "Main floor", place: "Buckhead Theatre, Atlanta", seats: 240, venueId: 3 }];
+  const venues = [{ id: 3, name: "Buckhead Theatre", city: "Atlanta", region: "GA", timezone: "America/Chicago", taxBps: 0, taxLabel: null }];
+  const blank = emptyDraft().location;
+
+  it("needs a map instead of tickets", () => {
+    expect(checkDraft(seated())).toEqual([]);
+    expect(checkDraft(seated({ seatMapId: "" })).map((p) => p.message)).toEqual(["Choose a seat map"]);
+  });
+
+  it("ignores ticket cards left over from another type, but still checks the refund and tax settings", () => {
+    expect(checkDraft(seated({ tickets: [{ ...emptyDraft().tickets[0], name: "" }] }))).toEqual([]);
+    expect(checkDraft(seated({ taxPct: "45" })).map((p) => p.field)).toEqual(["tickets"]);
+  });
+
+  it("doesn't ask a saved seated event for a map again", () => {
+    const d = seated({ seatMapId: "" });
+    expect(checkDraft(d, new Date(), { startDate: d.startDate, startTime: d.startTime })).toEqual([]);
+  });
+
+  it("survives the trip to the server", () => {
+    const d = parseDraftForServer(JSON.stringify({ ...seated(), seatMapId: "7; DROP" }));
+    expect(d.mode).toBe("seated");
+    expect(d.seatMapId).toBe("7");
+  });
+
+  it("fills an empty location with the map's saved venue and leaves a chosen one alone", () => {
+    expect(seatMapPatch({ ...validDraft(), location: blank }, "7", maps, venues)).toEqual({
+      mode: "seated", seatMapId: "7", location: { kind: "saved", venueId: "3", venueName: "Buckhead Theatre" }, timeZone: "America/Chicago",
+    });
+    expect(seatMapPatch(validDraft(), "7", maps, venues)).toEqual({ mode: "seated", seatMapId: "7" });
+    expect(seatMapPatch({ ...validDraft(), location: blank }, "7", maps, [])).toEqual({ mode: "seated", seatMapId: "7" });
   });
 });

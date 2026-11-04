@@ -75,6 +75,8 @@ export default async function EventPage({ params, searchParams }: PageProps<"/or
     : [[], []];
   const seatedTiers = ticketTypes.filter((t) => t.seated);
   const tierRows = seatingRow ? tierSummary(managedSeats, seatedTiers.map((t) => ({ id: Number(t.id), name: t.name, seat_color: t.seat_color }))) : [];
+  // a seat map with no seat in a pricing tier has nothing to sell
+  const seatsOffSale = !!seatingRow && !ticketTypes.some((t) => Number(t.quantity) > 0);
   const waitingCount = waitlist.filter((w) => w.status === "waiting").length;
 
   return (
@@ -87,11 +89,11 @@ export default async function EventPage({ params, searchParams }: PageProps<"/or
             {canEdit && event.status !== "cancelled" ? <Button variant="outline" render={<Link href={`/org/${slug}/events/${event.id}/edit`} />}><PencilIcon /> Edit</Button> : null}
             <Button variant="outline" render={<Link href={publicEventPath(event)} target="_blank" />}><ExternalLinkIcon /> {event.status === "published" ? "View page" : "Preview"}</Button>
             <Button variant="outline" render={<Link href={`/org/${slug}/events/${event.id}/scan`} />}><ScanLineIcon /> Scan</Button>
-            {canEdit ? <EventStatusActions orgSlug={slug} eventId={event.id} status={event.status} hasTicketTypes={ticketTypes.length > 0} canDelete={ctx.isOrgAdmin} paidOrders={sales?.paidOrders ?? 0} isSuperAdmin={ctx.isSuperAdmin} inSeries={!!event.series_id} /> : null}
+            {canEdit ? <EventStatusActions orgSlug={slug} eventId={event.id} status={event.status} hasTicketTypes={ticketTypes.length > 0 && !seatsOffSale} publishHint={seatsOffSale ? "Create a pricing tier and assign seats to it (Seating tab) before publishing." : undefined} canDelete={ctx.isOrgAdmin} paidOrders={sales?.paidOrders ?? 0} isSuperAdmin={ctx.isSuperAdmin} inSeries={!!event.series_id} /> : null}
           </>
         }
       />
-      {sp.created ? <Alert><AlertTitle>Event created as a draft.</AlertTitle><AlertDescription>Add at least one ticket type, then publish it to start selling.</AlertDescription></Alert> : null}
+      {sp.created ? <Alert><AlertTitle>Event created as a draft.</AlertTitle><AlertDescription>{seatingRow ? "Create a pricing tier, select seats on the map and assign them to it, then publish to start selling." : "Add at least one ticket type, then publish it to start selling."}</AlertDescription></Alert> : null}
       {sp.saved ? (
         <Alert>
           <AlertTitle>Changes saved.</AlertTitle>

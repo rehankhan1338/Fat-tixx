@@ -34,7 +34,7 @@ export default function FeaturedEvents() {
   const move = (d: number) => setStart((s) => (s + d + n) % n);
 
   return (
-    <section aria-labelledby="featured-h" className="pt-[128px] pl-(--pad) max-[901px]:pt-[104px]">
+    <section aria-labelledby="featured-h" className="pl-(--pad)">
       <div className="flex items-baseline justify-between gap-4 pr-(--pad)">
         <h1 id="featured-h" className={cx(sectionTitle, "text-[26px] tracking-[-0.02em]")}>
           Featured events

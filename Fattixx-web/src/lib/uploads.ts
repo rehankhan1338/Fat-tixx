@@ -59,23 +59,62 @@ export async function saveImageUpload(file: File, kind: UploadKind, maxWidth = 1
 /** Largest floor plan an organizer can upload (the request is sent to a Route Handler; Vercel functions take 4.5 MB). */
 export const FLOOR_PLAN_MAX_BYTES = 4 * 1024 * 1024;
 
+export type FloorPlanKind = 'image' | 'pdf' | 'spreadsheet';
+export type SpreadsheetExt = keyof typeof SPREADSHEET_TYPES;
+
+export const SPREADSHEET_TYPES = {
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  xls: 'application/vnd.ms-excel',
+  csv: 'text/csv',
+} as const;
+
+const ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
+const OLE_MAGIC = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
+
 /**
- * A venue floor plan for a seat map request: an image (re-encoded to WebP like every upload, kept large enough to
- * trace seats from) or a PDF, checked by its first bytes and stored as it is.
+ * What kind of spreadsheet these bytes are, judged by content like every upload, or null. Excel workbooks are told from
+ * other Office files by the entry names inside them, and macro-enabled ones are refused because staff open these files.
+ * CSV has no signature, so it also needs the .csv file name, no binary content and at least one column separator.
  */
-export async function saveFloorPlanUpload(file: File): Promise<{ path: string; kind: 'image' | 'pdf' }> {
-  if (file.size === 0) throw new Error('The floor plan file is empty.');
-  if (file.size > FLOOR_PLAN_MAX_BYTES) throw new Error('The floor plan must be 4 MB or smaller. Export a smaller PDF or image.');
-  const input = Buffer.from(await file.arrayBuffer());
-  if (input.subarray(0, 5).toString('latin1') !== '%PDF-') return { path: await saveImageUpload(file, 'seatmaps', 3200), kind: 'image' };
-  const name = newName().replace(/\.webp$/, '.pdf');
+export function spreadsheetExt(input: Buffer, fileName: string): SpreadsheetExt | null {
+  if (input.subarray(0, 4).equals(ZIP_MAGIC)) {
+    const isWorkbook = input.includes('[Content_Types].xml', 0, 'latin1') && input.includes('xl/workbook.xml', 0, 'latin1');
+    return isWorkbook && !input.includes('xl/vbaProject.bin', 0, 'latin1') ? 'xlsx' : null;
+  }
+  if (input.subarray(0, 8).equals(OLE_MAGIC)) {
+    return input.includes('Workbook', 0, 'utf16le') && !input.includes('_VBA_PROJECT', 0, 'utf16le') ? 'xls' : null;
+  }
+  if (/\.csv$/i.test(fileName) && !input.includes(0) && /[,;\t]/.test(input.toString('latin1'))) return 'csv';
+  return null;
+}
+
+async function storeFloorPlan(input: Buffer, ext: string, contentType: string): Promise<string> {
+  const name = newName().replace(/\.webp$/, `.${ext}`);
   if (blobEnabled()) {
-    const blob = await blobPut(`${BLOB_PREFIX}/seatmaps/${name}`, input, { access: 'public', contentType: 'application/pdf', addRandomSuffix: false, cacheControlMaxAge: BLOB_CACHE_SECONDS });
-    return { path: blob.url, kind: 'pdf' };
+    const blob = await blobPut(`${BLOB_PREFIX}/seatmaps/${name}`, input, { access: 'public', contentType, addRandomSuffix: false, cacheControlMaxAge: BLOB_CACHE_SECONDS });
+    return blob.url;
   }
   await mkdir(path.join(UPLOAD_ROOT, 'seatmaps'), { recursive: true });
   await writeFile(path.join(UPLOAD_ROOT, 'seatmaps', name), input);
-  return { path: `seatmaps/${name}`, kind: 'pdf' };
+  return `seatmaps/${name}`;
+}
+
+/**
+ * A venue floor plan for a seat map request: an image (re-encoded to WebP like every upload, kept large enough to
+ * trace seats from), or a PDF or spreadsheet, checked by content and stored as it is.
+ */
+export async function saveFloorPlanUpload(file: File): Promise<{ path: string; kind: FloorPlanKind }> {
+  if (file.size === 0) throw new Error('The floor plan file is empty.');
+  if (file.size > FLOOR_PLAN_MAX_BYTES) throw new Error('The floor plan must be 4 MB or smaller. Export a smaller file.');
+  const input = Buffer.from(await file.arrayBuffer());
+  if (input.subarray(0, 5).toString('latin1') === '%PDF-') return { path: await storeFloorPlan(input, 'pdf', 'application/pdf'), kind: 'pdf' };
+  const sheet = spreadsheetExt(input, file.name);
+  if (sheet) return { path: await storeFloorPlan(input, sheet, SPREADSHEET_TYPES[sheet]), kind: 'spreadsheet' };
+  try {
+    return { path: await saveImageUpload(file, 'seatmaps', 3200), kind: 'image' };
+  } catch {
+    throw new Error('Use a PDF, JPG, PNG, Excel (.xlsx or .xls, without macros) or CSV file.');
+  }
 }
 
 /** Duplicate a stored image so two records never share one file (deleting one must not break the other). */
@@ -105,7 +144,7 @@ export async function deleteUpload(stored: string | null | undefined): Promise<v
 
 /** A relative path of a locally stored upload (the pre-Blob format, still used in local dev). */
 export function isSafeUploadPath(rel: string): boolean {
-  return /^(events|orgs|ads|sponsors|site|seatmaps)\/[a-z0-9-]+\.webp$/.test(rel) || /^seatmaps\/[a-z0-9-]+\.pdf$/.test(rel);
+  return /^(events|orgs|ads|sponsors|site|seatmaps)\/[a-z0-9-]+\.webp$/.test(rel) || /^seatmaps\/[a-z0-9-]+\.(pdf|xlsx|xls|csv)$/.test(rel);
 }
 
 /** A public URL on a Vercel Blob store. */

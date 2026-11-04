@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PlusIcon } from "lucide-react";
+import { ArmchairIcon, PlusIcon } from "lucide-react";
 import { requireOrg } from "@/lib/authz";
 import { listVisibleEvents } from "@/lib/events/queries";
 import { formatCents } from "@/lib/money";
+import { orgIsPro } from "@/lib/pro/gate";
 import { formatEventDate } from "@/lib/tz";
 import { PageHeader, Section, StatusBadge, EmptyState } from "@/components/shared";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,12 @@ export default async function EventsPage({ params, searchParams }: PageProps<"/o
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <PageHeader title="Events" description={ctx.role === "staff" ? "Events you are assigned to scan." : "Create, publish and manage your events."} actions={canCreate ? <Button render={<Link href={`/org/${slug}/events/new`} />}><PlusIcon /> New event</Button> : null} />
+      <PageHeader title="Events" description={ctx.role === "staff" ? "Events you are assigned to scan." : "Create, publish and manage your events."} actions={canCreate ? (
+        <>
+          {orgIsPro(ctx.org) ? <Button variant="outline" render={<Link href={`/org/${slug}/events/new?seating=1`} />}><ArmchairIcon /> Create event using a seat map</Button> : null}
+          <Button render={<Link href={`/org/${slug}/events/new`} />}><PlusIcon /> New event</Button>
+        </>
+      ) : null} />
       <Tabs value={filter}>
         <TabsList>
           <TabsTrigger nativeButton={false} value="upcoming" render={<Link href={`/org/${slug}/events`} />}>Upcoming</TabsTrigger>

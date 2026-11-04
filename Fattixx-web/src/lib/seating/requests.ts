@@ -5,6 +5,7 @@ import { env } from '../env';
 import { sendEmail } from '../email';
 import { renderEmail } from '../email-templates';
 import { orgAdminRecipients } from '../pro/subscription';
+import type { FloorPlanKind } from '../uploads';
 import { emptyLayout, type SeatMapLayout } from './layout';
 import { getSeatMapRequest, mapLayout, getSeatMap, REQUEST_STATUS_LABEL, setupFeeCents, type RequestStatus, type SeatMapRequestRow } from './queries';
 
@@ -100,7 +101,7 @@ export async function ensureDraftMap(r: SeatMapRequestRow, userId: number): Prom
 
 export type NewRequestInput = {
   organizationId: number; userId: number; venueId: number | null; venueName: string; venueCity: string | null; mapName: string; notes: string | null;
-  floorPlan: { path: string; kind: 'image' | 'pdf' } | null; baseMapId: number | null;
+  floorPlan: { path: string; kind: FloorPlanKind } | null; baseMapId: number | null;
 };
 
 /** A new request. Changes to an organization's own approved map are free; a new map carries the set-up fee. */

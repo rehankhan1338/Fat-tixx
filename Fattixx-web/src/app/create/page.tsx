@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { googleConfig, readPendingSignup } from "@/lib/auth/passwordless";
 import { siteFees } from "@/lib/home/data";
 import { FeesProvider } from "@/lib/home/fees-context";
-import { hostOrganizations, ownDrafts, venuesByOrg } from "@/lib/home/create-context";
+import { hostOrganizations, ownDrafts, seatMapsByOrg, venuesByOrg } from "@/lib/home/create-context";
 import { getSettings } from "@/lib/settings";
 import { listCategories } from "@/lib/site-content/categories";
 import CreateEvent from "@/components/create/CreateEvent";
@@ -36,7 +36,7 @@ export default async function CreatePage({ searchParams }: PageProps<"/create">)
   }
   const [session, fees, categories, settings, pending] = await Promise.all([getSession(), siteFees(), listCategories(), getSettings(), readPendingSignup()]);
   const organizations = session ? await hostOrganizations(session.user.id) : [];
-  const [venues, drafts] = await Promise.all([venuesByOrg(organizations), session ? ownDrafts(session.user.id) : Promise.resolve([])]);
+  const [venues, seatMaps, drafts] = await Promise.all([venuesByOrg(organizations), seatMapsByOrg(organizations), session ? ownDrafts(session.user.id) : Promise.resolve([])]);
   const notice = typeof sp.google === "string" ? GOOGLE_NOTICES[sp.google] ?? null : typeof sp.google_error === "string" ? sp.google_error.slice(0, 200) : null;
   const resume = sp.signup === "1" && pending ? "signup" : sp.signedin === "1" && session ? "signedin" : null;
 
@@ -48,6 +48,7 @@ export default async function CreatePage({ searchParams }: PageProps<"/create">)
           organizations={organizations}
           categories={categories}
           venuesByOrg={venues}
+          seatMapsByOrg={seatMaps}
           defaultFeePayer={settings.default_fee_mode === "organizer_absorbs" ? "organizer" : "buyer"}
           auth={{ googleEnabled: !!googleConfig(), pending, resume, notice }}
           drafts={drafts}

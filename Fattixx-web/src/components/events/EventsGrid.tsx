@@ -52,7 +52,7 @@ export default function EventsGrid() {
   const filtered = !!(filters.when || filters.price || filters.cat || filters.q || filters.near);
 
   return (
-    <section id="events" aria-labelledby="upcoming-h" className="scroll-mt-24 px-(--pad) pt-24 pb-[150px] first:pt-[128px] max-[901px]:first:pt-[104px] max-[721px]:pt-16 max-[721px]:pb-[110px] max-[721px]:first:pt-[104px]">
+    <section id="events" aria-labelledby="upcoming-h" className="scroll-mt-24 px-(--pad) pt-24 pb-[150px] first:pt-0 max-[721px]:pt-16 max-[721px]:pb-[110px] max-[721px]:first:pt-0">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 id="upcoming-h" className={cx(sectionTitle, "text-[26px] tracking-[-0.02em]")}>
           {city ? `Upcoming near ${city}` : "Upcoming events"}

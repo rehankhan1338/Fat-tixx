@@ -38,7 +38,7 @@ export type AuditAction =
   | 'marketing.segment.saved' | 'marketing.segment.deleted' | 'marketing.template.saved' | 'marketing.template.deleted' | 'marketing.contact.unsubscribed' | 'marketing.contacts.exported'
   | 'support.request.created' | 'support.request.replied' | 'support.request.updated'
   | 'seatmap.request.created' | 'seatmap.request.status' | 'seatmap.request.noted' | 'seatmap.request.fee' | 'seatmap.saved' | 'seatmap.library.updated'
-  | 'seating.attached' | 'seating.detached' | 'seating.tier.created' | 'seating.seats.updated' | 'seating.ticket.moved'
+  | 'seating.attached' | 'seating.detached' | 'seating.tier.created' | 'seating.tier.updated' | 'seating.tier.deleted' | 'seating.seats.updated' | 'seating.ticket.moved'
   | 'audit.cleared' | 'auth.attempts.cleared' | 'auth.attempt.deleted'
   | 'ticket.wallet_pass'
   | 'connect.onboarding.started' | 'connect.dashboard.opened' | 'connect.event_payout' | 'settings.payouts'

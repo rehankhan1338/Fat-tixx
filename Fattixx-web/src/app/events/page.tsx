@@ -16,10 +16,11 @@ export default async function EventsPage() {
   const events = await publicEvents();
   return (
     <PublicPage events={events} reveal>
-      <main>
+      {/* The clearance for the fixed nav sits here so it holds whichever of the sections below render. */}
+      <main className="pt-[128px] max-[901px]:pt-[104px]">
         <FeaturedEvents />
         {/* Plan 14.3 "Event listing pages": between the featured strip and the event grid; renders nothing when no campaign matches. */}
-        <div className="px-(--pad)"><AdSlot placement="event_list" className="mx-auto max-w-5xl" /></div>
+        <AdSlot placement="event_list" className="mx-auto w-[calc(100%-var(--pad)*2)] max-w-5xl" />
         <EventsGrid />
       </main>
     </PublicPage>

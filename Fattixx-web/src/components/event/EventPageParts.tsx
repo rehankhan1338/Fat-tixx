@@ -149,16 +149,13 @@ export function EventJsonLd({ data, v }: { data: EventPageData; v: EventView }) 
   return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(json).replace(/</g, "\\u003c") }} />;
 }
 
-export function Breadcrumb({ category, preview, organizer }: { category: string; preview?: boolean; organizer?: { name: string; href: string } | null }) {
+export function Breadcrumb({ category, preview, branded }: { category: string; preview?: boolean; branded?: boolean }) {
+  // a Pro organizer's page has no trail back into the marketplace, so only the preview tag can remain
+  if (branded && !preview) return null;
   const link = "hover:text-fx-red";
   return (
     <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-2 text-[13px] text-fx-red/78">
-      {organizer ? (
-        // a Pro organizer's page stays on their own pages
-        <Link href={organizer.href} className={link}>
-          {organizer.name}
-        </Link>
-      ) : (
+      {!branded && (
         <>
           <Link href="/events" className={link}>
             Events
@@ -169,7 +166,7 @@ export function Breadcrumb({ category, preview, organizer }: { category: string;
           </Link>
         </>
       )}
-      {preview && <span className="ml-2 rounded-full bg-fx-red/8 px-2 py-[2px] text-[11px] font-semibold tracking-[.06em] text-fx-red uppercase">Preview</span>}
+      {preview && <span className={cx(!branded && "ml-2", "rounded-full bg-fx-red/8 px-2 py-[2px] text-[11px] font-semibold tracking-[.06em] text-fx-red uppercase")}>Preview</span>}
     </nav>
   );
 }

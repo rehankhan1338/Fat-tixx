@@ -79,7 +79,7 @@ export function changeLines(detail: unknown): string[] {
 // ---------------------------------------------------------------------------
 export type SeatMapRequestRow = Row & {
   id: number; organization_id: number; venue_id: number | null; venue_name: string; venue_city: string | null; map_name: string;
-  floor_plan_path: string | null; floor_plan_kind: 'image' | 'pdf' | null; notes: string | null; status: RequestStatus;
+  floor_plan_path: string | null; floor_plan_kind: 'image' | 'pdf' | 'spreadsheet' | null; notes: string | null; status: RequestStatus;
   seat_map_id: number | null; base_map_id: number | null; assigned_to: number | null;
   fee_cents: number; fee_status: 'unpaid' | 'paid' | 'waived'; fee_paid_at: Date | null; stripe_session_id: string | null;
   sent_for_approval_at: Date | null; approved_at: Date | null; created_by: number | null; created_at: Date; updated_at: Date;

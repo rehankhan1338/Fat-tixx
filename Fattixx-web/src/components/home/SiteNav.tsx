@@ -361,7 +361,7 @@ export default function SiteNav({ account = null, overHero = false }: { account?
         </Link>
       </nav>
 
-      <div className="flex items-center gap-1 max-[901px]:gap-2">
+      <div className="flex shrink-0 items-center gap-1 max-[901px]:gap-2 max-[374px]:gap-1">
         <button
           type="button"
           aria-label="Open search"
@@ -376,13 +376,13 @@ export default function SiteNav({ account = null, overHero = false }: { account?
         >
           <SearchIcon size={20} stroke={2.2} />
         </button>
-        <a href={account?.href ?? "/login"} className="px-4 py-[10px] text-[15px] font-medium max-[721px]:px-2 max-[721px]:text-[14px]">
+        <a href={account?.href ?? "/login"} className="px-4 py-[10px] text-[15px] font-medium whitespace-nowrap max-[721px]:px-2 max-[721px]:text-[14px]">
           {account?.label ?? "Log in"}
         </a>
 
         {account?.canCreateEvents !== false && (
-          <a href="/create" className="rounded-full bg-fx-yellow px-5 py-[11px] text-[15px] font-semibold whitespace-nowrap text-fx-red max-[901px]:px-4 max-[721px]:px-3 max-[721px]:py-[9px] max-[721px]:text-[14px]">
-            Create event
+          <a href="/create" aria-label="Create event" className="rounded-full bg-fx-yellow px-5 py-[11px] text-[15px] font-semibold whitespace-nowrap text-fx-red max-[901px]:px-4 max-[721px]:px-3 max-[721px]:py-[9px] max-[721px]:text-[14px]">
+            Create<span className="max-[374px]:hidden"> event</span>
           </a>
         )}
       </div>

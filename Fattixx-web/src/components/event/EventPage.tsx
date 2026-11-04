@@ -54,7 +54,7 @@ export default function EventPage({ data, panel, ad, notices = [] }: { data: Eve
           // eslint-disable-next-line @next/next/no-img-element -- uploaded image, already resized to WebP
           <img src={data.brand.cover} alt="" className="mb-8 h-[clamp(140px,22vw,300px)] w-full rounded-[28px] object-cover" />
         )}
-        <Breadcrumb category={e.category} preview={data.preview} organizer={data.brand ? { name: v.org.name, href: data.brand.organizerHref } : null} />
+        <Breadcrumb category={e.category} preview={data.preview} branded={!!data.brand} />
         {data.preview && (data.status === "in_review"
           ? <Notice title="In review" text="Only your team can see this page. Paid events go live once your organization is verified." />
           : <Notice title={`This event is ${data.status}.`} text="Only your team can see this page until it is published." />)}

@@ -7,7 +7,7 @@ import { ErrorAlert } from "@/components/form-validation";
 import { SelectField, TextAreaField, TextField } from "@/components/form-fields";
 
 /**
- * "Request a seat map": the venue, a name for the layout, the floor plan (PDF or image, up to 4 MB) and notes. Posted to
+ * "Request a seat map": the venue, a name for the layout, the floor plan (PDF, image or spreadsheet, up to 4 MB) and notes. Posted to
  * /api/seating/requests (a Route Handler: floor plans are bigger than a Server Action accepts), which answers with
  * where to go next: Stripe Checkout for the set-up fee, or the new request's page.
  */
@@ -21,7 +21,7 @@ export function SeatMapRequestForm({ org, venues, feeLabel }: { org: string; ven
     setError(null);
     const fd = new FormData(e.currentTarget);
     const file = fd.get("floor_plan");
-    if (file instanceof File && file.size > 4 * 1024 * 1024) { setError("The floor plan must be 4 MB or smaller. Export a smaller PDF or image."); return; }
+    if (file instanceof File && file.size > 4 * 1024 * 1024) { setError("The floor plan must be 4 MB or smaller. Export a smaller file."); return; }
     setBusy(true);
     try {
       const res = await fetch("/api/seating/requests", { method: "POST", body: fd });
@@ -51,9 +51,9 @@ export function SeatMapRequestForm({ org, venues, feeLabel }: { org: string; ven
       </div>
       <div className="grid gap-1.5">
         <label htmlFor="smr-file" className="text-sm font-medium">Floor plan or official seating chart</label>
-        <input id="smr-file" name="floor_plan" type="file" required accept="application/pdf,image/jpeg,image/png,image/webp"
+        <input id="smr-file" name="floor_plan" type="file" required accept="application/pdf,image/jpeg,image/png,image/webp,.xlsx,.xls,.csv"
           className="block w-full cursor-pointer rounded-lg border bg-white p-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-fx-red file:px-3 file:py-1.5 file:text-fx-ivory" />
-        <p className="text-xs text-muted-foreground">PDF, JPG or PNG, up to 4 MB. The venue usually has one; it should show every section, row and seat number.</p>
+        <p className="text-xs text-muted-foreground">PDF, JPG, PNG, Excel or CSV, up to 4 MB. The venue usually has one; it should show every section, row and seat number.</p>
       </div>
       <TextAreaField label="Notes for our team" id="smr-notes" name="notes" rows={4} maxLength={5000}
         hint="Anything the plan doesn't show: wheelchair spaces and companion seats, restricted-view seats, sections you never sell, how tables are numbered." />
