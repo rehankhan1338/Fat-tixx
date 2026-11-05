@@ -1,6 +1,6 @@
 /* Server-rendered pieces of the seat map request pages (organizer and staff). */
 
-import { CheckIcon, FileTextIcon } from "lucide-react";
+import { CheckIcon, FileSpreadsheetIcon, FileTextIcon } from "lucide-react";
 import { formatDate, StatusBadge } from "@/components/shared";
 import { formatCents } from "@/lib/money";
 import { uploadUrl } from "@/lib/uploads";
@@ -58,6 +58,9 @@ export function FloorPlan({ r }: { r: Pick<SeatMapRequestRow, "floor_plan_path" 
   if (!url) return <p className="text-sm text-muted-foreground">No floor plan attached.</p>;
   if (r.floor_plan_kind === "pdf") {
     return <a href={url} target="_blank" rel="noopener" className="inline-flex items-center gap-2 text-sm font-medium underline"><FileTextIcon className="size-4" /> Open the floor plan (PDF)</a>;
+  }
+  if (r.floor_plan_kind === "spreadsheet") {
+    return <a href={url} download className="inline-flex items-center gap-2 text-sm font-medium underline"><FileSpreadsheetIcon className="size-4" /> Download the floor plan (spreadsheet)</a>;
   }
   return (
     <a href={url} target="_blank" rel="noopener" className="block">

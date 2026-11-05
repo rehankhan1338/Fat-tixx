@@ -32,11 +32,12 @@ import {
   PASSWORD_MAX,
   readImage,
   saveDraft,
+  seatMapPatch,
   SUMMARY_MAX,
   toLocal,
   US_TIME_ZONES,
 } from "@/lib/home/create";
-import type { EventDraft, Problem, VenueOption } from "@/lib/home/create";
+import type { EventDraft, Problem, SeatMapOption, VenueOption } from "@/lib/home/create";
 import type { EditorData, OwnDraft } from "@/lib/home/create-context";
 import { publishDraft, saveEventEdits, type CreateState } from "@/lib/home/create-actions";
 import Confirmation, { type Created } from "./Confirmation";
@@ -66,14 +67,18 @@ export type AuthInfo = {
  * `editor`: the saved event being edited. `drafts`: the signed-in organizer's drafts, to reopen.
  * The lists come from the server: `categories` (Super Admin → Fees & Settings), `venuesByOrg` (Dashboard → Venues),
  * `defaultFeePayer` (Admin → Settings) and `canFeature` (Super Admin only).
+ * `seatMapsByOrg` has an entry for each organization on Pro, which adds the "Seat map" event type. `startOnMap` starts
+ * the page on that type ("" = no map chosen yet, or a map id).
  */
-export default function CreateEvent({ signedIn, organizations, preselect, embedded = false, categories, venuesByOrg, defaultFeePayer, canFeature = false, auth, drafts = [], editor }: {
+export default function CreateEvent({ signedIn, organizations, preselect, embedded = false, categories, venuesByOrg, seatMapsByOrg, startOnMap, defaultFeePayer, canFeature = false, auth, drafts = [], editor }: {
   signedIn: boolean;
   organizations: Organization[];
   preselect?: string;
   embedded?: boolean;
   categories: Category[];
   venuesByOrg: Record<string, VenueOption[]>;
+  seatMapsByOrg?: Record<string, SeatMapOption[]>;
+  startOnMap?: string;
   defaultFeePayer: FeePayer;
   canFeature?: boolean;
   auth?: AuthInfo;
@@ -86,17 +91,21 @@ export default function CreateEvent({ signedIn, organizations, preselect, embedd
   const [me, setMe] = useState({ signedIn, organizations });
   const chosen = (preselect && me.organizations.find((o) => o.slug === preselect)) || (me.organizations.length === 1 ? me.organizations[0] : null);
   const exitHref = editor && preselect ? `/org/${preselect}/events/${editor.eventId}` : chosen ? `/org/${chosen.slug}/events` : "/";
-  const createLabel = editing ? "Save changes" : me.signedIn && chosen ? "Publish event" : "Create event";
   // saved venues are offered once the organization is known (one membership, or the dashboard's own)
   const venues = useMemo(() => (chosen ? (venuesByOrg[chosen.slug] ?? []) : []), [chosen, venuesByOrg]);
   const venuesRef = useRef(venues);
   venuesRef.current = venues;
+  const seatMaps = chosen ? seatMapsByOrg?.[chosen.slug] : undefined; // undefined: not on Pro
+  const seatMapsRef = useRef(seatMaps);
+  seatMapsRef.current = seatMaps;
   const [d, setD] = useState<EventDraft>(() => {
     if (!editor) return emptyDraft();
     const loc = editor.draft.location;
     const v = loc.kind === "saved" ? venues.find((x) => String(x.id) === loc.venueId) : null;
     return v && loc.kind === "saved" ? { ...editor.draft, location: { ...loc, venueName: v.name } } : editor.draft;
   });
+  const seatedNew = !editing && d.mode === "seated";
+  const createLabel = editing ? "Save changes" : seatedNew ? "Continue to seating" : me.signedIn && chosen ? "Publish event" : "Create event";
   const [ready, setReady] = useState(editing);
   const [restored, setRestored] = useState<number | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "saved" | "failed">("idle");
@@ -117,6 +126,13 @@ export default function CreateEvent({ signedIn, organizations, preselect, embedd
   const endTouched = useRef(editing); // once the organizer sets the end themselves, stop moving it with the start
 
   const patch = useCallback((p: Partial<EventDraft>) => setD((prev) => ({ ...prev, ...p })), []);
+  /** the link that opened the page asks for a seat map: a known map id, or none chosen yet */
+  const onStartMap = useCallback((draft: EventDraft): EventDraft => {
+    const maps = seatMapsRef.current;
+    if (startOnMap === undefined || !maps) return draft;
+    const id = maps.some((m) => String(m.id) === startOnMap) ? startOnMap : draft.seatMapId;
+    return { ...draft, ...seatMapPatch(draft, id, maps, venuesRef.current) };
+  }, [startOnMap]);
   const editCheck = editor ? { startDate: editor.draft.startDate, startTime: editor.draft.startTime, otherTickets: editor.lockedTickets.length } : undefined;
   const problems = useMemo(() => checkDraft(d, new Date(), editCheck), [d, editCheck?.startDate, editCheck?.startTime, editCheck?.otherTickets]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -130,7 +146,10 @@ export default function CreateEvent({ signedIn, organizations, preselect, embedd
         // a saved venue from another organization (or one since deleted) is no longer on the list
         const loc = saved.draft.location;
         if (loc.kind === "saved" && !venuesRef.current.some((v) => String(v.id) === loc.venueId)) saved.draft.location = emptyDraft().location;
-        setD(saved.draft);
+        // a seat map needs Pro, and the map must still be on the organization's list
+        if (saved.draft.mode === "seated" && !seatMapsRef.current) saved.draft.mode = "tickets";
+        if (!seatMapsRef.current?.some((m) => String(m.id) === saved.draft.seatMapId)) saved.draft.seatMapId = "";
+        setD(onStartMap(saved.draft));
         setRestored(saved.savedAt);
         endTouched.current = !!saved.draft.endDate;
         if (saved.draft.summary) setSummaryOpen(true);
@@ -139,7 +158,7 @@ export default function CreateEvent({ signedIn, organizations, preselect, embedd
         // back from Google: carry on where the sign-up window left off
         if (auth?.resume && !checkDraft(saved.draft).length) setDialog(true);
       } else {
-        setD((p) => ({ ...p, timeZone: deviceTimeZone(), feePayer: defaultFeePayer }));
+        setD((p) => onStartMap({ ...p, timeZone: deviceTimeZone(), feePayer: defaultFeePayer }));
         if (auth?.resume) setDialog(true);
       }
       if (auth?.resume || auth?.notice) {
@@ -150,7 +169,7 @@ export default function CreateEvent({ signedIn, organizations, preselect, embedd
       setReady(true);
     });
     return () => cancelAnimationFrame(id);
-  }, [defaultFeePayer, editing, auth?.resume, auth?.notice]);
+  }, [defaultFeePayer, editing, auth?.resume, auth?.notice, onStartMap]);
 
   // save as they type (new events; edits are saved with the button)
   useEffect(() => {
@@ -252,6 +271,12 @@ export default function CreateEvent({ signedIn, organizations, preselect, embedd
         router.push(`${res.manageUrl}?saved=1${res.notified ? `&notified=${res.notified}` : ""}`);
         return;
       }
+      if (d.mode === "seated") {
+        // the event is saved as a draft: prices and seats come next, on the map
+        clearDraft();
+        router.push(`${res.manageUrl}?tab=seating&created=1`);
+        return;
+      }
       setDone({ created: res, draft: d });
       setDialog(false);
       clearDraft();
@@ -265,7 +290,7 @@ export default function CreateEvent({ signedIn, organizations, preselect, embedd
 
   function startOver() {
     clearDraft();
-    setD({ ...emptyDraft(), timeZone: deviceTimeZone(), feePayer: defaultFeePayer });
+    setD(onStartMap({ ...emptyDraft(), timeZone: deviceTimeZone(), feePayer: defaultFeePayer }));
     setRestored(null);
     setTried(false);
     setSaveState("idle");
@@ -296,7 +321,7 @@ export default function CreateEvent({ signedIn, organizations, preselect, embedd
   const toggle = (k: string) => setFolds((f) => ({ ...f, [k]: !f[k] }));
   const left = problems.length;
   const status = editing ? "" : saveState === "saved" ? "Draft saved" : saveState === "failed" ? "Couldn’t save the draft in this browser" : "";
-  const draftButton = !editing && me.signedIn && chosen ? onSaveDraft : undefined;
+  const draftButton = !editing && !seatedNew && me.signedIn && chosen ? onSaveDraft : undefined;
   const publishButton = editing && editor?.status === "draft" && chosen ? onPublishEdit : undefined;
   const datesLocked = !!editor?.multiDay;
 
@@ -455,10 +480,11 @@ export default function CreateEvent({ signedIn, organizations, preselect, embedd
                 size="lg"
                 label="Event type"
                 value={d.mode}
-                onChange={(v) => patch({ mode: v })}
+                onChange={(v) => patch(v === "seated" ? seatMapPatch(d, d.seatMapId, seatMaps ?? [], venues) : { mode: v })}
                 options={[
                   { v: "tickets", label: "Sell tickets" },
                   { v: "rsvp", label: "RSVP (free)" },
+                  ...(seatMaps ? [{ v: "seated" as const, label: "Seat map" }] : []),
                 ]}
               />
             </div>
@@ -577,8 +603,19 @@ export default function CreateEvent({ signedIn, organizations, preselect, embedd
             />
           </Section>
 
-          <Section id="c-tickets" title={d.mode === "rsvp" ? "RSVP" : "Tickets"} icon={Icons.ticket} error={sectionError(["tickets"])}>
-            <TicketsEditor d={d} patch={patch} venue={savedVenue} locked={editor?.lockedTickets} manageHref={editor && preselect ? `/org/${preselect}/events/${editor.eventId}?tab=tickets` : undefined} />
+          <Section id="c-tickets" title={d.mode === "rsvp" ? "RSVP" : d.mode === "seated" ? "Seat map" : "Tickets"} icon={Icons.ticket} error={sectionError(["tickets"])}>
+            <TicketsEditor
+              d={d}
+              patch={patch}
+              venue={savedVenue}
+              locked={editor?.lockedTickets}
+              manageHref={editor && preselect ? `/org/${preselect}/events/${editor.eventId}?tab=tickets` : undefined}
+              seatMaps={seatMaps}
+              onPickMap={(id) => patch(seatMapPatch(d, id, seatMaps ?? [], venues))}
+              seatMapName={editor?.seatMapName}
+              seatingHref={editor && preselect ? `/org/${preselect}/events/${editor.eventId}?tab=seating` : undefined}
+              mapsHref={chosen ? `/org/${chosen.slug}/seating` : undefined}
+            />
           </Section>
 
           <div className="mt-2 grid gap-3">

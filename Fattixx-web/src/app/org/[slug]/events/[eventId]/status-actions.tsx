@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { CheckField, SelectField, TextAreaField, TextField } from "@/components/form-fields";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-export function EventStatusActions({ orgSlug, eventId, status, hasTicketTypes, canDelete, paidOrders, isSuperAdmin = false, inSeries = false }: { orgSlug: string; eventId: number; status: string; hasTicketTypes: boolean; canDelete: boolean; paidOrders: number; isSuperAdmin?: boolean; inSeries?: boolean }) {
+export function EventStatusActions({ orgSlug, eventId, status, hasTicketTypes, publishHint, canDelete, paidOrders, isSuperAdmin = false, inSeries = false }: { orgSlug: string; eventId: number; status: string; hasTicketTypes: boolean; publishHint?: string; canDelete: boolean; paidOrders: number; isSuperAdmin?: boolean; inSeries?: boolean }) {
   const [pending, start] = useTransition();
   const [dialog, setDialog] = useState<null | "cancel" | "postpone" | "duplicate" | "series">(null);
 
@@ -37,7 +37,7 @@ export function EventStatusActions({ orgSlug, eventId, status, hasTicketTypes, c
             <TooltipTrigger render={<span tabIndex={0} className="inline-flex cursor-not-allowed rounded-md" aria-label="Publish: add a ticket type first" />}>
               <Button disabled className="pointer-events-none">Publish</Button>
             </TooltipTrigger>
-            <TooltipContent>Add at least one ticket type (Ticket types tab) before publishing.</TooltipContent>
+            <TooltipContent>{publishHint ?? "Add at least one ticket type (Ticket types tab) before publishing."}</TooltipContent>
           </Tooltip>
         )
       ) : null}

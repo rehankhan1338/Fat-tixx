@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArmchairIcon } from "lucide-react";
 import { requireOrg } from "@/lib/authz";
 import { listVenues } from "@/lib/events/queries";
 import { formatCents } from "@/lib/money";
@@ -8,6 +9,7 @@ import { orgIsPro } from "@/lib/pro/gate";
 import { listOrgRequests, listUsableMaps, REQUEST_STATUS_LABEL, setupFeeCents } from "@/lib/seating/queries";
 import { PageHeader, Section, StatusBadge, formatDate } from "@/components/shared";
 import { ProUpsell } from "@/components/pro/dashboard";
+import { Button } from "@/components/ui/button";
 import { FeeLine } from "@/components/seating/request-parts";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { SeatMapRequestForm } from "./request-form";
@@ -16,25 +18,33 @@ export const metadata: Metadata = { title: "Seat maps" };
 
 /**
  * Reserved seating (Fattixx Pro, plan 5.7.3–5.7.13): the organization's seat maps, the Venue Library, and requests for
- * new maps. A map is used from an event's Seating tab.
+ * new maps. An event is created on a map from here or from Events; an existing event picks one on its Seating tab.
  */
 export default async function SeatingPage({ params }: PageProps<"/org/[slug]/seating">) {
   const { slug } = await params;
   const ctx = await requireOrg(slug, "organizer");
   if (ctx.role === "staff") notFound();
-  const header = <PageHeader title="Seat maps" description="Sell numbered seats, tables and sections from an interactive map. Use a map from the Venue Library, or send us your venue's floor plan and we build one for you." />;
-  if (!orgIsPro(ctx.org)) {
+  const pro = orgIsPro(ctx.org);
+  const header = (
+    <PageHeader
+      title="Seat maps"
+      description="Sell numbered seats, tables and sections from an interactive map. Use a map from the Venue Library, or send us your venue's floor plan and we build one for you."
+      actions={pro ? <Button render={<Link href={`/org/${slug}/events/new?seating=1`} />}><ArmchairIcon /> Create event using a seat map</Button> : null}
+    />
+  );
+  if (!pro) {
     return <div className="mx-auto max-w-6xl space-y-6">{header}<ProUpsell ctx={ctx} feature="Reserved seating" text="Buyers pick their exact seat, table or section on an interactive map, with accessible seating marked and every price shown with fees included." /></div>;
   }
   const [maps, requests, venues, fee] = await Promise.all([listUsableMaps(ctx.org.id), listOrgRequests(ctx.org.id), listVenues(ctx.org.id), setupFeeCents()]);
   const own = maps.filter((m) => Number(m.organization_id) === ctx.org.id);
   const library = maps.filter((m) => Number(m.organization_id) !== ctx.org.id);
   const requestFor = (mapId: number) => requests.find((r) => Number(r.seat_map_id) === mapId);
+  const createOn = (mapId: number) => <Link href={`/org/${slug}/events/new?seating=1&map=${mapId}`} className="text-sm whitespace-nowrap underline">Create event</Link>;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       {header}
-      <Section title="Your seat maps" description="Approved maps built for your venues. Choose one on an event's Seating tab, then price the seats.">
+      <Section title="Your seat maps" description="Approved maps built for your venues. Create an event on one, or pick one on an existing event's Seating tab, then price the seats.">
         {own.length === 0 ? <p className="text-sm text-muted-foreground">None yet. Request one below, or use a map from the Venue Library.</p> : (
           <Table>
             <TableHeader><TableRow><TableHead>Map</TableHead><TableHead className="text-right">Seats</TableHead><TableHead className="text-right">Events</TableHead><TableHead>Approved</TableHead><TableHead /></TableRow></TableHeader>
@@ -47,7 +57,7 @@ export default async function SeatingPage({ params }: PageProps<"/org/[slug]/sea
                     <TableCell className="text-right tabular-nums">{m.seat_count}</TableCell>
                     <TableCell className="text-right tabular-nums">{m.events_using}</TableCell>
                     <TableCell className="text-sm">{formatDate(m.approved_at)}</TableCell>
-                    <TableCell className="text-right">{req ? <Link href={`/org/${slug}/seating/${req.id}`} className="text-sm underline">View · request a change</Link> : null}</TableCell>
+                    <TableCell className="space-x-4 text-right">{createOn(Number(m.id))}{req ? <Link href={`/org/${slug}/seating/${req.id}`} className="text-sm underline">View · request a change</Link> : null}</TableCell>
                   </TableRow>
                 );
               })}
@@ -59,13 +69,14 @@ export default async function SeatingPage({ params }: PageProps<"/org/[slug]/sea
       <Section title="Venue Library" description="Maps Fattixx has built for venues, free to use for your events there.">
         {library.length === 0 ? <p className="text-sm text-muted-foreground">No library maps yet. If your venue isn’t here, request a map below.</p> : (
           <Table>
-            <TableHeader><TableRow><TableHead>Venue</TableHead><TableHead>Layout</TableHead><TableHead className="text-right">Seats</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>Venue</TableHead><TableHead>Layout</TableHead><TableHead className="text-right">Seats</TableHead><TableHead /></TableRow></TableHeader>
             <TableBody>
               {library.map((m) => (
                 <TableRow key={m.id}>
                   <TableCell><span className="font-medium">{m.venue_name}</span><span className="block text-xs text-muted-foreground">{[m.venue_city, m.venue_region].filter(Boolean).join(", ")}</span></TableCell>
                   <TableCell className="text-sm">{m.name}</TableCell>
                   <TableCell className="text-right tabular-nums">{m.seat_count}</TableCell>
+                  <TableCell className="text-right">{createOn(Number(m.id))}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

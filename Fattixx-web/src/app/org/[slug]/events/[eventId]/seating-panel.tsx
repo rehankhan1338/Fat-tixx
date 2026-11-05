@@ -8,8 +8,9 @@
 
 import { useActionState, useMemo, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
+import { PencilIcon } from "lucide-react";
 import { toast } from "sonner";
-import { attachSeatMap, createSeatTier, detachSeatMap, moveTicketSeat, updateEventSeats, updateTierColor } from "@/lib/seating/actions";
+import { attachSeatMap, createSeatTier, deleteSeatTier, detachSeatMap, moveTicketSeat, updateEventSeats, updateSeatTier, updateTierColor, type ActionState } from "@/lib/seating/actions";
 import { ACCESSIBILITY, SEAT_STATUS_LABEL, TIER_COLORS, type Drawing, type SeatStatus } from "@/lib/seating/layout";
 import { formatCents } from "@/lib/money";
 import { SeatMapCanvas, SeatSwatch, type CanvasSeat } from "@/components/seating/SeatMapCanvas";
@@ -17,6 +18,7 @@ import { FormStatus, SelectField, TextField } from "@/components/form-fields";
 import { SubmitButton } from "@/components/submit-button";
 import { ConfirmButton } from "@/components/confirm-button";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Section } from "@/components/shared";
@@ -63,10 +65,36 @@ function ChooseMap({ base, orgSlug, maps, upsell }: { base: { org: string; event
   );
 }
 
+function EditTierDialog({ base, tier }: { base: { org: string; event_id: number }; tier: TierView }) {
+  const [open, setOpen] = useState(false);
+  const [state, action] = useActionState(async (prev: ActionState, fd: FormData) => {
+    const r = await updateSeatTier(prev, fd);
+    if (r?.ok) { toast.success(r.message ?? "Tier updated"); setOpen(false); }
+    return r;
+  }, undefined);
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button type="button" variant="ghost" size="icon-sm" aria-label={`Edit ${tier.name}`} />}><PencilIcon /></DialogTrigger>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Edit {tier.name}</DialogTitle><DialogDescription>Tickets already bought keep the price that was paid.</DialogDescription></DialogHeader>
+        <form action={action} className="space-y-4">
+          <FormStatus state={state} />
+          <Hidden fields={{ ...base, tier_id: tier.id }} />
+          <TextField label="Name" id={`tier-${tier.id}-name`} name="name" required maxLength={120} defaultValue={tier.name} />
+          <TextField label="Price ($)" id={`tier-${tier.id}-price`} name="price" inputMode="decimal" defaultValue={(tier.priceCents / 100).toFixed(2)} hint="Enter 0 for free seats." />
+          <div className="flex justify-end"><SubmitButton pendingText="Saving…">Save tier</SubmitButton></div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function ManageSeats({ base, currency, seating }: { base: { org: string; event_id: number }; currency: string; seating: NonNullable<Parameters<typeof SeatingPanel>[0]["seating"]> }) {
   const [sel, setSel] = useState<Set<number>>(new Set());
   const [moving, setMoving] = useState<ManagedSeatView | null>(null);
-  const [tierId, setTierId] = useState(seating.tiers[0] ? String(seating.tiers[0].id) : "");
+  const [chosenTier, setTierId] = useState("");
+  // The first tier until one is chosen; tiers can be added or deleted while this page is open.
+  const tierId = seating.tiers.some((t) => String(t.id) === chosenTier) ? chosenTier : seating.tiers[0] ? String(seating.tiers[0].id) : "";
   const [reason, setReason] = useState("");
   const [pending, start] = useTransition();
   const [tierState, tierAction] = useActionState(createSeatTier, undefined);
@@ -128,7 +156,7 @@ function ManageSeats({ base, currency, seating }: { base: { org: string; event_i
         )}
       >
         <Table>
-          <TableHeader><TableRow><TableHead>Pricing tier</TableHead><TableHead className="text-right">Price</TableHead><TableHead className="text-right">Seats</TableHead><TableHead className="text-right">Available</TableHead><TableHead className="text-right">In carts</TableHead><TableHead className="text-right">Sold</TableHead><TableHead className="text-right">Blocked</TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow><TableHead>Pricing tier</TableHead><TableHead className="text-right">Price</TableHead><TableHead className="text-right">Seats</TableHead><TableHead className="text-right">Available</TableHead><TableHead className="text-right">In carts</TableHead><TableHead className="text-right">Sold</TableHead><TableHead className="text-right">Blocked</TableHead><TableHead><span className="sr-only">Actions</span></TableHead></TableRow></TableHeader>
           <TableBody>
             {seating.tiers.map((t) => {
               const color = tierById.get(t.id)!.color;
@@ -147,13 +175,21 @@ function ManageSeats({ base, currency, seating }: { base: { org: string; event_i
                   <TableCell className="text-right tabular-nums">{t.held}</TableCell>
                   <TableCell className="text-right tabular-nums">{t.sold}</TableCell>
                   <TableCell className="text-right tabular-nums">{t.blocked}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <EditTierDialog base={base} tier={t} />
+                      {t.sold || t.held ? null : (
+                        <ConfirmButton action={deleteSeatTier} fields={{ ...base, tier_id: t.id }} title={`Delete ${t.name}?`} description={t.seats ? `Its ${t.seats} seat${t.seats === 1 ? "" : "s"} go back to not for sale.` : undefined} confirmText="Delete" variant="ghost" size="xs" successText={`${t.name} deleted`}>Delete</ConfirmButton>
+                      )}
+                    </div>
+                  </TableCell>
                 </TableRow>
               );
             })}
-            {seating.unassigned ? <TableRow><TableCell className="text-muted-foreground">Not for sale (no tier)</TableCell><TableCell /><TableCell className="text-right tabular-nums">{seating.unassigned}</TableCell><TableCell colSpan={4} /></TableRow> : null}
+            {seating.unassigned ? <TableRow><TableCell className="text-muted-foreground">Not for sale (no tier)</TableCell><TableCell /><TableCell className="text-right tabular-nums">{seating.unassigned}</TableCell><TableCell colSpan={5} /></TableRow> : null}
           </TableBody>
         </Table>
-        <form action={tierAction} className="mt-4 flex flex-wrap items-end gap-3 border-t pt-4">
+        <form key={seating.tiers.length} action={tierAction} className="mt-4 flex flex-wrap items-end gap-3 border-t pt-4">
           <Hidden fields={base} />
           <TextField label="New tier" id="tier-name" name="name" placeholder="e.g. Orchestra" required maxLength={120} className="min-w-48 flex-1" />
           <TextField label="Price ($)" id="tier-price" name="price" inputMode="decimal" placeholder="45.00" className="w-28" />
@@ -178,7 +214,7 @@ function ManageSeats({ base, currency, seating }: { base: { org: string; event_i
             <span>Moving <strong>{moving.ticketCode}</strong> ({moving.holder}) from {moving.label}. Click a free seat of the same tier.</span>
             <Button type="button" size="xs" variant="ghost" onClick={() => setMoving(null)}>Cancel</Button>
           </div>
-        ) : sel.size ? (
+        ) : (
           <div className="mb-3 grid gap-3 rounded-lg border p-3 text-sm">
             <div className="flex flex-wrap items-end gap-2">
               {seating.tiers.length ? (
@@ -186,15 +222,15 @@ function ManageSeats({ base, currency, seating }: { base: { org: string; event_i
                   <NativeSelect aria-label="Pricing tier" value={tierId} onChange={(e) => setTierId(e.target.value)} className="min-w-40">
                     {seating.tiers.map((t) => <NativeSelectOption key={t.id} value={String(t.id)}>{t.name} · {t.priceCents ? formatCents(t.priceCents, currency) : "Free"}</NativeSelectOption>)}
                   </NativeSelect>
-                  <Button type="button" size="sm" disabled={pending || !tierId} onClick={() => run(updateEventSeats, { op: "assign", tier_id: tierId, seat_ids: ids }, clear)}>Assign to tier</Button>
+                  <Button type="button" size="sm" disabled={pending || !sel.size || !tierId} onClick={() => run(updateEventSeats, { op: "assign", tier_id: tierId, seat_ids: ids }, clear)}>Assign to tier</Button>
                 </>
               ) : <span className="text-muted-foreground">Add a pricing tier above to put seats on sale.</span>}
-              <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => run(updateEventSeats, { op: "unassign", seat_ids: ids }, clear)}>Take off sale</Button>
+              <Button type="button" size="sm" variant="outline" disabled={pending || !sel.size} onClick={() => run(updateEventSeats, { op: "unassign", seat_ids: ids }, clear)}>Take off sale</Button>
             </div>
             <div className="flex flex-wrap items-end gap-2">
               <Input aria-label="Block reason (optional)" placeholder="Reason, e.g. sound desk (optional)" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={120} className="h-8 max-w-72" />
-              <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => run(updateEventSeats, { op: "block", reason, seat_ids: ids }, clear)}>Block</Button>
-              <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => run(updateEventSeats, { op: "unblock", seat_ids: ids }, clear)}>Unblock</Button>
+              <Button type="button" size="sm" variant="outline" disabled={pending || !sel.size} onClick={() => run(updateEventSeats, { op: "block", reason, seat_ids: ids }, clear)}>Block</Button>
+              <Button type="button" size="sm" variant="outline" disabled={pending || !sel.size} onClick={() => run(updateEventSeats, { op: "unblock", seat_ids: ids }, clear)}>Unblock</Button>
             </div>
             {oneSold ? (
               <div className="flex flex-wrap items-center gap-3 border-t pt-3">
@@ -203,7 +239,7 @@ function ManageSeats({ base, currency, seating }: { base: { org: string; event_i
               </div>
             ) : null}
           </div>
-        ) : null}
+        )}
 
         <SeatMapCanvas drawing={seating.drawing} seats={seats} onSeat={(id) => clickSeat(Number(id))} onLabel={(name) => selectSection(name)} label="Event seat map" />
         <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground">

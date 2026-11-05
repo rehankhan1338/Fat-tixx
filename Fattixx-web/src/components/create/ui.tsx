@@ -113,8 +113,8 @@ export function Segmented<T extends string>({ value, options, onChange, label, s
           aria-pressed={value === o.v}
           onClick={() => onChange(o.v)}
           className={cx(
-            "min-h-11 cursor-pointer rounded-full px-5 text-[14px] font-semibold transition-colors duration-200",
-            size === "lg" && "flex-1 text-[15px]",
+            "min-h-11 cursor-pointer rounded-full text-[14px] font-semibold transition-colors duration-200",
+            size === "lg" ? "flex-1 px-2 text-[15px]" : "px-5",
             value === o.v ? "bg-fx-red text-fx-ivory" : "bg-transparent text-fx-red hover:bg-white/60",
           )}
         >

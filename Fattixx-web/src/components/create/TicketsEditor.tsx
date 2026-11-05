@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { cx } from "@/components/ui/styles";
 import { fromRefundChoice, legacyRefundLabel, newTicket, REFUND_OPTIONS, refundChoice } from "@/lib/home/create";
-import type { EventDraft, TicketDraft, VenueOption } from "@/lib/home/create";
+import type { EventDraft, SeatMapOption, TicketDraft, VenueOption } from "@/lib/home/create";
 import { useFees } from "@/lib/home/fees-context";
 import { feeBreakdown, feeCapLabel, feeLabel, formatCents, parseDollars, processingLabel } from "@/lib/home/pricing";
+import SeatMapField from "./SeatMapField";
 import { input, labelCls, Segmented, Switch } from "./ui";
 
 type Patch = (p: Partial<EventDraft>) => void;
@@ -16,8 +17,20 @@ export type LockedTicket = { id: number; name: string; detail: string };
 /**
  * `venue`: the saved venue chosen under Location, if any (its tax rate is the default).
  * `locked` / `manageHref`: when editing a saved event, the ticket types edited on its dashboard tab instead.
+ * `seatMaps` / `onPickMap` / `seatMapName` / `seatingHref` / `mapsHref`: a seated event has a map instead of ticket cards.
  */
-export default function TicketsEditor({ d, patch, venue, locked = [], manageHref }: { d: EventDraft; patch: Patch; venue: VenueOption | null; locked?: LockedTicket[]; manageHref?: string }) {
+export default function TicketsEditor({ d, patch, venue, locked = [], manageHref, seatMaps = [], onPickMap, seatMapName, seatingHref, mapsHref }: {
+  d: EventDraft;
+  patch: Patch;
+  venue: VenueOption | null;
+  locked?: LockedTicket[];
+  manageHref?: string;
+  seatMaps?: SeatMapOption[];
+  onPickMap?: (id: string) => void;
+  seatMapName?: string | null;
+  seatingHref?: string;
+  mapsHref?: string;
+}) {
   const fees = useFees();
   const [openId, setOpenId] = useState<string | null>(null);
   const refundValue = refundChoice(d);
@@ -39,11 +52,13 @@ export default function TicketsEditor({ d, patch, venue, locked = [], manageHref
   }
 
   const setTicket = (id: string, p: Partial<TicketDraft>) => patch({ tickets: d.tickets.map((t) => (t.id === id ? { ...t, ...p } : t)) });
-  const anyPaid = d.tickets.some((t) => parseDollars(t.price) > 0);
+  const seated = d.mode === "seated";
+  const anyPaid = seated || d.tickets.some((t) => parseDollars(t.price) > 0);
 
   return (
     <div className="grid gap-4">
-      {d.tickets.map((t, i) => {
+      {seated && <SeatMapField value={d.seatMapId} maps={seatMaps} onChange={(id) => onPickMap?.(id)} savedName={seatMapName} seatingHref={seatingHref} mapsHref={mapsHref} />}
+      {!seated && d.tickets.map((t, i) => {
         const cents = parseDollars(t.price);
         const b = feeBreakdown(cents, d.feePayer, fees);
         const more = openId === t.id;
@@ -158,7 +173,7 @@ export default function TicketsEditor({ d, patch, venue, locked = [], manageHref
         </div>
       )}
 
-      <button
+      {!seated && <button
         type="button"
         onClick={() => {
           const t = newTicket(d.tickets.length || locked.length ? "" : "General Admission");
@@ -168,7 +183,7 @@ export default function TicketsEditor({ d, patch, venue, locked = [], manageHref
         className="flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-[20px] border-2 border-dashed border-fx-red/25 text-[15px] font-semibold text-fx-red hover:border-fx-red/50"
       >
         <span aria-hidden="true" className="text-[20px] leading-none">+</span> Add ticket type
-      </button>
+      </button>}
 
       <div className="mt-2 grid gap-2 rounded-[20px] bg-fx-sand/70 p-4 min-[641px]:p-5">
         <span className="text-[13px] font-semibold tracking-[.12em] text-fx-red/78 uppercase">Fees &amp; tax</span>

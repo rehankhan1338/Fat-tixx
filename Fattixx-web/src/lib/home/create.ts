@@ -4,7 +4,8 @@ import type { FeePayer } from "./pricing";
 import { dateTimeInZone } from "./date-time";
 import { youtubeId } from "../video";
 
-export type EventMode = "tickets" | "rsvp";
+/** "seated" (Fattixx Pro): sold from a seat map; prices are set seat by seat on the event's Seating tab once it is saved. */
+export type EventMode = "tickets" | "rsvp" | "seated";
 /** "all", or a minimum age; the page offers 18+ and 21+, and keeps any other age an event was given before */
 export type AgeRule = string;
 /**
@@ -17,6 +18,9 @@ export type Visibility = "public" | "unlisted" | "private";
 
 /** A venue saved under the organization (Dashboard → Venues); the /create page lists them. */
 export type VenueOption = { id: number; name: string; city: string | null; region: string | null; timezone: string; taxBps: number; taxLabel: string | null };
+
+/** An approved map the organization can use (`venueId`: its venue, when that is one of the organization's saved venues). */
+export type SeatMapOption = { id: number; name: string; place: string; seats: number; venueId: number | null };
 
 export type TicketDraft = {
   id: string;
@@ -76,6 +80,8 @@ export type EventDraft = {
   doorsTime: string;
   location: LocationDraft;
   tickets: TicketDraft[];
+  /** the seat map chosen when mode = "seated" */
+  seatMapId: string;
   feePayer: FeePayer;
   capacity: string;
   waitlist: boolean;
@@ -214,6 +220,7 @@ export function emptyDraft(): EventDraft {
     doorsTime: "",
     location: emptyVenue(),
     tickets: [newTicket("General Admission", "t-first")], // a fixed id: the empty draft renders on the server too
+    seatMapId: "",
     feePayer: "buyer",
     capacity: "",
     waitlist: false,
@@ -301,6 +308,10 @@ export function checkDraft(d: EventDraft, now = new Date(), editing?: { startDat
       if (min > max) p.push({ field: "tickets", message: `Order minimum can't be more than the maximum${label}` });
       if (t.sold && t.quantity !== "" && Number(t.quantity) < t.sold) p.push({ field: "tickets", message: `${t.sold} are already sold, so the quantity can't be lower${label}` });
     });
+  }
+  if (d.mode === "seated" && !editing && !d.seatMapId) p.push({ field: "tickets", message: "Choose a seat map" });
+
+  if (d.mode !== "rsvp") {
     if (d.refund === "days_before") {
       const days = Number(d.refundDays);
       if (!Number.isInteger(days) || days < 1 || days > 365) p.push({ field: "tickets", message: "Enter how many days before the event refunds are allowed (1 to 365)" });
@@ -316,6 +327,17 @@ export function checkDraft(d: EventDraft, now = new Date(), editing?: { startDat
   if (d.password && (d.password.trim().length < PASSWORD_MIN || d.password.length > PASSWORD_MAX)) p.push({ field: "settings", message: `Make the event password ${PASSWORD_MIN} to ${PASSWORD_MAX} characters, or switch it off` });
   if (d.slug && !/^[a-z0-9](?:[a-z0-9-]{0,98}[a-z0-9])?$/.test(d.slug)) p.push({ field: "settings", message: "Use lower-case letters, numbers and dashes in the web address" });
   return p;
+}
+
+/** Switch the draft to a seat map; an empty location takes the map's venue (and its time zone) when it is a saved one. */
+export function seatMapPatch(d: EventDraft, seatMapId: string, maps: SeatMapOption[], venues: VenueOption[]): Partial<EventDraft> {
+  const next: Partial<EventDraft> = { mode: "seated", seatMapId };
+  const venueId = maps.find((m) => String(m.id) === seatMapId)?.venueId;
+  const venue = venueId ? venues.find((v) => v.id === venueId) : null;
+  const l = d.location;
+  const empty = l.kind === "venue" ? !l.venueName.trim() && !l.address.trim() : l.kind === "saved" && !l.venueId;
+  if (venue && empty) Object.assign(next, { location: { kind: "saved", venueId: String(venue.id), venueName: venue.name }, timeZone: venue.timezone });
+  return next;
 }
 
 export function hasPaidTickets(d: EventDraft): boolean {
@@ -382,7 +404,7 @@ export function parseDraftForServer(json: string): EventDraft & { galleryPost: G
     : [];
   return {
     ...base,
-    mode: raw.mode === "rsvp" ? "rsvp" : "tickets",
+    mode: raw.mode === "rsvp" || raw.mode === "seated" ? raw.mode : "tickets",
     cover: null,
     name: str(raw.name).slice(0, NAME_STORED_MAX),
     summary: str(raw.summary).slice(0, SUMMARY_STORED_MAX),
@@ -396,6 +418,7 @@ export function parseDraftForServer(json: string): EventDraft & { galleryPost: G
     doorsTime: /^\d{2}:\d{2}$/.test(str(raw.doorsTime)) ? str(raw.doorsTime) : "",
     location,
     tickets,
+    seatMapId: str(raw.seatMapId).replace(/\D/g, ""),
     feePayer: raw.feePayer === "organizer" ? "organizer" : "buyer",
     capacity: str(raw.capacity).replace(/\D/g, ""),
     waitlist: !!raw.waitlist,

@@ -2,8 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-import type { PoolConnection } from 'mysql2/promise';
-import { db, execute, queryOne, type Row } from '../db';
+import { execute, queryOne, type Row } from '../db';
 import { audit } from '../audit';
 import { assertPlatformRole } from '../auth/guard';
 import { assertOrg, canAccessEvent } from '../authz';
@@ -13,7 +12,7 @@ import { orgIsPro } from '../pro/gate';
 import { diffLayouts, expandLayout, parseLayout, seatCount, TIER_COLORS } from './layout';
 import { createFeeCheckout, feeSettled } from './fee';
 import { holdIfUnverified } from '../orgs/verification';
-import { lockSeatsForChange, seatingInUse, syncSeatedQuantities } from './inventory';
+import { copyMapToEvent, inTransaction, lockSeatsForChange, seatingInUse, syncSeatedQuantities } from './inventory';
 import { getEventSeating, getSeatMap, getSeatMapRequest, mapLayout, mapUsableBy, type SeatMapRequestRow } from './queries';
 import { addNote, createSeatMapRequest, ensureDraftMap, logMapChange, moveRequest, notifyOrganizer, notifyStaff } from './requests';
 
@@ -310,21 +309,6 @@ function revalidateSeating(orgSlug: string, event: { id: number; slug: string })
   revalidatePath(`/events/${event.slug}`);
 }
 
-async function inTransaction<T>(fn: (conn: PoolConnection) => Promise<T>): Promise<T> {
-  const conn = await db.getConnection();
-  try {
-    await conn.beginTransaction();
-    const out = await fn(conn);
-    await conn.commit();
-    return out;
-  } catch (e) {
-    await conn.rollback();
-    throw e;
-  } finally {
-    conn.release();
-  }
-}
-
 /** Use an approved map for this event: the event gets its own copy of every seat, none for sale until priced. */
 export async function attachSeatMap(_prev: ActionState, fd: FormData): Promise<ActionState> {
   try {
@@ -335,21 +319,10 @@ export async function attachSeatMap(_prev: ActionState, fd: FormData): Promise<A
     if (!map || !mapUsableBy(map, ctx.org.id)) return { error: 'Choose one of your approved maps or a map from the Venue Library.' };
     if (await getEventSeating(event.id)) return { error: 'This event already has a seat map. Remove it first to use another one.' };
     const layout = mapLayout(map);
-    const seats = expandLayout(layout);
-    if (!seats.length) return { error: 'This map has no seats.' };
-    await inTransaction(async (conn) => {
-      await conn.query(`INSERT INTO event_seating (event_id, seat_map_id, layout, attached_by) VALUES (?, ?, ?, ?)`, [event.id, map.id, JSON.stringify(layout), ctx.session.user.id]);
-      for (let i = 0; i < seats.length; i += 500) {
-        const chunk = seats.slice(i, i + 500);
-        await conn.query(
-          `INSERT INTO event_seats (event_id, seat_key, section, row_label, seat_number, label, x, y, accessibility, sort_order) VALUES ${chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}`,
-          chunk.flatMap((s) => [event.id, s.key, s.section.slice(0, 80), s.row, s.number, s.label, s.x, s.y, s.access ?? 'none', s.sort]),
-        );
-      }
-    });
-    await audit('seating.attached', { actorUserId: ctx.session.user.id, targetType: 'event', targetId: event.id, metadata: { map: map.id, seats: seats.length } });
+    if (!expandLayout(layout).length) return { error: 'This map has no seats.' };
+    const count = await copyMapToEvent(event.id, map, layout, ctx.session.user.id);
     revalidateSeating(ctx.org.slug, event);
-    return { ok: true, message: `${seats.length} seats added. Create pricing tiers and assign seats to them to start selling.` };
+    return { ok: true, message: `${count} seats added. Create pricing tiers and assign seats to them to start selling.` };
   } catch (e) { return fail(e); }
 }
 
@@ -390,6 +363,50 @@ export async function createSeatTier(_prev: ActionState, fd: FormData): Promise<
     const held = await holdIfUnverified(event.id, !!ctx.org.verified_at, ctx.session.user.id);
     revalidateSeating(ctx.org.slug, event);
     return { ok: true, message: `${name} created. Select seats on the map and assign them to it.${held ? ' Paid tickets need a verified organization, so the event is in review and hidden until then.' : ''}` };
+  } catch (e) { return fail(e); }
+}
+
+/** Rename or reprice a tier. Orders already placed keep the price they paid; colour is changed on its own in the tier table. */
+export async function updateSeatTier(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  try {
+    const { ctx, event } = await eventForSeating(fd);
+    const id = Number(fd.get('tier_id'));
+    const tier = await queryOne<Row & { kind: string }>(`SELECT kind FROM ticket_types WHERE id = ? AND event_id = ? AND seated = 1`, [id, event.id]);
+    if (!tier) return { error: 'Pricing tier not found.' };
+    const name = str(fd, 'name', 120);
+    if (name.length < 2) return { error: 'Name the tier, e.g. Orchestra or Balcony.' };
+    const price = tier.kind === 'complimentary' ? 0 : parseDollarsToCents(str(fd, 'price', 12) || '0');
+    if (price === null) return { error: 'Enter a valid price, e.g. 45.00.' };
+    await execute(`UPDATE ticket_types SET name = ?, price_cents = ? WHERE id = ? AND event_id = ? AND seated = 1`, [name, price, id, event.id]);
+    await audit('seating.tier.updated', { actorUserId: ctx.session.user.id, targetType: 'ticket_type', targetId: id, metadata: { eventId: event.id, price } });
+    const held = await holdIfUnverified(event.id, !!ctx.org.verified_at, ctx.session.user.id);
+    revalidateSeating(ctx.org.slug, event);
+    return { ok: true, message: `${name} updated.${held ? ' Paid tickets need a verified organization, so the event is in review and hidden until then.' : ''}` };
+  } catch (e) { return fail(e); }
+}
+
+/**
+ * Delete a tier nobody has ordered: its seats go back to not for sale. The tier row is locked first, as checkout locks
+ * it, so an order can't slip in between the check and the delete.
+ */
+export async function deleteSeatTier(fd: FormData): Promise<ActionState> {
+  try {
+    const { ctx, event } = await eventForSeating(fd);
+    const id = Number(fd.get('tier_id'));
+    const refused = await inTransaction(async (conn) => {
+      const [[tier]] = await conn.query<(Row & { id: number })[]>(`SELECT id FROM ticket_types WHERE id = ? AND event_id = ? AND seated = 1 FOR UPDATE`, [id, event.id]);
+      if (!tier) return 'Pricing tier not found.';
+      const [[used]] = await conn.query<(Row & { n: number })[]>(
+        `SELECT (SELECT COUNT(*) FROM order_items WHERE ticket_type_id = ?) + (SELECT COUNT(*) FROM tickets WHERE ticket_type_id = ?) AS n`, [id, id],
+      );
+      if (Number(used?.n ?? 0) > 0) return 'This tier has orders, so it can’t be deleted. Select its unsold seats and take them off sale instead.';
+      await conn.query(`DELETE FROM ticket_types WHERE id = ? AND event_id = ?`, [id, event.id]);
+      return null;
+    });
+    if (refused) return { error: refused };
+    await audit('seating.tier.deleted', { actorUserId: ctx.session.user.id, targetType: 'ticket_type', targetId: id, metadata: { eventId: event.id } });
+    revalidateSeating(ctx.org.slug, event);
+    return { ok: true };
   } catch (e) { return fail(e); }
 }
 

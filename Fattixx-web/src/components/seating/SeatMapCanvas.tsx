@@ -6,7 +6,7 @@
  * themes so tier colours always read the same.
  */
 
-import { memo, useMemo, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { MinusIcon, PlusIcon, ScanIcon } from "lucide-react";
 import { contentBox, SEAT_RADIUS, type Accessibility, type Drawing } from "@/lib/seating/layout";
 
@@ -74,15 +74,48 @@ export function SeatMapCanvas({ drawing, seats, onSeat, onLabel, label, footer, 
   const [zoom, setZoom] = useState(0);
   const box = useMemo(() => contentBox(seats, drawing.shapes), [seats, drawing.shapes]);
   const z = ZOOMS[zoom];
+  const scroller = useRef<HTMLDivElement>(null);
+  const [view, setView] = useState<{ w: number; h: number } | null>(null);
+  // The point in the middle of the view while zooming, so a zoom keeps looking at the same seats.
+  const focus = useRef<{ x: number; y: number } | null>(null);
+
+  // The window's size comes from CSS alone, so offsetWidth/Height don't change when scrollbars appear.
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const measure = () => setView({ w: el.offsetWidth, h: el.offsetHeight });
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  useLayoutEffect(() => {
+    const el = scroller.current, f = focus.current;
+    if (!el || !f) return;
+    focus.current = null;
+    el.scrollTo(f.x * el.scrollWidth - el.clientWidth / 2, f.y * el.scrollHeight - el.clientHeight / 2);
+  }, [zoom]);
+
+  const zoomTo = (next: number) => {
+    const el = scroller.current;
+    if (el) focus.current = { x: (el.scrollLeft + el.clientWidth / 2) / el.scrollWidth, y: (el.scrollTop + el.clientHeight / 2) / el.scrollHeight };
+    setZoom(next);
+  };
+
+  // Zoom 1 shows the whole map in the window, however tall it is. Zooming in never drops below a tappable seat size.
+  const fit = view && view.w > 0 && view.h > 0 ? Math.min(view.w / box.w, view.h / box.h) : null;
+  const scale = fit === null ? null : z > 1 ? Math.max(fit * z, z * 0.6) : fit;
+  const size = scale === null ? { width: "100%", height: "100%" } : { width: Math.floor(box.w * scale), height: Math.floor(box.h * scale) };
   return (
     <div className="relative rounded-[18px] border border-zinc-200 bg-white">
       <div className="absolute top-2 right-2 z-10 flex gap-1 rounded-full border border-zinc-200 bg-white/95 p-1 shadow-sm">
-        <button type="button" onClick={() => setZoom((v) => Math.max(0, v - 1))} disabled={zoom === 0} aria-label="Zoom out" className="grid size-8 cursor-pointer place-items-center rounded-full text-zinc-700 hover:bg-zinc-100 disabled:opacity-35"><MinusIcon className="size-4" /></button>
-        <button type="button" onClick={() => setZoom(0)} disabled={zoom === 0} aria-label="Fit the whole map" className="grid size-8 cursor-pointer place-items-center rounded-full text-zinc-700 hover:bg-zinc-100 disabled:opacity-35"><ScanIcon className="size-4" /></button>
-        <button type="button" onClick={() => setZoom((v) => Math.min(ZOOMS.length - 1, v + 1))} disabled={zoom === ZOOMS.length - 1} aria-label="Zoom in" className="grid size-8 cursor-pointer place-items-center rounded-full text-zinc-700 hover:bg-zinc-100 disabled:opacity-35"><PlusIcon className="size-4" /></button>
+        <button type="button" onClick={() => zoomTo(Math.max(0, zoom - 1))} disabled={zoom === 0} aria-label="Zoom out" className="grid size-8 cursor-pointer place-items-center rounded-full text-zinc-700 hover:bg-zinc-100 disabled:opacity-35"><MinusIcon className="size-4" /></button>
+        <button type="button" onClick={() => zoomTo(0)} disabled={zoom === 0} aria-label="Fit the whole map" className="grid size-8 cursor-pointer place-items-center rounded-full text-zinc-700 hover:bg-zinc-100 disabled:opacity-35"><ScanIcon className="size-4" /></button>
+        <button type="button" onClick={() => zoomTo(Math.min(ZOOMS.length - 1, zoom + 1))} disabled={zoom === ZOOMS.length - 1} aria-label="Zoom in" className="grid size-8 cursor-pointer place-items-center rounded-full text-zinc-700 hover:bg-zinc-100 disabled:opacity-35"><PlusIcon className="size-4" /></button>
       </div>
-      <div className="overflow-auto overscroll-contain rounded-[18px]" style={{ maxHeight }}>
-        <svg role="group" aria-label={label} viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`} style={{ width: `${z * 100}%`, minWidth: z > 1 ? `${Math.round(box.w * z * 0.6)}px` : undefined }} className="block h-auto select-none">
+      <div ref={scroller} className="flex w-full overflow-auto overscroll-contain rounded-[18px]" style={{ maxHeight, aspectRatio: `${box.w} / ${box.h}` }}>
+        <svg role="group" aria-label={label} viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`} style={size} className="m-auto block shrink-0 select-none">
           {background ? <image href={background.href} x={background.box.x} y={background.box.y} width={background.box.w} height={background.box.h} opacity={background.opacity} preserveAspectRatio="xMidYMid meet" /> : null}
           {drawing.shapes.map((s) => s.kind === "label" ? (
             <text key={s.id} x={s.x + s.w / 2} y={s.y + s.h / 2} textAnchor="middle" dominantBaseline="middle" fontSize={15} fontWeight={600} fill={SEAT_COLORS.ink}>{s.text}</text>

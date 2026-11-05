@@ -1,6 +1,8 @@
 import 'server-only';
 import type { PoolConnection } from 'mysql2/promise';
-import { execute, query, type Row } from '../db';
+import { audit } from '../audit';
+import { db, execute, query, queryOne, type Row } from '../db';
+import { expandLayout, type SeatMapLayout } from './layout';
 
 /*
  * Seat holds inside the checkout transaction (plan 5.7.3–5.7.13). The same hold rules as every other ticket: a pending
@@ -8,6 +10,46 @@ import { execute, query, type Row } from '../db';
  * locked (SELECT … FOR UPDATE) before they are checked and claimed, and always after the ticket type rows, in the same
  * order as finalizePaidOrder, so concurrent buyers queue on the seat instead of both getting it.
  */
+
+export async function inTransaction<T>(fn: (conn: PoolConnection) => Promise<T>): Promise<T> {
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    const out = await fn(conn);
+    await conn.commit();
+    return out;
+  } catch (e) {
+    await conn.rollback();
+    throw e;
+  } finally {
+    conn.release();
+  }
+}
+
+/** Use an approved map for an event: the event gets its own copy of every seat, none for sale until priced. Returns the seat count. */
+export async function copyMapToEvent(eventId: number, map: { id: number }, layout: SeatMapLayout, userId: number): Promise<number> {
+  const seats = expandLayout(layout);
+  await inTransaction(async (conn) => {
+    await conn.query(`INSERT INTO event_seating (event_id, seat_map_id, layout, attached_by) VALUES (?, ?, ?, ?)`, [eventId, map.id, JSON.stringify(layout), userId]);
+    for (let i = 0; i < seats.length; i += 500) {
+      const chunk = seats.slice(i, i + 500);
+      await conn.query(
+        `INSERT INTO event_seats (event_id, seat_key, section, row_label, seat_number, label, x, y, accessibility, sort_order) VALUES ${chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}`,
+        chunk.flatMap((s) => [eventId, s.key, s.section.slice(0, 80), s.row, s.number, s.label, s.x, s.y, s.access ?? 'none', s.sort]),
+      );
+    }
+  });
+  await audit('seating.attached', { actorUserId: userId, targetType: 'event', targetId: eventId, metadata: { map: map.id, seats: seats.length } });
+  return seats.length;
+}
+
+export const SEATS_NOT_ON_SALE = 'Put seats on sale first: on the Seating tab, create a pricing tier and assign seats to it.';
+
+/** The event has a seat map but nothing to sell yet: no seat is in a pricing tier, and there is no other ticket. */
+export async function seatsNotOnSale(eventId: number): Promise<boolean> {
+  if (!(await queryOne(`SELECT 1 FROM event_seating WHERE event_id = ?`, [eventId]))) return false;
+  return !(await queryOne(`SELECT 1 FROM ticket_types WHERE event_id = ? AND quantity > 0 LIMIT 1`, [eventId]));
+}
 
 export type LockedSeat = Row & { id: number; ticket_type_id: number | null; blocked: number; hold_order_id: number | null; label: string };
 

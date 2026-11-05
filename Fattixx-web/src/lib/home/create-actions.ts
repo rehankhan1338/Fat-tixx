@@ -20,8 +20,12 @@ import { encryptEventPassword } from '../events/password';
 import { getEvent, listEventDates, listEventPhotos, listTicketTypes, MAX_EVENT_PHOTOS, publicEventPath, type EventListRow } from '../events/queries';
 import { eventSnapshot, notifyEventChanged } from '../events/notify';
 import { geocodeAddress } from '../places';
+import { orgIsPro } from '../pro/gate';
 import { holdIfUnverified, liveStatus } from '../orgs/verification';
 import { payoutsReady } from '../payments/connect';
+import { copyMapToEvent, SEATS_NOT_ON_SALE, seatsNotOnSale } from '../seating/inventory';
+import { expandLayout, type SeatMapLayout } from '../seating/layout';
+import { getSeatMap, mapLayout, mapUsableBy, type SeatMapRow } from '../seating/queries';
 import { rateLimited } from '../security/bot';
 import { randomToken } from '../security/crypto';
 import { shortSuffix, slugify } from '../slug';
@@ -299,6 +303,17 @@ async function needsPassword(userId: number): Promise<boolean> {
   return !!(await queryOne(`SELECT 1 FROM users WHERE id = ? AND password_hash IS NULL`, [userId]));
 }
 
+/** The map picked on the page: Pro only, one of the organization's approved maps or from the Venue Library. */
+async function chosenSeatMap(draft: EventDraft, orgId: number): Promise<{ error: string } | { map: SeatMapRow; layout: SeatMapLayout }> {
+  const org = await queryOne<Row & { pro_until: Date | null }>(`SELECT pro_until FROM organizations WHERE id = ?`, [orgId]);
+  if (!org || !orgIsPro(org)) return { error: 'Reserved seating is part of Fattixx Pro.' };
+  const map = await getSeatMap(Number(draft.seatMapId));
+  if (!map || !mapUsableBy(map, orgId)) return { error: 'Choose one of your approved maps or a map from the Venue Library.' };
+  const layout = mapLayout(map);
+  if (!expandLayout(layout).length) return { error: 'This map has no seats.' };
+  return { map, layout };
+}
+
 // ---------------------------------------------------------------------------
 // New event
 // ---------------------------------------------------------------------------
@@ -317,6 +332,8 @@ export async function publishDraft(_prev: CreateState, fd: FormData): Promise<Cr
   // after the checks above, so a new organizer's organization is only created when the event can be saved too
   const org = await hostFor(session, fd);
   if ('error' in org) return (await discard(), org);
+  const seating = draft.mode === 'seated' ? await chosenSeatMap(draft, org.id) : null;
+  if (seating && 'error' in seating) return (await discard(), seating);
   const where = await resolveLocation(draft, org.id, session.user.id);
   if ('error' in where) return (await discard(), where);
 
@@ -324,9 +341,10 @@ export async function publishDraft(_prev: CreateState, fd: FormData): Promise<Cr
   if (await queryOne(`SELECT 1 FROM events WHERE slug = ?`, [slug])) slug = `${slug}-${shortSuffix()}`;
   const privateKey = cols.visibility === 'private' ? randomToken(12).slice(0, 16) : null;
   const featured = draft.featured && session.user.roles.includes('super_admin') ? 1 : 0;
+  // a seated event has no tickets yet: its pricing tiers are made on the Seating tab, so it starts as a draft
   const tickets: TicketValues[] = draft.mode === 'rsvp'
     ? [{ name: 'Free admission', priceCents: 0, quantity: cols.capacity ?? MAX_QUANTITY, min: 1, max: 10, salesStart: null, salesEnd: null, description: null, hidden: 0 }]
-    : draft.tickets.map((t) => ticketValues(t, draft.timeZone, cols.capacity));
+    : draft.mode === 'seated' ? [] : draft.tickets.map((t) => ticketValues(t, draft.timeZone, cols.capacity));
   const publish = tickets.length > 0 && fd.get('save_as') !== 'draft';
   const paid = tickets.some((t) => t.priceCents > 0);
   const status = !publish ? 'draft' : paid && !org.verified ? 'in_review' : 'published';
@@ -340,6 +358,15 @@ export async function publishDraft(_prev: CreateState, fd: FormData): Promise<Cr
       cols.refundPolicy, cols.refundDays, cols.allowTransfers, cols.category, featured, session.user.id],
   );
   const eventId = r.insertId;
+  if (seating) {
+    try {
+      await copyMapToEvent(eventId, seating.map, seating.layout, session.user.id);
+    } catch {
+      await execute(`DELETE FROM events WHERE id = ?`, [eventId]);
+      await discard();
+      return { error: 'We couldn’t add the seat map. Please try again.' };
+    }
+  }
   let sort = 0;
   for (const t of tickets) await insertTicket(eventId, t, sort++, session.user.id);
   await saveGallery(eventId, draft.galleryPost, images.photos, session.user.id);
@@ -381,9 +408,10 @@ export async function saveEventEdits(_prev: CreateState, fd: FormData): Promise<
   const draft = readDraft(fd);
   if ('error' in draft) return draft;
   const original = String(fd.get('original_start') ?? '').split('T');
-  const otherTickets = (await listTicketTypes(event.id)).filter((t) => !(t.kind === 'general' && !t.event_date_id && !t.access_code && Number(t.seats_per_unit) === 1)).length;
+  const otherTickets = (await listTicketTypes(event.id)).filter((t) => !(t.kind === 'general' && !t.event_date_id && !t.access_code && Number(t.seats_per_unit) === 1 && !t.seated)).length;
   const cols = await columnsFrom(draft, { startDate: original[0] ?? '', startTime: original[1] ?? '', otherTickets });
   if ('error' in cols) return cols;
+  if (fd.get('save_as') === 'publish' && (await seatsNotOnSale(event.id))) return { error: SEATS_NOT_ON_SALE };
 
   // web address: lower-case letters, numbers and dashes, and not another event's
   let slug = event.slug;

@@ -12,6 +12,7 @@ import { isValidTimeZone, shiftWallClock, wallClockToUtc } from '../tz';
 import { copyUpload, deleteUpload } from '../uploads';
 import { getEvent, listEventDates, listEventPhotos, type EventRow } from './queries';
 import { eventSnapshot, notifyEventChanged } from './notify';
+import { SEATS_NOT_ON_SALE, seatsNotOnSale } from '../seating/inventory';
 import { holdIfUnverified, liveStatus } from '../orgs/verification';
 
 /*
@@ -307,6 +308,7 @@ export async function setEventStatus(fd: FormData): Promise<ActionState> {
   if (!['draft', 'published', 'completed'].includes(status)) return { error: 'Invalid status.' };
   if (status === 'completed' && event.status === 'in_review') return { error: 'This event is waiting for verification.' };
   if (status === 'published') {
+    if (await seatsNotOnSale(event.id)) return { error: SEATS_NOT_ON_SALE };
     const tt = await queryOne<Row & { n: number }>(`SELECT COUNT(*) AS n FROM ticket_types WHERE event_id = ?`, [event.id]);
     if (!Number(tt?.n ?? 0)) return { error: 'Add at least one ticket type before publishing.' };
     if (event.status === 'cancelled') return { error: 'A cancelled event cannot be re-published. Create a new event.' };

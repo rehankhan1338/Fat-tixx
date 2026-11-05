@@ -3,9 +3,11 @@ import { query, type Row } from '../db';
 import { listMemberships } from '../authz';
 import { decryptEventPassword } from '../events/password';
 import { listEventDates, listEventPhotos, listTicketTypes, type EventRow } from '../events/queries';
+import { isProActive } from '../pro/status';
+import { getEventSeating, listUsableMaps } from '../seating/queries';
 import { utcToWallClock } from '../tz';
 import { uploadUrl } from '../uploads';
-import { emptyDraft, emptyVenue, migrateRefund, type EventDraft, type TicketDraft, type VenueOption } from './create';
+import { emptyDraft, emptyVenue, migrateRefund, type EventDraft, type SeatMapOption, type TicketDraft, type VenueOption } from './create';
 
 /** An organization the signed-in person can host events for on /create (Organization Admin or Organizer). */
 export type HostOrganization = { id: number; slug: string; name: string; verified: boolean };
@@ -36,6 +38,20 @@ export async function venuesByOrg(orgs: { id: number; slug: string }[]): Promise
   return out;
 }
 
+/** The seat maps each Pro organization can build an event on, keyed by organization slug. An organization not on Pro has no entry. */
+export async function seatMapsByOrg(orgs: { id: number; slug: string }[]): Promise<Record<string, SeatMapOption[]>> {
+  if (!orgs.length) return {};
+  const rows = await query<Row & { id: number; pro_until: Date | null }>(`SELECT id, pro_until FROM organizations WHERE id IN (${orgs.map(() => '?').join(',')})`, orgs.map((o) => o.id));
+  const pro = new Set(rows.filter((r) => isProActive(r.pro_until)).map((r) => Number(r.id)));
+  const out: Record<string, SeatMapOption[]> = {};
+  for (const o of orgs.filter((x) => pro.has(x.id))) {
+    out[o.slug] = (await listUsableMaps(o.id)).map((m) => ({
+      id: Number(m.id), name: m.name, place: [m.venue_name, m.venue_city].filter(Boolean).join(', '), seats: Number(m.seat_count), venueId: m.venue_id ? Number(m.venue_id) : null,
+    }));
+  }
+  return out;
+}
+
 /** Drafts this person can work on, newest first, so they reopen on the page (plan 5.6.12). */
 export type OwnDraft = { id: number; title: string; orgSlug: string; orgName: string; updatedAt: string };
 
@@ -60,6 +76,8 @@ export type EditorData = {
   /** "YYYY-MM-DDTHH:MM" the event had when the page opened (an event under way can be edited without moving its start) */
   originalStart: string;
   lockedTickets: LockedTicket[];
+  /** the event's seat map: the page names it and leaves its seats to the event's Seating tab */
+  seatMapName: string | null;
   /** dates come from the dashboard's Schedule tab */
   multiDay: boolean;
   hasPassword: boolean;
@@ -74,7 +92,7 @@ export async function editorData(event: EventRow): Promise<EditorData> {
   const tz = event.timezone;
   const wall = (d: Date | string | null) => (d ? utcToWallClock(new Date(d), tz) : '');
   const start = wall(event.starts_at), end = wall(event.ends_at), doors = wall(event.doors_at);
-  const [types, photos, dates] = await Promise.all([listTicketTypes(event.id), listEventPhotos(event.id), listEventDates(event.id)]);
+  const [types, photos, dates, seating] = await Promise.all([listTicketTypes(event.id), listEventPhotos(event.id), listEventDates(event.id), getEventSeating(event.id)]);
   const editable = (t: (typeof types)[number]) => t.kind === 'general' && !t.event_date_id && !t.access_code && Number(t.seats_per_unit) === 1 && !t.seated;
   const tickets: TicketDraft[] = types.filter(editable).map((t) => ({
     id: `t-${t.id}`,
@@ -97,9 +115,10 @@ export async function editorData(event: EventRow): Promise<EditorData> {
   }));
   const password = decryptEventPassword(event.access_password);
   const base = emptyDraft();
+  const seated = !!seating && !tickets.length;
   const draft: EventDraft = {
     ...base,
-    mode: 'tickets',
+    mode: seated ? 'seated' : 'tickets',
     cover: uploadUrl(event.image_path),
     name: event.title,
     summary: event.summary ?? '',
@@ -114,7 +133,7 @@ export async function editorData(event: EventRow): Promise<EditorData> {
     location: event.venue_id
       ? { kind: 'saved', venueId: String(event.venue_id), venueName: '' }
       : event.online_url ? { kind: 'online', link: event.online_url } : emptyVenue(),
-    tickets: tickets.length || types.length ? tickets : base.tickets,
+    tickets: seated || tickets.length || types.length ? tickets : base.tickets,
     feePayer: event.fee_mode === 'organizer_absorbs' ? 'organizer' : 'buyer',
     capacity: event.capacity ? String(event.capacity) : '',
     waitlist: !!event.waitlist_enabled,
@@ -136,7 +155,7 @@ export async function editorData(event: EventRow): Promise<EditorData> {
   };
   const sold = await query<Row & { n: number }>(`SELECT COUNT(*) AS n FROM orders WHERE event_id = ? AND status IN ('paid','partially_refunded')`, [event.id]);
   return {
-    eventId: Number(event.id), status: event.status, draft, originalStart: start, lockedTickets,
+    eventId: Number(event.id), status: event.status, draft, originalStart: start, lockedTickets, seatMapName: seating ? seating.map_name ?? 'Seat map' : null,
     multiDay: dates.length > 0, hasPassword: !!password, hasSales: Number(sold[0]?.n ?? 0) > 0,
   };
 }

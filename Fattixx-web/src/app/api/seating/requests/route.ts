@@ -42,7 +42,7 @@ export async function POST(req: Request) {
   const mapName = str(fd, 'map_name', 160) || `${venueName} seating`;
   const notes = str(fd, 'notes', 5000) || null;
   const file = fd.get('floor_plan');
-  if (!(file instanceof File) || file.size === 0) return fail('Upload the venue’s floor plan or official seating chart (PDF, JPG or PNG).');
+  if (!(file instanceof File) || file.size === 0) return fail('Upload the venue’s floor plan or official seating chart (PDF, JPG, PNG, Excel or CSV).');
 
   let floorPlan;
   try { floorPlan = await saveFloorPlanUpload(file); } catch (e) { return fail((e as Error).message); }
