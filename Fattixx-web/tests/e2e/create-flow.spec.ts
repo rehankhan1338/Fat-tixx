@@ -53,9 +53,10 @@ test("a new organizer’s paid event waits for verification, and the sign-up que
   await page.locator("#c-st").fill("20:00");
   await page.locator("#c-location").getByRole("button", { name: "Online" }).click();
   await page.locator("#c-location").getByPlaceholder("https://").fill("https://meet.example.com/e2e");
-  await page.locator("#c-tickets").getByPlaceholder("0.00").first().fill("25");
+  await page.locator("#c-tickets").locator('input[id$="-e"]').first().fill("25");
   // live fee preview (5.6.5): 6.5% + $1.29 on $25, buyer pays it
-  await expect(page.locator("#c-tickets")).toContainText("Buyers pay $27.92, you receive $25.00");
+  await expect(page.locator("#c-tickets")).toContainText("Buyers pay$27.92");
+  await expect(page.locator("#c-tickets")).toContainText("You receive per ticket$25.00");
   await expect(page.getByText("Draft saved").first()).toBeVisible();
 
   // the draft survives a reload (5.6.6)
