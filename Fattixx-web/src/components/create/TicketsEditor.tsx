@@ -20,7 +20,7 @@ function MoneyInput({ id, value, onChange, onBlur, highlight }: { id: string; va
       <span aria-hidden="true" className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-[15px] font-semibold text-fx-red/78">
         $
       </span>
-      <input id={id} className={cx(input, "pl-8 font-semibold", highlight && "border-fx-yellow bg-fx-yellow/15")} inputMode="decimal" placeholder="0.00" value={value} onChange={(e) => onChange(e.target.value)} onBlur={onBlur} />
+      <input id={id} className={cx(input, "pl-8 font-semibold", highlight && "border-fx-yellow! bg-fx-yellow/15!")} inputMode="decimal" placeholder="0.00" value={value} onChange={(e) => onChange(e.target.value)} onBlur={onBlur} />
     </div>
   );
 }
