@@ -43,6 +43,54 @@ export function feeBreakdown(priceCents: number, payer: FeePayer, fees: FeeConfi
   };
 }
 
+const MAX_PRICE_CENTS = 1_000_000;
+
+/**
+ * The ticket price (what's stored on the ticket) that gives this target, where `pick` reads the earn or the buyer
+ * total from a breakdown. Both rise with the price, so this is a binary search with checkout's own rounding.
+ * Returns the price whose result is closest to the target, preferring an exact match.
+ */
+function solvePrice(target: number, payer: FeePayer, fees: FeeConfig, pick: (b: FeeBreakdown) => number): number {
+  if (target <= 0) return 0;
+  let lo = 1, hi = MAX_PRICE_CENTS;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (pick(feeBreakdown(mid, payer, fees)) >= target) hi = mid;
+    else lo = mid + 1;
+  }
+  const above = pick(feeBreakdown(lo, payer, fees));
+  if (above === target || lo === 1) return lo;
+  const below = pick(feeBreakdown(lo - 1, payer, fees));
+  return target - below < above - target ? lo - 1 : lo;
+}
+
+/** The ticket price that pays the organizer `earnCents` per ticket. */
+export function priceForEarn(earnCents: number, payer: FeePayer, fees: FeeConfig): number {
+  return solvePrice(earnCents, payer, fees, (b) => b.organizerGetsCents);
+}
+
+/** The ticket price at which buyers pay `totalCents` for one ticket, fees included. */
+export function priceForBuyerTotal(totalCents: number, payer: FeePayer, fees: FeeConfig): number {
+  return solvePrice(totalCents, payer, fees, (b) => b.buyerPaysCents);
+}
+
+/**
+ * Up to two round buyer prices near this one (the $0.50 steps either side), each with what the organizer earns.
+ * Only prices checkout can hit exactly are offered.
+ */
+export function cleanerPrices(buyerPaysCents: number, payer: FeePayer, fees: FeeConfig): { priceCents: number; buyerPaysCents: number; earnCents: number }[] {
+  if (buyerPaysCents <= 0 || buyerPaysCents % 50 === 0) return [];
+  const down = Math.floor(buyerPaysCents / 50) * 50;
+  const out = [];
+  for (const target of [down, down + 50]) {
+    if (target <= 0) continue;
+    const priceCents = priceForBuyerTotal(target, payer, fees);
+    const b = feeBreakdown(priceCents, payer, fees);
+    if (b.buyerPaysCents === target) out.push({ priceCents, buyerPaysCents: target, earnCents: b.organizerGetsCents });
+  }
+  return out;
+}
+
 const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
 /** 2500 -> "$25.00" */
