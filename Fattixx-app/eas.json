@@ -1,7 +1,7 @@
 {
   "cli": {
     "version": ">= 16.0.0",
-    "appVersionSource": "local"
+    "appVersionSource": "remote"
   },
   "build": {
     "lan": {
@@ -20,7 +20,16 @@
       }
     },
     "production": {
-      "android": { "buildType": "app-bundle" }
+      "android": { "buildType": "app-bundle" },
+      "ios": { "autoIncrement": true },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://fat-tixx.vercel.app"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": { "ascAppId": "6834284490" }
     }
   }
 }

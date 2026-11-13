@@ -9,6 +9,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { api } from '@/api/client';
 import type { ScanResult } from '@/api/types';
 import { Button, Spinner, Txt } from '@/components/ui';
+import { monoFont } from '@/components/ui/Text';
 import { isNetworkError, useOfflineScanner, type Counts } from '@/scanner/offline';
 import { localCounts } from '@/scanner/store';
 import { setBusy as setGlobalBusy } from '@/lib/loading';
@@ -223,12 +224,12 @@ const styles = StyleSheet.create({
   bottom: { padding: 16, gap: 12 },
   hint: { textAlign: 'center', fontFamily: fonts.sansMedium, fontSize: 14, color: '#fff', backgroundColor: 'rgba(0,0,0,0.45)', alignSelf: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999 },
   banner: { borderRadius: radius.xl, padding: 16, gap: 4 },
-  bannerTitle: { fontFamily: fonts.displayBlack, fontSize: 26, letterSpacing: -0.5, color: '#fff' },
-  bannerName: { fontFamily: fonts.sansSemi, fontSize: 16, color: '#fff' },
-  bannerMsg: { fontFamily: fonts.sans, fontSize: 13, color: 'rgba(255,255,255,0.92)' },
+  bannerTitle: { fontFamily: fonts.displayBlack, fontSize: 26, lineHeight: 32, letterSpacing: -0.5, color: '#fff' },
+  bannerName: { fontFamily: fonts.sansSemi, fontSize: 16, lineHeight: 21, color: '#fff' },
+  bannerMsg: { fontFamily: fonts.sans, fontSize: 13, lineHeight: 18, color: 'rgba(255,255,255,0.92)' },
   bannerAge: { marginTop: 6, fontFamily: fonts.sansBold, fontSize: 13, color: colors.ink, backgroundColor: colors.yellow, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
   manualBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 10 },
   manualText: { fontFamily: fonts.sansMedium, fontSize: 14, color: '#fff' },
   manual: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  input: { flex: 1, height: 46, borderRadius: 999, paddingHorizontal: 16, backgroundColor: '#fff', fontFamily: 'monospace', fontSize: 16, letterSpacing: 2, color: '#18181B' },
+  input: { flex: 1, height: 46, borderRadius: 999, paddingHorizontal: 16, backgroundColor: '#fff', fontFamily: monoFont, fontSize: 16, letterSpacing: 2, color: '#18181B' },
 });

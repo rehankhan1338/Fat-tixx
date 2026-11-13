@@ -3,6 +3,7 @@ import { Alert, FlatList, StyleSheet, TextInput, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { Search } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '@/api/client';
 import { useAttendees, useEventDetail } from '@/api/hooks';
 import type { Attendee, ScanResult } from '@/api/types';
@@ -21,6 +22,7 @@ export default function AttendeesScreen() {
   const [debounced, setDebounced] = useState('');
   const { data, isLoading, isError, error, refetch, isRefetching } = useAttendees(org, eventId, debounced);
   const { data: event } = useEventDetail(org, eventId);
+  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const [msg, setMsg] = useState<{ tone: 'success' | 'error' | 'warning'; text: string } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -71,7 +73,7 @@ export default function AttendeesScreen() {
           <FlatList
             data={data?.attendees ?? []}
             keyExtractor={(a) => String(a.ticketId)}
-            contentContainerStyle={{ padding: 20, paddingTop: 8, gap: 8 }}
+            contentContainerStyle={{ padding: 20, paddingTop: 8, paddingBottom: insets.bottom + 20, gap: 8 }}
             onRefresh={refetch}
             refreshing={isRefetching}
             keyboardShouldPersistTaps="handled"
