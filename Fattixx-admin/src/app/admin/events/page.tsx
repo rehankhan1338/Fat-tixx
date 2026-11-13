@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requirePlatformStaff, hasPlatformRole } from "@/lib/auth/guard";
-import { deleteEvent } from "@/lib/events/actions";
+import { deleteEvent, setEventFeeMode } from "@/lib/events/actions";
 import { Button } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/confirm-button";
 import { query, queryOne, type Row } from "@/lib/db";
@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 
 export const metadata: Metadata = { title: "Events" };
 
-type Row_ = Row & { id: number; title: string; slug: string; status: string; visibility: string; starts_at: Date; timezone: string; currency: string; org_name: string; org_slug: string; sold: number; cap: number; gross: number; checked_in: number };
+type Row_ = Row & { id: number; title: string; slug: string; status: string; visibility: string; starts_at: Date; timezone: string; currency: string; fee_mode: string; org_name: string; org_slug: string; sold: number; cap: number; gross: number; checked_in: number };
 
 export default async function AdminEventsPage({ searchParams }: PageProps<"/admin/events">) {
   const session = await requirePlatformStaff(["super_admin", "finance"]);
@@ -23,7 +23,7 @@ export default async function AdminEventsPage({ searchParams }: PageProps<"/admi
   const { page, perPage, offset } = parsePagination(sp);
   const [events, totalRow] = await Promise.all([
     query<Row_>(
-      `SELECT e.id, e.title, e.slug, e.status, e.visibility, e.starts_at, e.timezone, e.currency, g.name AS org_name, g.slug AS org_slug,
+      `SELECT e.id, e.title, e.slug, e.status, e.visibility, e.starts_at, e.timezone, e.currency, e.fee_mode, g.name AS org_name, g.slug AS org_slug,
               (SELECT COALESCE(SUM(t.sold),0) FROM ticket_types t WHERE t.event_id = e.id) AS sold,
               (SELECT COALESCE(SUM(t.quantity * t.seats_per_unit),0) FROM ticket_types t WHERE t.event_id = e.id) AS cap,
               (SELECT COALESCE(SUM(o.subtotal_cents - o.refunded_cents),0) FROM orders o WHERE o.event_id = e.id AND o.status IN ('paid','partially_refunded')) AS gross,
@@ -40,7 +40,7 @@ export default async function AdminEventsPage({ searchParams }: PageProps<"/admi
       <Section>
         {events.length === 0 ? <EmptyState title={total === 0 ? "No events yet" : "No events on this page"} /> : (
           <Table>
-            <TableHeader><TableRow><TableHead>Event</TableHead><TableHead>Organization</TableHead><TableHead>When</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Sold</TableHead><TableHead className="text-right">Checked in</TableHead><TableHead className="text-right">Net sales</TableHead>{isSuper ? <TableHead /> : null}</TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>Event</TableHead><TableHead>Organization</TableHead><TableHead>When</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Sold</TableHead><TableHead className="text-right">Checked in</TableHead><TableHead className="text-right">Net sales</TableHead><TableHead>Fee paid by</TableHead>{isSuper ? <TableHead /> : null}</TableRow></TableHeader>
             <TableBody>
               {events.map((e) => (
                 <TableRow key={e.id}>
@@ -51,6 +51,11 @@ export default async function AdminEventsPage({ searchParams }: PageProps<"/admi
                   <TableCell className="text-right font-mono text-xs">{e.sold}/{e.cap}</TableCell>
                   <TableCell className="text-right tabular-nums">{e.checked_in}</TableCell>
                   <TableCell className="text-right font-mono">{formatCents(Number(e.gross), e.currency)}</TableCell>
+                  <TableCell>
+                    {isSuper ? (
+                      <ConfirmButton action={setEventFeeMode} fields={{ org: e.org_slug, event_id: e.id, fee_mode: e.fee_mode === "buyer_pays" ? "organizer_absorbs" : "buyer_pays" }} title={e.fee_mode === "buyer_pays" ? "Make the organizer cover the fee?" : "Make buyers pay the fee?"} description={Number(e.sold) > 0 ? "Tickets already sold keep the fee they were sold with. New sales and the price buyers see will change." : "The price buyers see will change."} confirmText="Switch" variant="outline">{e.fee_mode === "buyer_pays" ? "Buyers" : "Organizer"}</ConfirmButton>
+                    ) : e.fee_mode === "buyer_pays" ? "Buyers" : "Organizer"}
+                  </TableCell>
                   {isSuper ? (
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">

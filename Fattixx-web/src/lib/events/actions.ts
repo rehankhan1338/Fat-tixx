@@ -338,6 +338,19 @@ export async function deleteEvent(fd: FormData): Promise<ActionState> {
   redirect(`/org/${ctx.org.slug}/events`);
 }
 
+/** Super Admin only: who covers the Fattixx fee on this event (organizers no longer choose it themselves). */
+export async function setEventFeeMode(fd: FormData): Promise<ActionState> {
+  const { ctx, event } = await loadEventForEdit(str(fd, 'org', 64), Number(fd.get('event_id')));
+  if (!ctx.isSuperAdmin) return { error: 'Only a Super Admin can change who pays the fee.' };
+  const mode = str(fd, 'fee_mode', 20);
+  if (mode !== 'buyer_pays' && mode !== 'organizer_absorbs') return { error: 'Choose a fee mode.' };
+  await execute(`UPDATE events SET fee_mode = ? WHERE id = ?`, [mode, event.id]);
+  await audit('event.fee_mode_changed', { actorUserId: ctx.session.user.id, targetType: 'event', targetId: event.id, metadata: { from: event.fee_mode, to: mode } });
+  revalidateEvent(ctx.org.slug, event.id, event.slug);
+  revalidatePath('/admin/events');
+  return { ok: true };
+}
+
 // ---------------------------------------------------------------------------
 // Ticket types
 // ---------------------------------------------------------------------------
