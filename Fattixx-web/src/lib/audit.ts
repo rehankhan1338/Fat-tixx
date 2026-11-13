@@ -11,7 +11,7 @@ export type AuditAction =
   | 'org.created' | 'org.updated' | 'org.verified' | 'org.questionnaire' | 'org.status.changed' | 'org.deleted' | 'org.member.added' | 'org.member.updated' | 'org.member.removed'
   | 'order.deleted' | 'ticket.voided' | 'ticket.transferred'
   | 'venue.created' | 'venue.updated' | 'venue.deleted'
-  | 'event.created' | 'event.updated' | 'event.published' | 'event.held_for_review' | 'event.unpublished' | 'event.cancelled' | 'event.postponed' | 'event.deleted'
+  | 'event.created' | 'event.updated' | 'event.published' | 'event.held_for_review' | 'event.unpublished' | 'event.cancelled' | 'event.postponed' | 'event.deleted' | 'event.fee_mode_changed'
   | 'event.member.assigned' | 'event.member.unassigned' | 'event.duplicated' | 'event.series_created' | 'event.private_key_rotated'
   | 'event_date.created' | 'event_date.updated' | 'event_date.deleted'
   | 'ticket_type.created' | 'ticket_type.updated' | 'ticket_type.deleted'

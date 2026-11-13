@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import { CalendarCheck, UserRound } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, red } from '@/theme/tokens';
 
 /**
@@ -8,6 +9,11 @@ import { colors, fonts, red } from '@/theme/tokens';
  * lists and which check-in actions it allows.
  */
 export default function TabsLayout() {
+  // On iPhones with a home indicator the labels only need to clear the indicator line (~20pt), not the
+  // full 34pt inset, so the tabs sit with even space above and below.
+  const { bottom } = useSafeAreaInsets();
+  const padTop = 12;
+  const padBottom = bottom > 0 ? Math.min(bottom, 20) : 12;
   return (
     <Tabs
       initialRouteName="events"
@@ -15,8 +21,8 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarActiveTintColor: colors.red,
         tabBarInactiveTintColor: red(0.5),
-        tabBarStyle: { backgroundColor: colors.pureWhite, borderTopColor: red(0.12), height: 64, paddingTop: 6 },
-        tabBarLabelStyle: { fontFamily: fonts.sansMedium, fontSize: 11, marginBottom: 6 },
+        tabBarStyle: { backgroundColor: colors.pureWhite, borderTopColor: red(0.12), height: 50 + padTop + padBottom, paddingTop: padTop, paddingBottom: padBottom },
+        tabBarLabelStyle: { fontFamily: fonts.sansMedium, fontSize: 11, lineHeight: 14 },
         sceneStyle: { backgroundColor: colors.ivory },
       }}
     >

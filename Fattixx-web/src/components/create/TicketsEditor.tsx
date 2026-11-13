@@ -5,9 +5,9 @@ import { cx } from "@/components/ui/styles";
 import { fromRefundChoice, legacyRefundLabel, newTicket, REFUND_OPTIONS, refundChoice } from "@/lib/home/create";
 import type { EventDraft, SeatMapOption, TicketDraft, VenueOption } from "@/lib/home/create";
 import { useFees } from "@/lib/home/fees-context";
-import { cleanerPrices, feeBreakdown, feeCapLabel, feeLabel, formatCents, parseDollars, priceForBuyerTotal, priceForEarn, processingLabel } from "@/lib/home/pricing";
+import { cleanerPrices, feeBreakdown, feeCapLabel, formatCents, parseDollars, priceForBuyerTotal, priceForEarn } from "@/lib/home/pricing";
 import SeatMapField from "./SeatMapField";
-import { input, labelCls, Segmented, Switch } from "./ui";
+import { input, labelCls, Switch } from "./ui";
 
 type Patch = (p: Partial<EventDraft>) => void;
 type PriceField = "earn" | "total";
@@ -20,7 +20,7 @@ function MoneyInput({ id, value, onChange, onBlur, highlight }: { id: string; va
       <span aria-hidden="true" className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-[15px] font-semibold text-fx-red/78">
         $
       </span>
-      <input id={id} className={cx(input, "pl-8 font-semibold", highlight && "border-fx-yellow bg-fx-yellow/15")} inputMode="decimal" placeholder="0.00" value={value} onChange={(e) => onChange(e.target.value)} onBlur={onBlur} />
+      <input id={id} className={cx(input, "pl-8 font-semibold", highlight && "border-fx-yellow! bg-fx-yellow/15!")} inputMode="decimal" placeholder="0.00" value={value} onChange={(e) => onChange(e.target.value)} onBlur={onBlur} />
     </div>
   );
 }
@@ -100,19 +100,19 @@ export default function TicketsEditor({ d, patch, venue, locked = [], manageHref
 
             <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-3 max-[641px]:grid-cols-1">
               <div>
-                <label htmlFor={t.id + "-e"} className={labelCls}>
-                  You earn per ticket
+                <label htmlFor={t.id + "-p"} className={labelCls}>
+                  Ticket price
                 </label>
-                <MoneyInput id={t.id + "-e"} highlight value={shown(t, "earn", b.organizerGetsCents)} onChange={(text) => editPrice(t, "earn", text)} onBlur={() => setEditing(null)} />
+                <MoneyInput id={t.id + "-p"} value={shown(t, "total", b.buyerPaysCents)} onChange={(text) => editPrice(t, "total", text)} onBlur={() => setEditing(null)} />
               </div>
               <span aria-hidden="true" className="flex min-h-12 items-center justify-center text-[22px] text-fx-red max-[641px]:hidden">
                 ⇆
               </span>
               <div>
-                <label htmlFor={t.id + "-p"} className={labelCls}>
-                  Ticket price
+                <label htmlFor={t.id + "-e"} className={labelCls}>
+                  You earn per ticket
                 </label>
-                <MoneyInput id={t.id + "-p"} value={shown(t, "total", b.buyerPaysCents)} onChange={(text) => editPrice(t, "total", text)} onBlur={() => setEditing(null)} />
+                <MoneyInput id={t.id + "-e"} highlight value={shown(t, "earn", b.organizerGetsCents)} onChange={(text) => editPrice(t, "earn", text)} onBlur={() => setEditing(null)} />
               </div>
             </div>
             <p className="mt-2 mb-0 text-[13px] text-fx-red/78">Type in either box and the other updates.</p>
@@ -250,24 +250,8 @@ export default function TicketsEditor({ d, patch, venue, locked = [], manageHref
       </button>}
 
       <div className="mt-2 grid gap-2 rounded-[20px] bg-fx-sand/70 p-4 min-[641px]:p-5">
-        <span className="text-[13px] font-semibold tracking-[.12em] text-fx-red/78 uppercase">Fees &amp; tax</span>
-        <span className="text-[15px] font-semibold">Who covers the Fattixx fee?</span>
-        <span className="text-[13px] leading-[1.45] text-fx-red/78">
-          {feeLabel(fees)} per paid ticket{processingLabel(fees) ? `, plus card processing of ${processingLabel(fees)}` : ", card processing included"}
-          {cap ? `, never more than ${cap} per ticket` : ""}. Free tickets have no fee.
-        </span>
-        <div className="mt-1">
-          <Segmented
-            label="Who covers the fee"
-            value={d.feePayer}
-            onChange={(v) => patch({ feePayer: v })}
-            options={[
-              { v: "buyer", label: "Buyers pay it" },
-              { v: "organizer", label: "I’ll cover it" },
-            ]}
-          />
-        </div>
-        <div className="mt-3 grid grid-cols-2 gap-3 border-t border-fx-red/10 pt-4 max-[641px]:grid-cols-1">
+        <span className="text-[13px] font-semibold tracking-[.12em] text-fx-red/78 uppercase">Tax</span>
+        <div className="grid grid-cols-2 gap-3 max-[641px]:grid-cols-1">
           <div>
             <label htmlFor="tax-pct" className={labelCls}>
               Sales tax <span className="font-normal text-fx-red/78">(%)</span>
