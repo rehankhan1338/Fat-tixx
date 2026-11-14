@@ -169,6 +169,20 @@ You may use an authorized agent to make a request. We may ask the agent for proo
 
 **Notice to California residents.** The categories of personal information we collect, and have collected during the preceding 12 months to the extent the relevant Services have operated, include: identifiers; customer records; commercial information, such as orders; internet and other electronic network activity; approximate geolocation and, with your permission, precise geolocation; inferences about event interests; and, for organizers, financial and tax information used for verification and payouts. We collect this information for the purposes described in section 2 and disclose it as described in section 4. We do not sell personal information for money. We may "share" identifiers and internet activity with advertising partners for cross-context behavioral advertising, and you may opt out as described above. We do not knowingly sell or share the personal information of consumers under 16. Retention periods are described in section 8. California residents may also request, once a year, information about our disclosures of personal information to third parties for their direct marketing purposes.
 
+## Delete account
+
+You can delete your Fattixx account yourself, on the website or in the Fattixx app:
+
+- Sign in and open **Account**.
+- Under **Your data**, tap **Delete my account**.
+- Enter your password if your account has one, type DELETE to confirm, and tap **Delete my account**.
+
+**What is deleted.** Your name, email address, phone number and password are removed, your marketing and text message consents are withdrawn, your team memberships and waitlist entries are deleted, and you are signed out on every device. This happens straight away and cannot be undone.
+
+**What is kept.** Order, refund and check-in records are kept, detached from your account, for as long as accounting, tax and dispute rules require (see section 8). Tickets you already bought stay valid.
+
+If you are an Organization Admin, hand the organization to another admin on the Team page before you delete your account. If you cannot sign in, email [info@fattixx.com](mailto:info@fattixx.com) from the address on your account and ask us to delete it. We will verify your identity and delete it within 30 days.
+
 ## 10. Children
 
 The Services are intended for people 18 and older. We do not knowingly collect personal information from children under 13. Tickets for minors should be purchased by a parent or guardian. If you believe a child has provided us with personal information, contact [info@fattixx.com](mailto:info@fattixx.com) and we will delete it.
