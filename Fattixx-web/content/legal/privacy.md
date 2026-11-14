@@ -171,9 +171,9 @@ You may use an authorized agent to make a request. We may ask the agent for proo
 
 ## Delete account
 
-You can delete your Fattixx account yourself, on the website or in the Fattixx app:
+You can delete your Fattixx account yourself on the Fattixx website:
 
-- Sign in and open **Account**.
+- Sign in on the website and open **Account**.
 - Under **Your data**, tap **Delete my account**.
 - Enter your password if your account has one, type DELETE to confirm, and tap **Delete my account**.
 
