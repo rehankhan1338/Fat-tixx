@@ -8,6 +8,7 @@ import { isAdmitted } from '../queue';
 import { revalidatePath } from 'next/cache';
 import { execute, query, queryOne, type Row } from '../db';
 import { audit } from '../audit';
+import { pushEventCancelled, pushEventPostponed } from '../push';
 import { env } from '../env';
 import { assertOrg, canAccessEvent, listMemberships } from '../authz';
 import { eventUnlocked } from '../events/password';
@@ -442,6 +443,7 @@ export async function cancelEvent(fd: FormData): Promise<ActionState> {
     for (const h of holders) await sendEmail({ to: h.email, toName: h.name, subject: mail.subject, text: mail.text, html: mail.html, related: { type: 'event', id: event.id } });
   }
   await audit('event.cancelled', { actorUserId: ctx.session.user.id, targetType: 'event', targetId: event.id, metadata: { orders: orders.length, refunded, failed, reason, transferHolders: holders.length } });
+  await pushEventCancelled(event.id, ctx.session.user.id);
   revalidatePath(`/org/${orgSlug}/events/${event.id}`); revalidatePath(`/org/${orgSlug}/events`); revalidatePath(`/events/${event.slug}`); revalidatePath('/');
   return failed ? { error: `Event cancelled. ${refunded} refunds issued, ${failed} failed (see Orders).` } : { ok: true, message: `Event cancelled. ${refunded} orders refunded.` };
 }
@@ -471,6 +473,7 @@ export async function postponeEvent(fd: FormData): Promise<ActionState> {
   const holders = await listTransferHolders(event.id);
   for (const h of holders) await sendEmail({ to: h.email, toName: h.name, subject: mail.subject, text: mail.text, html: mail.html, related: { type: 'event', id: event.id } });
   await audit('event.postponed', { actorUserId: ctx.session.user.id, targetType: 'event', targetId: event.id, metadata: { newStart: newStart?.toISOString() ?? null, notified: buyers.length + holders.length } });
+  await pushEventPostponed(event.id, newStart, ctx.session.user.id);
   revalidatePath(`/org/${orgSlug}/events/${event.id}`); revalidatePath(`/events/${event.slug}`); revalidatePath('/');
   return { ok: true, message: `${buyers.length + holders.length} ticket holders notified.` };
 }

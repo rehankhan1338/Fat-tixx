@@ -108,6 +108,8 @@ You can block or delete cookies in your browser settings, although some features
 
 **Location.** We use your IP address to estimate your city. If you choose "Use my current location," your browser shares your precise location so we can show events near you. We use it only for that purpose and do not keep a history of your precise location. You can turn off location access in your browser or device settings at any time.
 
+**App notifications.** If you use the Fattixx app for an organization and allow notifications, we store a push token for your phone, linked to your app sign-in, so we can send alerts about the events you work on, such as a new event, an assignment, doors opening or a change of date. These alerts are delivered through Expo, Google Firebase Cloud Messaging and Apple Push Notification service, and they do not include attendees' names or contact details. You can turn them off on the Account tab in the app or in your phone settings. Signing out stops them on that phone.
+
 ## 7. Emails and text messages
 
 **Account and order messages,** such as sign-in codes, receipts, tickets, event changes and cancellations, and policy notices, may be sent while you have an account or open orders. You can revoke consent to text messages; required account or order notices may instead be delivered by email or in the Services through permitted channels.

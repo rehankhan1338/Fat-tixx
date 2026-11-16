@@ -1,12 +1,13 @@
-import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, Linking, Pressable, StyleSheet, Switch, View } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
-import { LogOut, Smartphone, Globe, ShieldCheck } from 'lucide-react-native';
+import { Bell, LogOut, Smartphone, Globe, ShieldCheck } from 'lucide-react-native';
 import { api } from '@/api/client';
 import { useConfig, useSessions } from '@/api/hooks';
 import { useAuth } from '@/auth/AuthProvider';
 import { Button, Card, Notice, Screen, Txt } from '@/components/ui';
 import { API_URL, APP_VERSION } from '@/lib/config';
+import { currentPushState, sendTestPush, setPushEnabled, type PushState } from '@/notifications/push';
 import { colors, red } from '@/theme/tokens';
 
 /**
@@ -20,6 +21,22 @@ export default function AccountScreen() {
   const { data: sessions, refetch } = useSessions(!!account);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [push, setPush] = useState<PushState | null>(null);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushMsg, setPushMsg] = useState<string | null>(null);
+
+  const loadPush = useCallback(() => { currentPushState().then(setPush).catch(() => setPush('unsupported')); }, []);
+  useEffect(loadPush, [loadPush]);
+
+  async function togglePush(on: boolean) {
+    setPushBusy(true); setPushMsg(null);
+    try { setPush(await setPushEnabled(on)); } finally { setPushBusy(false); }
+  }
+  async function testPush() {
+    setPushBusy(true); setPushMsg(null);
+    try { await sendTestPush(); setPushMsg('Sent. It should arrive in a few seconds.'); }
+    catch (e) { setPushMsg((e as Error).message); } finally { setPushBusy(false); }
+  }
 
   async function resend() {
     setBusy(true);
@@ -40,7 +57,7 @@ export default function AccountScreen() {
   const legal = config?.legal ?? { terms: `${API_URL}/terms`, privacy: `${API_URL}/privacy`, refunds: `${API_URL}/refunds`, ticketing: `${API_URL}/ticketing-terms` };
 
   return (
-    <Screen title="Account" onRefresh={() => { refresh(); refetch(); }} refreshing={false}>
+    <Screen title="Account" onRefresh={() => { refresh(); refetch(); loadPush(); }} refreshing={false}>
       {account ? (
         <>
           <Card style={{ gap: 4 }}>
@@ -65,6 +82,27 @@ export default function AccountScreen() {
               ))}
             </View>
           ) : null}
+          <View style={{ gap: 8, marginTop: 16 }}>
+            <Txt variant="eyebrow">Notifications</Txt>
+            <View style={styles.row}>
+              <Bell size={18} color={red(0.6)} />
+              <View style={{ flex: 1 }}>
+                <Txt variant="small" style={{ color: colors.red }}>Event alerts on this phone</Txt>
+                <Txt variant="caption">
+                  {push === 'blocked' ? 'Blocked in your phone settings.'
+                    : push === 'unsupported' ? 'Not available on this device.'
+                    : 'New events, assignments, doors opening and changes to your events.'}
+                </Txt>
+              </View>
+              {push === 'on' || push === 'off' ? (
+                <Switch value={push === 'on'} disabled={pushBusy} onValueChange={(v) => { void togglePush(v); }} trackColor={{ true: colors.red }} accessibilityLabel="Event alerts on this phone" />
+              ) : push === 'blocked' ? (
+                <Button title="Settings" variant="ghost" size="sm" onPress={() => { void Linking.openSettings(); }} />
+              ) : null}
+            </View>
+            {push === 'on' ? <Button title="Send a test notification" variant="ghost" size="sm" onPress={testPush} loading={pushBusy} /> : null}
+            {pushMsg ? <Txt variant="caption">{pushMsg}</Txt> : null}
+          </View>
           <View style={{ gap: 8, marginTop: 16 }}>
             <Txt variant="eyebrow">Where you&rsquo;re signed in</Txt>
             {(sessions?.sessions ?? []).map((s) => (

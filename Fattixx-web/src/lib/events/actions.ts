@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { execute, query, queryOne, type Row } from '../db';
 import { audit } from '../audit';
+import { pushEventPublished, pushStaffAssigned } from '../push';
 import { assertOrg, canAccessEvent } from '../authz';
 import { parseDollarsToCents } from '../money';
 import { randomToken } from '../security/crypto';
@@ -318,6 +319,7 @@ export async function setEventStatus(fd: FormData): Promise<ActionState> {
   await execute(`UPDATE events SET status = ? WHERE id = ?`, [status, event.id]);
   const action = status === 'published' ? 'event.published' : status === 'in_review' ? 'event.held_for_review' : status === 'draft' ? 'event.unpublished' : 'event.updated';
   await audit(action, { actorUserId: ctx.session.user.id, targetType: 'event', targetId: event.id, metadata: { status } });
+  if (status === 'published') await pushEventPublished(event.id, ctx.session.user.id);
   revalidateEvent(ctx.org.slug, event.id, event.slug);
   if (status === 'in_review') return { ok: true, message: 'In review: paid events go live once your organization is verified.' };
   return { ok: true };
@@ -451,8 +453,9 @@ export async function setEventMember(fd: FormData): Promise<ActionState> {
   const member = await queryOne(`SELECT 1 FROM organization_members WHERE organization_id = ? AND user_id = ?`, [ctx.org.id, userId]);
   if (!member) return { error: 'That person is not a member of this organization.' };
   if (assigned) {
-    await execute(`INSERT IGNORE INTO event_members (event_id, user_id, assigned_by) VALUES (?, ?, ?)`, [event.id, userId, ctx.session.user.id]);
+    const added = await execute(`INSERT IGNORE INTO event_members (event_id, user_id, assigned_by) VALUES (?, ?, ?)`, [event.id, userId, ctx.session.user.id]);
     await audit('event.member.assigned', { actorUserId: ctx.session.user.id, targetType: 'event', targetId: event.id, metadata: { userId } });
+    if (added.affectedRows && userId !== ctx.session.user.id) await pushStaffAssigned(event.id, userId);
   } else {
     await execute(`DELETE FROM event_members WHERE event_id = ? AND user_id = ?`, [event.id, userId]);
     await audit('event.member.unassigned', { actorUserId: ctx.session.user.id, targetType: 'event', targetId: event.id, metadata: { userId } });

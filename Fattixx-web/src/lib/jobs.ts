@@ -12,6 +12,7 @@ import { orgMail, withOrgMail } from './pro/white-label';
 import { runMarketingSends } from './pro/email-marketing';
 import { runProDailyJobs } from './pro/subscription';
 import { pruneOldAttempts } from './security/rate-limit';
+import { prunePushOutbox, runPushJobs } from './push';
 import { sendSms } from './sms';
 import { formatEventDate, formatTimeOnly } from './tz';
 
@@ -20,7 +21,7 @@ import { formatEventDate, formatTimeOnly } from './tz';
  * and can also be triggered by an external cron hitting GET /api/cron with the CRON_SECRET bearer token.
  * Every job is safe to run concurrently from several app instances: work is claimed with conditional UPDATEs.
  */
-export type JobsSummary = { holdsExpired: boolean; emails: { retried: number; sent: number }; reminders: number; queuePruned: number; marketing: { started: number; sent: number } | null; daily: string | null };
+export type JobsSummary = { holdsExpired: boolean; emails: { retried: number; sent: number }; reminders: number; queuePruned: number; marketing: { started: number; sent: number } | null; push: Awaited<ReturnType<typeof runPushJobs>> | null; daily: string | null };
 
 /** ~24 h before an event: email (and optionally text) every ticket holder once. */
 export async function sendEventReminders(): Promise<number> {
@@ -64,6 +65,7 @@ export async function runDailyJobs(today = new Date().toISOString().slice(0, 10)
   if (!claim.affectedRows) return null;
   await pruneOldAttempts();
   await execute(`DELETE FROM queue_entries WHERE created_at < NOW() - INTERVAL 2 DAY`);
+  try { await prunePushOutbox(); } catch (e) { console.error('[jobs] push outbox pruning failed', e); }
   let recon: Awaited<ReturnType<typeof reconcileWithStripe>> = null;
   try { recon = await reconcileWithStripe(2, null); } catch (e) { console.error('[jobs] reconciliation failed', e); }
   if (recon?.discrepancies) {
@@ -93,6 +95,9 @@ export async function runJobs(): Promise<JobsSummary> {
   // Pro email campaigns: start the scheduled ones that are due and send the next batch.
   let marketing: JobsSummary['marketing'] = null;
   try { marketing = await runMarketingSends(); } catch (e) { console.error('[jobs] marketing sends failed', e); }
+  // App push notifications: "doors open soon", sending what is queued or due for a retry, and Expo's receipts.
+  let push: JobsSummary['push'] = null;
+  try { push = await runPushJobs(); } catch (e) { console.error('[jobs] push notifications failed', e); }
   const daily = await runDailyJobs();
-  return { holdsExpired: true, emails, reminders, queuePruned: pruned.affectedRows, marketing, daily };
+  return { holdsExpired: true, emails, reminders, queuePruned: pruned.affectedRows, marketing, push, daily };
 }

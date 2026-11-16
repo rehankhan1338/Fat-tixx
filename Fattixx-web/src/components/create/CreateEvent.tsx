@@ -618,6 +618,18 @@ export default function CreateEvent({ signedIn, organizations, preselect, embedd
             />
           </Section>
 
+          {/* until the event has gone live: once it is, the "new event" alert has been sent (or deliberately not) */}
+          {(!editing || editor?.status === "draft" || editor?.status === "in_review") && (
+            <div className="rounded-[20px] border border-fx-red/12 bg-white px-5 py-2">
+              <Switch
+                checked={d.notifyTeam}
+                onChange={(v) => patch({ notifyTeam: v })}
+                label="Send a push notification to the team"
+                hint="When the event goes live, your organization admins, organizers and the staff assigned to it get a “New event” alert in the Fattixx app."
+              />
+            </div>
+          )}
+
           <div className="mt-2 grid gap-3">
             <p className="m-0 text-[13px] font-semibold tracking-[.12em] text-fx-red/78 uppercase">Optional</p>
 

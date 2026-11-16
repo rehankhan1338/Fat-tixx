@@ -1,6 +1,7 @@
 import 'server-only';
 import { query, queryOne, type Row } from '../db';
 import { audit } from '../audit';
+import { pushEventChanged } from '../push';
 import { env } from '../env';
 import { escapeHtml, sendEmail } from '../email';
 import { renderEmail } from '../email-templates';
@@ -69,6 +70,8 @@ export async function notifyEventChanged(before: EventSnapshot | null, actorUser
   if (endsAt.getTime() < Date.now()) return 0;
   const changes = describeChanges(before, after);
   if (!changes.length) return 0;
+  // The event's team hears about it in the app, whether or not anyone holds tickets yet.
+  await pushEventChanged(after.id, changes.map((c) => c.label), actorUserId);
 
   const buyers = await query<Row & { id: number; buyer_email: string; buyer_name: string | null }>(
     `SELECT id, buyer_email, buyer_name FROM orders WHERE event_id = ? AND status IN ('paid','partially_refunded')`, [after.id],

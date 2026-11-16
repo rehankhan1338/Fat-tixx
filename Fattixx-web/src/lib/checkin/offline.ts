@@ -1,5 +1,6 @@
 import 'server-only';
 import { execute, queryOne, type Row } from '../db';
+import { pushScanConflicts } from '../push';
 
 /**
  * Applying offline check-ins (plan 8.2). Kept free of request/session state so it can be tested directly;
@@ -69,5 +70,6 @@ export async function applyOfflineScans(input: {
     synced++;
     if (ins.affectedRows === 1 && !admitted) conflicts.push({ ref, ticketId: Number(t.id), code: t.code, name: t.attendee_name, reason: reason ?? '' });
   }
+  if (conflicts.length) await pushScanConflicts(eventId, conflicts.length, staffId);
   return { synced, conflicts };
 }
