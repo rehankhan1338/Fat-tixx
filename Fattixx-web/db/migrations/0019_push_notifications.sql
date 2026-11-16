@@ -46,8 +46,9 @@ CREATE TABLE IF NOT EXISTS push_outbox (
 -- Once-per-event notifications are claimed with these, like events.reminder_sent_at.
 -- push_on_publish is the "Send a push notification to the team" switch on the create form: the "new event" push goes
 -- out once, when the event first goes live (published right away, a draft published later, or released by verification).
+-- Plain ADD COLUMN: MySQL (production) has no ADD COLUMN IF NOT EXISTS, which is MariaDB-only.
 ALTER TABLE events
-  ADD COLUMN IF NOT EXISTS push_on_publish        TINYINT(1) NOT NULL DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS published_push_sent_at DATETIME NULL,
-  ADD COLUMN IF NOT EXISTS doors_push_sent_at     DATETIME NULL,
-  ADD COLUMN IF NOT EXISTS sold_out_push_sent_at  DATETIME NULL;
+  ADD COLUMN push_on_publish        TINYINT(1) NOT NULL DEFAULT 0,
+  ADD COLUMN published_push_sent_at DATETIME NULL,
+  ADD COLUMN doors_push_sent_at     DATETIME NULL,
+  ADD COLUMN sold_out_push_sent_at  DATETIME NULL;
