@@ -15,7 +15,14 @@ function createPool(): Pool {
     user: env.DB_USER,
     password: env.DB_PASSWORD,
     waitForConnections: true,
-    connectionLimit: 10,
+    // Every Vercel function instance has its own pool, and the managed MySQL server allows only a limited number of
+    // connections in total. Keep each pool small and close connections that sit idle (mysql2 only closes idle
+    // connections above maxIdle, which defaults to connectionLimit, i.e. never), so busy periods and old instances
+    // don't use up the server's connection limit and take the site down with "Too many connections".
+    connectionLimit: 5,
+    maxIdle: 1,
+    idleTimeout: 15_000,
+    enableKeepAlive: true,
     charset: 'utf8mb4_unicode_ci',
     timezone: 'Z',
     supportBigNumbers: true,
