@@ -104,6 +104,8 @@ export type EventDraft = {
   taxLabel: string;
   /** Super Admin only: show in the homepage featured strip */
   featured: boolean;
+  /** "Send a push notification to the team": the event's team gets a "new event" alert in the app when it goes live */
+  notifyTeam: boolean;
   /** editing a saved event: its web address (/events/<slug>) */
   slug: string;
 };
@@ -236,6 +238,7 @@ export function emptyDraft(): EventDraft {
     taxPct: "",
     taxLabel: "",
     featured: false,
+    notifyTeam: true,
     slug: "",
   };
 }
@@ -434,6 +437,7 @@ export function parseDraftForServer(json: string): EventDraft & { galleryPost: G
     taxPct: str(raw.taxPct).replace(/[^\d.]/g, "").slice(0, 6),
     taxLabel: str(raw.taxLabel).slice(0, 80),
     featured: !!raw.featured,
+    notifyTeam: raw.notifyTeam !== false, // on by default, also for drafts saved before the switch existed
     slug: str(raw.slug).toLowerCase().slice(0, 100),
   };
 }

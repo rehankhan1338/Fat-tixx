@@ -12,6 +12,7 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { AuthProvider, useAuth } from '@/auth/AuthProvider';
 import { Splash } from '@/components/Splash';
 import { TopProgress } from '@/components/TopProgress';
+import { PushBridge } from '@/notifications/PushBridge';
 import { colors } from '@/theme/tokens';
 
 // The native splash (brand red with the ticket logo) stays up until the in-app <Splash /> (same screen plus a
@@ -79,6 +80,7 @@ function Gate() {
         </Stack.Protected>
       </Stack>
       <TopProgress />
+      {signedIn ? <PushBridge /> : null}
     </ThemeProvider>
   );
 }

@@ -2,6 +2,7 @@ import 'server-only';
 import { randomBytes } from 'node:crypto';
 import type { PoolConnection } from 'mysql2/promise';
 import { db, execute, query, queryOne, type Row } from '../db';
+import { pushIfSoldOut } from '../push';
 import { env } from '../env';
 import { escapeHtml, sendEmail } from '../email';
 import { renderEmail } from '../email-templates';
@@ -360,6 +361,7 @@ export async function finalizePaidOrder(orderId: number, payment: { paymentInten
   // A waitlisted buyer who bought is no longer waiting.
   await execute(`UPDATE waitlist_entries SET status = 'converted' WHERE event_id = ? AND email = ? AND status IN ('waiting','notified')`, [eventId, buyerEmail.toLowerCase()]);
   await sendOrderConfirmation(orderId);
+  await pushIfSoldOut(eventId);
   return true;
 }
 

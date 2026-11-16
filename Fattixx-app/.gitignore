@@ -41,3 +41,7 @@ example
 # generated native folders
 /ios
 /android
+
+# Firebase config for Android push. The repo is public, so it stays out of git: EAS builds get it from the
+# GOOGLE_SERVICES_JSON file variable (eas env:create), local builds read ./google-services.json.
+google-services.json

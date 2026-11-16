@@ -12,6 +12,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { audit } from '../audit';
+import { pushEventPublished } from '../push';
 import { getSession, type CurrentSession } from '../auth/session';
 import { assertOrg, canAccessEvent, listMemberships } from '../authz';
 import { execute, queryOne, type Row } from '../db';
@@ -358,6 +359,7 @@ export async function publishDraft(_prev: CreateState, fd: FormData): Promise<Cr
       cols.refundPolicy, cols.refundDays, cols.allowTransfers, cols.category, featured, session.user.id],
   );
   const eventId = r.insertId;
+  if (draft.notifyTeam) await execute(`UPDATE events SET push_on_publish = 1 WHERE id = ?`, [eventId]);
   if (seating) {
     try {
       await copyMapToEvent(eventId, seating.map, seating.layout, session.user.id);
@@ -373,6 +375,7 @@ export async function publishDraft(_prev: CreateState, fd: FormData): Promise<Cr
   await audit('event.created', { actorUserId: session.user.id, targetType: 'event', targetId: eventId, metadata: { title: cols.title, viaCreatePage: true, status } });
   if (status === 'in_review') await audit('event.held_for_review', { actorUserId: session.user.id, targetType: 'event', targetId: eventId, metadata: { reason: 'paid_tickets_unverified_org' } });
   if (published) await audit('event.published', { actorUserId: session.user.id, targetType: 'event', targetId: eventId, metadata: { status: 'published' } });
+  if (published) await pushEventPublished(eventId, session.user.id);
   revalidateEventPages(org.slug, eventId, [slug]);
 
   return {
@@ -458,6 +461,9 @@ export async function saveEventEdits(_prev: CreateState, fd: FormData): Promise<
   await saveGallery(event.id, draft.galleryPost, images.photos, ctx.session.user.id);
   await audit('event.updated', { actorUserId: ctx.session.user.id, targetType: 'event', targetId: event.id, metadata: { viaCreatePage: true } });
 
+  // the "notify the team" switch can change until the "new event" push has gone out
+  await execute(`UPDATE events SET push_on_publish = ? WHERE id = ? AND published_push_sent_at IS NULL`, [draft.notifyTeam ? 1 : 0, event.id]);
+
   // a draft can be published from the page, as from the dashboard
   let status = event.status;
   if (fd.get('save_as') === 'publish' && event.status === 'draft') {
@@ -466,6 +472,7 @@ export async function saveEventEdits(_prev: CreateState, fd: FormData): Promise<
       status = await liveStatus(event.id, verified);
       await execute(`UPDATE events SET status = ? WHERE id = ?`, [status, event.id]);
       await audit(status === 'published' ? 'event.published' : 'event.held_for_review', { actorUserId: ctx.session.user.id, targetType: 'event', targetId: event.id, metadata: { status } });
+      if (status === 'published') await pushEventPublished(event.id, ctx.session.user.id);
     }
   } else if (await holdIfUnverified(event.id, verified, ctx.session.user.id)) {
     // a paid ticket added to a live free event

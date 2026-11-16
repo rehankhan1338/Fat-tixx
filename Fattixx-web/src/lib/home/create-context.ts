@@ -1,5 +1,5 @@
 import 'server-only';
-import { query, type Row } from '../db';
+import { query, queryOne, type Row } from '../db';
 import { listMemberships } from '../authz';
 import { decryptEventPassword } from '../events/password';
 import { listEventDates, listEventPhotos, listTicketTypes, type EventRow } from '../events/queries';
@@ -114,6 +114,7 @@ export async function editorData(event: EventRow): Promise<EditorData> {
     detail: [t.seated ? 'Reserved seating' : KIND_LABEL[t.kind] ?? t.kind, Number(t.price_cents) > 0 ? `$${(Number(t.price_cents) / 100).toFixed(2)}` : 'Free', `${t.sold} of ${t.quantity} sold`, t.access_code ? 'presale code' : '', t.event_date_id ? 'one day' : ''].filter(Boolean).join(' · '),
   }));
   const password = decryptEventPassword(event.access_password);
+  const notifyTeam = !!(await queryOne(`SELECT 1 FROM events WHERE id = ? AND push_on_publish = 1`, [event.id]));
   const base = emptyDraft();
   const seated = !!seating && !tickets.length;
   const draft: EventDraft = {
@@ -151,6 +152,7 @@ export async function editorData(event: EventRow): Promise<EditorData> {
     taxPct: event.tax_bps == null ? '' : (Number(event.tax_bps) / 100).toFixed(2),
     taxLabel: event.tax_label ?? '',
     featured: !!event.featured,
+    notifyTeam,
     slug: event.slug,
   };
   const sold = await query<Row & { n: number }>(`SELECT COUNT(*) AS n FROM orders WHERE event_id = ? AND status IN ('paid','partially_refunded')`, [event.id]);

@@ -41,6 +41,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // Session tokens live in the Keystore-backed SecureStore; never let them be copied into cloud backups.
     allowBackup: false,
     predictiveBackGestureEnabled: false,
+    // Firebase Cloud Messaging, which delivers push notifications on Android (src/notifications/push.ts). The file is
+    // kept out of the public repo: on EAS it comes from the GOOGLE_SERVICES_JSON file variable, locally from disk.
+    googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? './google-services.json',
   },
   plugins: [
     'expo-router',
@@ -50,6 +53,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ['expo-secure-store', { configureAndroidBackup: false }],
     ['expo-camera', { cameraPermission: 'Fattixx uses the camera to scan ticket QR codes at the door.' }],
     ['expo-build-properties', { android: { usesCleartextTraffic: isDevApi }, ios: {} }],
+    // Push notifications for the event team (assigned, doors open soon, event changed, sold out, ...): the white ticket
+    // logo in the Android status bar, tinted brand red in the notification shade.
+    ['expo-notifications', { icon: './assets/images/android-icon-monochrome.png', color: BRAND_RED, defaultChannel: 'default' }],
   ],
   extra: { ...(apiUrl ? { apiUrl } : {}), eas: { projectId: 'afc01174-daca-42a8-9eae-4263fd8eecb4' } },
   experiments: { typedRoutes: true, reactCompiler: true },

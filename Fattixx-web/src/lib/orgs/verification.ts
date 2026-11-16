@@ -1,5 +1,6 @@
 import 'server-only';
 import { audit } from '../audit';
+import { pushEventPublished } from '../push';
 import { execute, query, queryOne, type Row } from '../db';
 import { connectState, getConnectAccount, parseDue, payoutMode, syncConnectAccount, type ConnectState } from '../payments/connect';
 import { getActiveStripe } from '../payments/stripe';
@@ -63,7 +64,9 @@ export async function releaseHeldEvents(orgId: number, actorUserId: number): Pro
   const held = await query<Row & { id: number; slug: string; title: string }>(`SELECT id, slug, title FROM events WHERE organization_id = ? AND status = 'in_review'`, [orgId]);
   for (const e of held) {
     const r = await execute(`UPDATE events SET status = 'published' WHERE id = ? AND status = 'in_review'`, [e.id]);
-    if (r.affectedRows) await audit('event.published', { actorUserId, targetType: 'event', targetId: e.id, metadata: { status: 'published', viaVerification: true } });
+    if (!r.affectedRows) continue;
+    await audit('event.published', { actorUserId, targetType: 'event', targetId: e.id, metadata: { status: 'published', viaVerification: true } });
+    await pushEventPublished(Number(e.id), actorUserId);
   }
   return held.map((e) => ({ id: Number(e.id), slug: e.slug, title: e.title }));
 }

@@ -21,3 +21,5 @@ delete process.env.SMTP_URL;
 delete process.env.BREVO_API_KEY;
 delete process.env.STRIPE_SECRET_KEY;
 delete process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+// App push notifications are queued but never sent to Expo from tests.
+process.env.PUSH_DELIVERY = "off";
