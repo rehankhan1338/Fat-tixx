@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useMemo, useRef, useState } from "react";
 import { DownloadIcon, MailIcon, PlusIcon, PrinterIcon } from "lucide-react";
 import { toast } from "sonner";
 import type { AttendeeRow } from "@/lib/orders/queries";
@@ -13,6 +13,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FormStatus, SelectField, TextAreaField, TextField } from "@/components/form-fields";
 import { SubmitButton } from "@/components/submit-button";
+import { SeatMapCanvas, type CanvasSeat } from "@/components/seating/SeatMapCanvas";
+import { SEAT_STATUS_LABEL, type Drawing, type SeatStatus } from "@/lib/seating/layout";
+import { applySelection, rangeBetween, sameRow } from "@/lib/seating/selection";
 import { StatusBadge, Section, EmptyState } from "@/components/shared";
 
 type EventInfo = { id: number; title: string; timezone: string; status: string };
@@ -40,7 +43,7 @@ function matchesStatus(s: string, f: StatusFilter): boolean {
   }
 }
 
-export function AttendeesPanel({ orgSlug, event, attendees, canEdit, ticketTypes, transfers = [] }: { orgSlug: string; event: EventInfo; attendees: AttendeeRow[]; canEdit: boolean; canRefund: boolean; ticketTypes?: { id: number; name: string }[]; transfers?: TransferView[] }) {
+export function AttendeesPanel({ orgSlug, event, attendees, canEdit, ticketTypes, transfers = [], seating = null }: { orgSlug: string; event: EventInfo; attendees: AttendeeRow[]; canEdit: boolean; canRefund: boolean; ticketTypes?: IssueTicketType[]; transfers?: TransferView[]; seating?: CompSeating | null }) {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<StatusFilter>("active");
   const [type, setType] = useState("");
@@ -86,7 +89,7 @@ export function AttendeesPanel({ orgSlug, event, attendees, canEdit, ticketTypes
       actions={
         <div className="flex flex-wrap gap-2">
           {canEdit ? <BroadcastDialog orgSlug={orgSlug} eventId={event.id} count={broadcastCount} /> : null}
-          {canEdit && ticketTypes ? <IssueTicketsDialog orgSlug={orgSlug} eventId={event.id} ticketTypes={ticketTypes} /> : null}
+          {canEdit && ticketTypes ? <IssueTicketsDialog orgSlug={orgSlug} eventId={event.id} ticketTypes={ticketTypes} seating={seating} /> : null}
           <Button variant="outline" size="sm" onClick={downloadCsv} disabled={!filtered.length}><DownloadIcon /> CSV{isFiltered ? ` (${filtered.length})` : ""}</Button>
           <Button variant="outline" size="sm" render={<Link href={`/org/${orgSlug}/events/${event.id}/door-list${doorListQuery ? `?${doorListQuery}` : ""}`} target="_blank" />}><PrinterIcon /> Door list</Button>
         </div>
@@ -194,28 +197,87 @@ function BroadcastDialog({ orgSlug, eventId, count }: { orgSlug: string; eventId
   );
 }
 
-export function IssueTicketsDialog({ orgSlug, eventId, ticketTypes }: { orgSlug: string; eventId: number; ticketTypes: { id: number; name: string }[] }) {
+/** A seat as the comp-ticket picker needs it (from the event's Seating tab data). */
+export type CompSeat = { id: number; x: number; y: number; label: string; section: string; row: string | null; access: string | null; tier: number | null; status: SeatStatus };
+export type CompSeating = { drawing: Drawing; seats: CompSeat[]; tierColors: Record<number, string> };
+type IssueTicketType = { id: number; name: string; seated?: boolean };
+
+/**
+ * Complimentary tickets or a box-office sale. For a seat map event, choosing a pricing tier shows its seats: pick the
+ * exact seats for the attendee (click, drag a box, Shift+click a range, double-click a row). Blocked seats can be given
+ * too (seats held back for guests). With no seat picked, the attendee gets the best free seats of the tier.
+ */
+export function IssueTicketsDialog({ orgSlug, eventId, ticketTypes, seating = null }: { orgSlug: string; eventId: number; ticketTypes: IssueTicketType[]; seating?: CompSeating | null }) {
   const [open, setOpen] = useState(false);
+  const [ttId, setTtId] = useState(ticketTypes[0] ? String(ticketTypes[0].id) : "");
+  const [picked, setPicked] = useState<Set<number>>(new Set());
+  const anchor = useRef<number | null>(null);
   const [state, action] = useActionState(async (prev: ActionState, fd: FormData) => {
     const r = await issueStaffOrder(prev, fd);
-    if (r?.ok) { toast.success(r.message ?? "Issued"); setOpen(false); }
+    if (r?.ok) { toast.success(r.message ?? "Issued"); setOpen(false); setPicked(new Set()); }
     return r;
   }, undefined);
+  const tt = ticketTypes.find((t) => String(t.id) === ttId);
+  const tier = seating && tt?.seated ? Number(tt.id) : null;
+
+  // Seats of the chosen tier that can be given: free ones, and blocked ones (held back), never sold or in a cart.
+  const choosable = useMemo(() => (tier && seating ? seating.seats.filter((s) => s.tier === tier && (s.status === "available" || s.status === "blocked")) : []), [seating, tier]);
+  const choosableIds = useMemo(() => new Set(choosable.map((s) => s.id)), [choosable]);
+  const canvasSeats: CanvasSeat[] = useMemo(() => (seating && tier ? seating.seats.map((s) => {
+    const mine = s.tier === tier;
+    const look: CanvasSeat["look"] = picked.has(s.id) ? "selected" : !mine ? "off" : s.status === "sold" || s.status === "held" ? "taken" : s.status === "blocked" ? "blocked" : s.status === "unassigned" ? "off" : "open";
+    return {
+      id: s.id, x: s.x, y: s.y, color: seating.tierColors[tier] ?? "#71717a", look, access: (s.access as CanvasSeat["access"]) ?? null, clickable: choosableIds.has(s.id),
+      title: [s.label, mine ? (s.status === "blocked" ? "Blocked (can be given)" : SEAT_STATUS_LABEL[s.status]) : "Another tier"].join(" · "),
+    };
+  }) : []), [seating, tier, picked, choosableIds]);
+
+  const pickSeat = (id: number, e?: { shiftKey?: boolean; altKey?: boolean }) => {
+    const seat = choosable.find((s) => s.id === id);
+    if (!seat) return;
+    if (e?.shiftKey) {
+      const range = rangeBetween(choosable, (s) => s.id, anchor.current, id).map((s) => s.id); // read before the anchor moves
+      setPicked((cur) => applySelection(cur, range, "add"));
+    }
+    else if (e?.altKey) setPicked((cur) => applySelection(cur, sameRow(choosable, seat).map((s) => s.id), "toggle"));
+    else setPicked((cur) => applySelection(cur, [id], "toggle"));
+    anchor.current = id;
+  };
+  const pickedSeats = choosable.filter((s) => picked.has(s.id));
+  const blockedPicked = pickedSeats.filter((s) => s.status === "blocked").length;
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button size="sm" />}><PlusIcon /> Issue tickets</DialogTrigger>
-      <DialogContent>
+      <DialogContent className={tier ? "sm:max-w-3xl" : undefined}>
         <DialogHeader><DialogTitle>Issue tickets</DialogTitle><DialogDescription>Complimentary tickets (free) or a box-office sale paid at the door. Tickets are emailed to the attendee immediately.</DialogDescription></DialogHeader>
         <form action={action} className="space-y-4">
           <FormStatus state={state} />
           <input type="hidden" name="org" value={orgSlug} /><input type="hidden" name="event_id" value={eventId} />
+          {tier ? <input type="hidden" name="seat_ids" value={pickedSeats.map((s) => s.id).join(",")} /> : null}
           <SelectField label="Type" id="is-source" name="source" defaultValue="complimentary" options={[{ value: "complimentary", label: "Complimentary (no charge)" }, { value: "box_office", label: "Box office / door sale (cash or card taken in person)" }]} />
           <div className="grid gap-4 sm:grid-cols-2">
             <TextField label="Attendee name" id="is-name" name="name" required />
             <TextField label="Attendee email" id="is-email" name="email" type="email" required />
-            <SelectField label="Ticket type" id="is-tt" name="ticket_type_id" options={ticketTypes.map((t) => ({ value: String(t.id), label: t.name }))} />
-            <TextField label="Quantity" id="is-qty" name="quantity" type="number" min={1} max={50} defaultValue={1} />
+            <SelectField label="Ticket type" id="is-tt" name="ticket_type_id" value={ttId} onChange={(e) => { setTtId(e.target.value); setPicked(new Set()); anchor.current = null; }}
+              options={ticketTypes.map((t) => ({ value: String(t.id), label: seating && t.seated ? `${t.name} (seat map)` : t.name }))} />
+            {pickedSeats.length
+              ? <TextField key="qty-seats" label="Quantity" id="is-qty-seats" name="quantity_shown" value={pickedSeats.length} readOnly disabled hint="One ticket per chosen seat." />
+              : <TextField key="qty" label="Quantity" id="is-qty" name="quantity" type="number" min={1} max={50} defaultValue={1} hint={tier ? "Best free seats of the tier, unless you pick seats below." : undefined} />}
           </div>
+          {tier && seating ? (
+            <div className="grid gap-2">
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="font-medium">Seats</span>
+                <span className="text-muted-foreground">{pickedSeats.length ? `${pickedSeats.length} chosen${blockedPicked ? ` (${blockedPicked} blocked, will be unblocked for this attendee)` : ""}` : `${choosable.length} can be given`}</span>
+                {pickedSeats.length ? <Button type="button" size="xs" variant="ghost" onClick={() => setPicked(new Set())}>Clear</Button> : null}
+              </div>
+              <SeatMapCanvas drawing={seating.drawing} seats={canvasSeats} label="Choose seats for the attendee" maxHeight="min(45vh, 420px)"
+                onSeat={(id, e) => pickSeat(Number(id), e)} onSeatDoubleClick={(id) => { const seat = choosable.find((s) => s.id === Number(id)); if (seat) setPicked((cur) => applySelection(cur, sameRow(choosable, seat).map((s) => s.id), "add")); }}
+                onBoxSelect={(ids, mode) => setPicked((cur) => applySelection(cur, ids.map(Number).filter((n) => choosableIds.has(n)), mode))} />
+              <p className="text-xs text-muted-foreground">Click seats, drag a box, Shift+click for a range or double-click for a row. {pickedSeats.length ? pickedSeats.slice(0, 8).map((s) => s.label).join(", ") + (pickedSeats.length > 8 ? ` and ${pickedSeats.length - 8} more` : "") : "Grey seats are sold, in a cart or in another tier."}</p>
+            </div>
+          ) : null}
           <div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button><SubmitButton pendingText="Issuing…">Issue & email tickets</SubmitButton></div>
         </form>
       </DialogContent>

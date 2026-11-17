@@ -28,6 +28,7 @@ import { completeFreeOrderNow, confirmPaidOrderWithStripe, createPaymentIntentFo
 import { getOrderByCode, getTicketByCode, type OrderRow } from './queries';
 import { TransferError, heldByRecipient, holderMayTransfer, listTransferHolders, sendTransferEmail, transferTicket } from './transfer';
 import { returnInventoryForTickets } from './manage-actions';
+import { inTransaction, lockSeatsForChange, syncSeatedQuantities } from '../seating/inventory';
 import { orgMail, withOrgMail } from '../pro/white-label';
 import { canAccessOrder, rememberOrderAccess } from './access';
 
@@ -380,7 +381,14 @@ export async function staffUpdateAttendee(_prev: ActionState, fd: FormData): Pro
   return { ok: true };
 }
 
-/** Complimentary tickets or a box-office (door) sale, issued by staff without online payment. */
+/**
+ * Complimentary tickets or a box-office (door) sale, issued by staff without online payment.
+ *
+ * Reserved seating: `seat_ids` are the exact seats chosen on the map (all in the chosen ticket type's pricing tier); each
+ * becomes one ticket labelled with its seat. Blocked seats may be chosen (seats held back for guests are usually
+ * blocked): they are unblocked for the order, and blocked again if the order can't be issued. Without seats, a seated
+ * tier gets the best free seats as before.
+ */
 export async function issueStaffOrder(_prev: ActionState, fd: FormData): Promise<ActionState> {
   const orgSlug = str(fd, 'org', 64);
   const ctx = await assertOrg(orgSlug, 'organizer');
@@ -390,16 +398,55 @@ export async function issueStaffOrder(_prev: ActionState, fd: FormData): Promise
   const email = str(fd, 'email', 254), name = str(fd, 'name', 160);
   if (!isEmail(email)) return { error: 'Enter the attendee’s email.' };
   if (name.length < 2) return { error: 'Enter the attendee’s name.' };
-  const ticketTypeId = Number(fd.get('ticket_type_id')); const qty = Number(fd.get('quantity'));
-  if (!Number.isInteger(ticketTypeId) || !Number.isInteger(qty) || qty < 1 || qty > 50) return { error: 'Choose a ticket type and quantity (1–50).' };
+  const ticketTypeId = Number(fd.get('ticket_type_id'));
+  const seatIds = [...new Set(str(fd, 'seat_ids', 2000).split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0))];
+  const qty = seatIds.length || Number(fd.get('quantity'));
+  if (!Number.isInteger(ticketTypeId) || !Number.isInteger(qty) || qty < 1 || qty > 50) return { error: seatIds.length ? 'Choose at most 50 seats.' : 'Choose a ticket type and quantity (1–50).' };
+
+  let unblocked: { id: number; reason: string | null }[] = [];
+  let labels: string[] = [];
+  if (seatIds.length) {
+    const seats = await query<Row & { id: number; ticket_type_id: number | null; blocked: number; block_reason: string | null; label: string }>(
+      `SELECT id, ticket_type_id, blocked, block_reason, label FROM event_seats WHERE event_id = ? AND id IN (${seatIds.map(() => '?').join(',')})`, [event.id, ...seatIds],
+    );
+    if (seats.length !== seatIds.length) return { error: 'One of the seats is no longer on the map. Reload the page and choose again.' };
+    const wrong = seats.find((s) => Number(s.ticket_type_id) !== ticketTypeId);
+    if (wrong) return { error: `${wrong.label} isn’t in this ticket type’s pricing tier. Choose seats of the tier, or another ticket type.` };
+    labels = seats.map((s) => s.label);
+    const blocked = seats.filter((s) => s.blocked);
+    if (blocked.length) {
+      // Only seats nobody holds or owns are unblocked; a taken seat makes the order fail below with a clear message.
+      unblocked = await inTransaction(async (conn) => {
+        const { free } = await lockSeatsForChange(conn, event.id, blocked.map((s) => Number(s.id)));
+        if (free.length) await conn.query(`UPDATE event_seats SET blocked = 0, block_reason = NULL WHERE id IN (${free.map(() => '?').join(',')})`, free.map((s) => s.id));
+        return free.map((s) => ({ id: Number(s.id), reason: blocked.find((b) => Number(b.id) === Number(s.id))?.block_reason ?? null }));
+      });
+      await syncSeatedQuantities(event.id);
+    }
+  }
+  const reblock = async () => {
+    if (!unblocked.length) return;
+    for (const s of unblocked) await execute(`UPDATE event_seats SET blocked = 1, block_reason = ? WHERE id = ? AND event_id = ?`, [s.reason, s.id, event.id]);
+    await syncSeatedQuantities(event.id);
+  };
+
   try {
-    const r = await createPendingOrder({ eventSlug: event.slug, lines: [{ ticketTypeId, quantity: qty }], email, name, marketingOptIn: false, userId: null, ip: await clientIp(), source, createdBy: ctx.session.user.id, bypassSalesWindow: true });
+    const r = await createPendingOrder({
+      eventSlug: event.slug, lines: seatIds.length ? [] : [{ ticketTypeId, quantity: qty }], seatIds, email, name, marketingOptIn: false, userId: null,
+      ip: await clientIp(), source, createdBy: ctx.session.user.id, bypassSalesWindow: true,
+    });
     await finalizePaidOrder(r.orderId, {});
     if (source === 'box_office') await execute(`UPDATE orders SET paid_at = NOW() WHERE id = ?`, [r.orderId]);
-    await audit(source === 'box_office' ? 'order.box_office' : 'order.comp_issued', { actorUserId: ctx.session.user.id, targetType: 'order', targetId: r.orderId, metadata: { qty, ticketTypeId, email } });
+    await audit(source === 'box_office' ? 'order.box_office' : 'order.comp_issued', {
+      actorUserId: ctx.session.user.id, targetType: 'order', targetId: r.orderId,
+      metadata: { qty, ticketTypeId, email, ...(labels.length ? { seats: labels, unblocked: unblocked.length } : {}) },
+    });
     revalidatePath(`/org/${orgSlug}/events/${event.id}`);
-    return { ok: true, message: `${qty} ticket(s) issued to ${email}. Order ${r.code}.` };
+    revalidatePath(`/events/${event.slug}`);
+    const where = labels.length ? ` (${labels.length > 4 ? `${labels.slice(0, 4).join(', ')} and ${labels.length - 4} more` : labels.join(', ')})` : '';
+    return { ok: true, message: `${qty} ticket(s) issued to ${email}${where}. Order ${r.code}.` };
   } catch (e) {
+    await reblock();
     if (e instanceof CheckoutError) return { error: e.message };
     if ((e as Error).message === 'OVERSOLD') return { error: 'Not enough inventory left.' };
     throw e;

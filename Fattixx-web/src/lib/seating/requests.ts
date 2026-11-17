@@ -99,6 +99,25 @@ export async function ensureDraftMap(r: SeatMapRequestRow, userId: number): Prom
   return ins.insertId;
 }
 
+/**
+ * A map a Super Admin builds without an organizer's request: an empty draft, for one organization or (with none) for the
+ * Venue Library. No set-up fee and no approval step; the Super Admin publishes it from its page.
+ */
+export async function createStaffMap(input: {
+  organizationId: number | null; userId: number; mapName: string; venueName: string; venueCity: string | null; venueRegion: string | null;
+  floorPlan: { path: string; kind: FloorPlanKind } | null;
+}): Promise<number> {
+  const layout = emptyLayout();
+  const ins = await execute(
+    `INSERT INTO seat_maps (organization_id, name, venue_name, venue_city, venue_region, status, layout, seat_count, floor_plan_path, floor_plan_kind, created_by)
+     VALUES (?, ?, ?, ?, ?, 'draft', ?, 0, ?, ?, ?)`,
+    [input.organizationId, input.mapName, input.venueName, input.venueCity, input.venueRegion, JSON.stringify(layout), input.floorPlan?.path ?? null, input.floorPlan?.kind ?? null, input.userId],
+  );
+  await logMapChange(ins.insertId, input.userId, 'created', 'Started an empty map (built by Fattixx staff, no request)');
+  await audit('seatmap.created', { actorUserId: input.userId, targetType: 'seat_map', targetId: ins.insertId, metadata: { org: input.organizationId, staff: true } });
+  return ins.insertId;
+}
+
 export type NewRequestInput = {
   organizationId: number; userId: number; venueId: number | null; venueName: string; venueCity: string | null; mapName: string; notes: string | null;
   floorPlan: { path: string; kind: FloorPlanKind } | null; baseMapId: number | null;

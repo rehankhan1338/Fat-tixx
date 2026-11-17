@@ -40,6 +40,7 @@ import { orgIsPro } from "@/lib/pro/gate";
 import { eventDrawing, getEventSeating, listManagedSeats, listUsableMaps, tierSummary } from "@/lib/seating/queries";
 import { ProUpsell } from "@/components/pro/dashboard";
 import { SeatingPanel } from "./seating-panel";
+import { TIER_COLORS } from "@/lib/seating/layout";
 
 export const metadata: Metadata = { title: "Event" };
 
@@ -132,7 +133,12 @@ export default async function EventPage({ params, searchParams }: PageProps<"/or
         </TabsContent>
 
         <TabsContent value="attendees" className="pt-4">
-          <AttendeesPanel orgSlug={slug} event={{ id: event.id, title: event.title, timezone: event.timezone, status: event.status }} attendees={attendees} canEdit={canEdit} canRefund={ctx.perms.canRefund} ticketTypes={ticketTypes.map((t) => ({ id: t.id, name: t.name }))}
+          <AttendeesPanel orgSlug={slug} event={{ id: event.id, title: event.title, timezone: event.timezone, status: event.status }} attendees={attendees} canEdit={canEdit} canRefund={ctx.perms.canRefund} ticketTypes={ticketTypes.map((t) => ({ id: Number(t.id), name: t.name, seated: !!t.seated }))}
+            seating={seatingRow ? {
+              drawing: eventDrawing(seatingRow),
+              seats: managedSeats.map((s) => ({ id: s.id, x: s.x, y: s.y, label: s.label, section: s.section, row: s.row, access: s.access, tier: s.tier, status: s.status })),
+              tierColors: Object.fromEntries(seatedTiers.map((t, i) => [Number(t.id), t.seat_color ?? TIER_COLORS[i % TIER_COLORS.length]])),
+            } : null}
             transfers={transfers.map((x) => ({ id: Number(x.id), created_at: new Date(x.created_at).toISOString(), order_code: x.order_code, from_ticket_code: x.from_ticket_code, to_ticket_code: x.to_ticket_code, to_ticket_status: x.to_ticket_status, from_name: x.from_name, from_email: x.from_email, to_name: x.to_name, to_email: x.to_email, initiated_by: x.initiated_by, actor_name: x.actor_name, note: x.note }))} />
         </TabsContent>
 
@@ -143,7 +149,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/or
               maps={usableMaps.map((m) => ({ id: Number(m.id), label: `${m.name} · ${[m.venue_name, m.venue_city].filter(Boolean).join(", ")} (${m.seat_count} seats)${Number(m.organization_id) === ctx.org.id ? "" : " · Venue Library"}` }))}
               seating={seatingRow ? {
                 mapName: seatingRow.map_name ?? "Seat map", drawing: eventDrawing(seatingRow),
-                seats: managedSeats.map((s) => ({ id: s.id, x: s.x, y: s.y, label: s.label, section: s.section, access: s.access, tier: s.tier, status: s.status, blockReason: s.blockReason, ticketId: s.ticketId, ticketCode: s.ticketCode, holder: s.holder, orderCode: s.orderCode })),
+                seats: managedSeats.map((s) => ({ id: s.id, x: s.x, y: s.y, label: s.label, section: s.section, row: s.row, access: s.access, tier: s.tier, status: s.status, blockReason: s.blockReason, ticketId: s.ticketId, ticketCode: s.ticketCode, holder: s.holder, orderCode: s.orderCode })),
                 tiers: tierRows.filter((t) => t.id).map((t) => ({ ...t, priceCents: Number(seatedTiers.find((x) => Number(x.id) === t.id)?.price_cents ?? 0) })),
                 unassigned: tierRows.find((t) => t.id === 0)?.seats ?? 0,
                 sold: managedSeats.filter((s) => s.status === "sold").length, held: managedSeats.filter((s) => s.status === "held").length,

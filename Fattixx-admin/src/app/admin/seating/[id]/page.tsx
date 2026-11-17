@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requirePlatformStaff } from "@/lib/auth/guard";
-import { getSeatMap, getSeatMapRequest, listApprovedMaps, listMapChanges, listRequestNotes, mapLayout } from "@/lib/seating/queries";
+import { getSeatMap, getSeatMapRequest, listApprovedMaps, listMapChanges, listRequestNotes, mapAutosave, mapLayout } from "@/lib/seating/queries";
 import {
   noteFromStaff, staffAssign, staffCancel, staffCopyLayout, staffSendForApproval, staffSetFee, staffStartRequest, staffTakeBack,
 } from "@/lib/seating/actions";
@@ -59,7 +59,7 @@ export default async function SeatingRequestPage({ params }: PageProps<"/admin/s
 
       {map ? (
         <Section title={`Builder · map #${map.id}`} description={editable ? "Trace the floor plan: add rows and tables, drag them into place, take out seats for aisles and mark accessible seats. Save often; each save is logged." : `This map is ${map.status === "draft" ? "not editable right now" : map.status}.`}>
-          <SeatMapEditor requestId={r.id} mapName={map.name} initial={mapLayout(map)} editable={editable} floorPlanUrl={plan} />
+          <SeatMapEditor target={{ request_id: r.id }} mapName={map.name} initial={mapLayout(map)} editable={editable} floorPlanUrl={plan} autosaved={editable ? mapAutosave(map) : null} />
           {editable && approved.length ? (
             <div className="mt-4 border-t pt-4">
               <SelectRun action={staffCopyLayout} fields={f} name="from_map_id" label="Start from an approved map (replaces the draft)" submit="Copy layout"

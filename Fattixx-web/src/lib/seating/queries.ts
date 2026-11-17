@@ -1,7 +1,7 @@
 import 'server-only';
 import { query, queryOne, type Row } from '../db';
 import { getSettings } from '../settings';
-import { drawingFor, readLayout, type Accessibility, type Drawing, type SeatMapLayout, type SeatStatus } from './layout';
+import { drawingFor, parseLayout, readLayout, type Accessibility, type Drawing, type SeatMapLayout, type SeatStatus } from './layout';
 
 /*
  * Reserved seating reads (plan 5.7.3–5.7.13): the Venue Library, seat map requests and an event's seats.
@@ -28,11 +28,33 @@ export type SeatMapRow = Row & {
   id: number; organization_id: number | null; venue_id: number | null; name: string; venue_name: string; venue_city: string | null; venue_region: string | null;
   status: 'draft' | 'approved' | 'retired'; in_library: number; layout: unknown; seat_count: number; based_on_id: number | null;
   approved_at: Date | null; created_at: Date; updated_at: Date; org_name: string | null; org_slug: string | null; events_using: number;
+  floor_plan_path: string | null; floor_plan_kind: 'image' | 'pdf' | 'spreadsheet' | null;
+  draft_layout: unknown; draft_saved_at: Date | null; draft_saved_by: number | null;
+  /** the request the map was built for; null for maps a Super Admin started from Admin → Seat maps */
+  request_id: number | null;
 };
 
 const MAP_SELECT = `
-  SELECT m.*, o.name AS org_name, o.slug AS org_slug, (SELECT COUNT(*) FROM event_seating es WHERE es.seat_map_id = m.id) AS events_using
+  SELECT m.*, o.name AS org_name, o.slug AS org_slug, (SELECT COUNT(*) FROM event_seating es WHERE es.seat_map_id = m.id) AS events_using,
+         (SELECT MIN(r.id) FROM seat_map_requests r WHERE r.seat_map_id = m.id) AS request_id
     FROM seat_maps m LEFT JOIN organizations o ON o.id = m.organization_id`;
+
+/** Maps Super Admins started without a request that are still drafts (Admin → Seat maps). */
+export async function listStaffDraftMaps(): Promise<SeatMapRow[]> {
+  return query<SeatMapRow>(`${MAP_SELECT} WHERE m.status = 'draft' AND NOT EXISTS (SELECT 1 FROM seat_map_requests r WHERE r.seat_map_id = m.id) ORDER BY m.updated_at DESC LIMIT 200`);
+}
+
+/** The builder's autosave of a draft map (see migration 0020), or null when nothing is unsaved. */
+export function mapAutosave(m: Pick<SeatMapRow, 'draft_layout' | 'draft_saved_at'>): { layout: SeatMapLayout; name: string; at: number } | null {
+  if (!m.draft_layout || !m.draft_saved_at) return null;
+  const v = typeof m.draft_layout === 'string' ? (() => { try { return JSON.parse(m.draft_layout as string); } catch { return null; } })() : m.draft_layout;
+  if (!v || typeof v !== 'object') return null;
+  const parsed = parseLayout((v as { layout?: unknown }).layout);
+  if ('error' in parsed) return null;
+  const name = typeof (v as { name?: unknown }).name === 'string' ? (v as { name: string }).name : '';
+  const clientAt = Number((v as { clientAt?: unknown }).clientAt);
+  return { layout: parsed.layout, name, at: Number.isFinite(clientAt) && clientAt > 0 ? clientAt : new Date(m.draft_saved_at).getTime() };
+}
 
 export async function getSeatMap(id: number): Promise<SeatMapRow | null> {
   if (!Number.isInteger(id) || id <= 0) return null;
