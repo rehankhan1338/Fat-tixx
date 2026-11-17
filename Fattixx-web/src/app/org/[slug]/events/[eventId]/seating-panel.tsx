@@ -2,17 +2,24 @@
 
 /*
  * The event's Seating tab (reserved seating, plan 5.7.3–5.7.13): choose an approved map, create pricing tiers, select
- * seats (one by one or a whole section by clicking its name) and assign them to a tier, take them off sale or block
- * them. Sold seats and seats in a buyer's cart never change; a sold ticket can be moved to a free seat of the same tier.
+ * seats and assign them to a tier, take them off sale or block them. Sold seats and seats in a buyer's cart never change;
+ * a sold ticket can be moved to a free seat of the same tier.
+ *
+ * Selecting seats (src/lib/seating/selection.ts): click a seat, drag a box over many (Shift: add, Alt: remove), Shift+click
+ * for every seat from the last one clicked, double-click for a whole row, a section's name for the whole section, Esc to
+ * clear. Every change is saved the moment it is applied; the current selection is also kept in this browser, so a reload
+ * or a sign-in doesn't lose a large selection, and activity on the page keeps the session from idling out.
  */
 
-import { useActionState, useMemo, useState, useTransition, type ReactNode } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { PencilIcon } from "lucide-react";
 import { toast } from "sonner";
 import { attachSeatMap, createSeatTier, deleteSeatTier, detachSeatMap, moveTicketSeat, updateEventSeats, updateSeatTier, updateTierColor, type ActionState } from "@/lib/seating/actions";
 import { ACCESSIBILITY, SEAT_STATUS_LABEL, TIER_COLORS, type Drawing, type SeatStatus } from "@/lib/seating/layout";
 import { formatCents } from "@/lib/money";
+import { applySelection, rangeBetween, sameRow, type SelectMode } from "@/lib/seating/selection";
+import { useKeepAlive } from "@/hooks/use-keep-alive";
 import { SeatMapCanvas, SeatSwatch, type CanvasSeat } from "@/components/seating/SeatMapCanvas";
 import { FormStatus, SelectField, TextField } from "@/components/form-fields";
 import { SubmitButton } from "@/components/submit-button";
@@ -25,7 +32,7 @@ import { Section } from "@/components/shared";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export type ManagedSeatView = {
-  id: number; x: number; y: number; label: string; section: string; access: string | null; tier: number | null; status: SeatStatus; blockReason: string | null;
+  id: number; x: number; y: number; label: string; section: string; row: string | null; access: string | null; tier: number | null; status: SeatStatus; blockReason: string | null;
   ticketId: number | null; ticketCode: string | null; holder: string | null; orderCode: string | null;
 };
 export type TierView = { id: number; name: string; color: string | null; priceCents: number; seats: number; available: number; held: number; sold: number; blocked: number };
@@ -91,6 +98,10 @@ function EditTierDialog({ base, tier }: { base: { org: string; event_id: number 
 
 function ManageSeats({ base, currency, seating }: { base: { org: string; event_id: number }; currency: string; seating: NonNullable<Parameters<typeof SeatingPanel>[0]["seating"]> }) {
   const [sel, setSel] = useState<Set<number>>(new Set());
+  const anchor = useRef<number | null>(null);
+  const [restoredSel, setRestoredSel] = useState(0);
+  const storageKey = `fx-seating-selection:${base.event_id}`;
+  useKeepAlive();
   const [moving, setMoving] = useState<ManagedSeatView | null>(null);
   const [chosenTier, setTierId] = useState("");
   // The first tier until one is chosen; tiers can be added or deleted while this page is open.
@@ -109,7 +120,32 @@ function ManageSeats({ base, currency, seating }: { base: { org: string; event_i
     else { if (r?.message) toast.success(r.message); after?.(); }
   });
 
-  const clickSeat = (id: number) => {
+  // Keep the selection in this browser (restored after a reload or signing in again), and Esc clears it.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      const ids = raw ? (JSON.parse(raw) as unknown[]).map(Number).filter((n) => seatById.has(n)) : [];
+      // Browser storage can only be read after hydration, so this mount effect sets state on purpose.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (ids.length) { setSel(new Set(ids)); setRestoredSel(ids.length); }
+    } catch { /* storage unavailable */ }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      try { if (sel.size) localStorage.setItem(storageKey, JSON.stringify([...sel])); else localStorage.removeItem(storageKey); } catch { /* storage unavailable */ }
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [sel, storageKey]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || (e.target as HTMLElement)?.closest("input, textarea, select, [role=dialog]")) return;
+      setSel(new Set()); setMoving(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const clickSeat = (id: number, e?: ReactMouseEvent | ReactKeyboardEvent) => {
     const seat = seatById.get(id);
     if (!seat) return;
     if (moving) {
@@ -117,8 +153,21 @@ function ManageSeats({ base, currency, seating }: { base: { org: string; event_i
       run(moveTicketSeat, { ticket_id: moving.ticketId!, seat_id: seat.id }, () => { setMoving(null); setSel(new Set()); });
       return;
     }
-    setSel((cur) => { const n = new Set(cur); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+    if (e?.shiftKey) {
+      // Every seat from the last one clicked to this one, in map order.
+      const range = rangeBetween(seating.seats, (s) => s.id, anchor.current, id).map((s) => s.id);
+      setSel((cur) => applySelection(cur, range, "add"));
+    } else if (e?.altKey) {
+      setSel((cur) => applySelection(cur, sameRow(seating.seats, seat).map((s) => s.id), "toggle"));
+    } else setSel((cur) => applySelection(cur, [id], "toggle"));
+    anchor.current = id;
   };
+  const selectRow = (id: number) => {
+    const seat = seatById.get(id);
+    if (!seat || moving) return;
+    setSel((cur) => applySelection(cur, sameRow(seating.seats, seat).map((s) => s.id), "add"));
+  };
+  const boxSelect = (ids: (string | number)[], mode: SelectMode) => { if (!moving) setSel((cur) => applySelection(cur, ids.map(Number), mode)); };
   const selectSection = (name: string) => {
     const ids = seating.seats.filter((s) => s.section === name).map((s) => s.id);
     setSel((cur) => {
@@ -200,13 +249,15 @@ function ManageSeats({ base, currency, seating }: { base: { org: string; event_i
         </form>
       </Section>
 
-      <Section title="Seats" description="Click seats to select them, or click a section's name to select the whole section. Sold seats and seats in a buyer's cart keep their tier and can't be blocked.">
+      <Section title="Seats" description="Click seats to select them, drag a box over many, Shift+click for a range, double-click for a whole row, or click a section's name for the whole section. Sold seats and seats in a buyer's cart keep their tier and can't be blocked.">
         <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
           <Button type="button" size="xs" variant="outline" onClick={() => selectWhere(() => true)}>Select all</Button>
           <Button type="button" size="xs" variant="outline" onClick={() => selectWhere((s) => s.status === "unassigned")}>Select not for sale</Button>
           <Button type="button" size="xs" variant="outline" onClick={() => selectWhere((s) => s.status === "blocked")}>Select blocked</Button>
           <Button type="button" size="xs" variant="ghost" onClick={clear} disabled={!sel.size}>Clear selection</Button>
           <span className="text-muted-foreground">{sel.size ? `${sel.size} selected${lockedCount ? ` (${lockedCount} sold or held, left as they are)` : ""}` : "Nothing selected"}</span>
+          {restoredSel && sel.size ? <span className="text-xs text-muted-foreground">(kept from your last visit)</span> : null}
+          <span className="ml-auto hidden text-xs text-muted-foreground lg:inline">Drag: select · Shift+drag: add · Alt+drag: remove · Shift+click: range · Double-click: row · Esc: clear</span>
         </div>
 
         {moving ? (
@@ -241,7 +292,8 @@ function ManageSeats({ base, currency, seating }: { base: { org: string; event_i
           </div>
         )}
 
-        <SeatMapCanvas drawing={seating.drawing} seats={seats} onSeat={(id) => clickSeat(Number(id))} onLabel={(name) => selectSection(name)} label="Event seat map" />
+        <SeatMapCanvas drawing={seating.drawing} seats={seats} onSeat={(id, e) => clickSeat(Number(id), e)} onSeatDoubleClick={(id) => selectRow(Number(id))} onBoxSelect={boxSelect}
+          onLabel={(name) => selectSection(name)} label="Event seat map" />
         <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground">
           {seating.tiers.map((t) => <li key={t.id} className="flex items-center gap-1.5"><SeatSwatch look="open" color={tierById.get(t.id)!.color} /> {t.name}</li>)}
           <li className="flex items-center gap-1.5"><SeatSwatch look="off" /> Not for sale</li>

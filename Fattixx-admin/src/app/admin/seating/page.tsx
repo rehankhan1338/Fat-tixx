@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requirePlatformStaff } from "@/lib/auth/guard";
-import { listApprovedMaps, requestQueue, requestQueueCounts, REQUEST_STATUSES, type RequestStatus } from "@/lib/seating/queries";
+import { hasPlatformRole, requirePlatformStaff } from "@/lib/auth/guard";
+import { query, type Row } from "@/lib/db";
+import { listApprovedMaps, listStaffDraftMaps, requestQueue, requestQueueCounts, REQUEST_STATUSES, type RequestStatus } from "@/lib/seating/queries";
 import { staffSetLibrary } from "@/lib/seating/actions";
 import { PageHeader, Section, Stat, StatusBadge, formatDate } from "@/components/shared";
 import { FeeLine } from "@/components/seating/request-parts";
 import { RunButton } from "@/components/seating/request-forms";
+import { NewSeatMapDialog } from "./new-map-form";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const metadata: Metadata = { title: "Seat maps" };
@@ -15,15 +17,20 @@ export const metadata: Metadata = { title: "Seat maps" };
  * maps. Staff build each map from the uploaded floor plan in the builder on the request page.
  */
 export default async function SeatingQueuePage({ searchParams }: PageProps<"/admin/seating">) {
-  await requirePlatformStaff(["super_admin", "support"]);
+  const session = await requirePlatformStaff(["super_admin", "support"]);
+  const superAdmin = hasPlatformRole(session, "super_admin");
   const sp = await searchParams;
   const filter = (["open", "all", ...REQUEST_STATUSES] as string[]).includes(String(sp.status)) ? (String(sp.status) as RequestStatus | "open" | "all") : "open";
-  const [rows, counts, library] = await Promise.all([requestQueue(filter), requestQueueCounts(), listApprovedMaps()]);
+  const [rows, counts, library, drafts, orgs] = await Promise.all([
+    requestQueue(filter), requestQueueCounts(), listApprovedMaps(), superAdmin ? listStaffDraftMaps() : Promise.resolve([]),
+    superAdmin ? query<Row & { id: number; name: string }>(`SELECT id, name FROM organizations ORDER BY name LIMIT 5000`) : Promise.resolve([]),
+  ]);
   const filters: [string, string][] = [["open", "Open"], ["new", "New"], ["in_progress", "In progress"], ["awaiting_approval", "With the organizer"], ["approved", "Approved"], ["cancelled", "Cancelled"], ["all", "All"]];
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <PageHeader title="Seat maps" description="Requests from Fattixx Pro organizers: build the map from their floor plan, send it for approval, and list finished maps in the Venue Library." />
+      <PageHeader title="Seat maps" description="Requests from Fattixx Pro organizers: build the map from their floor plan, send it for approval, and list finished maps in the Venue Library."
+        actions={superAdmin ? <NewSeatMapDialog orgs={orgs.map((o) => ({ id: Number(o.id), name: o.name }))} /> : null} />
       <div className="grid gap-4 sm:grid-cols-4">
         <Stat label="New" value={counts.new} hint="Not started" />
         <Stat label="In progress" value={counts.in_progress} />
@@ -55,6 +62,24 @@ export default async function SeatingQueuePage({ searchParams }: PageProps<"/adm
           </Table>
         )}
       </Section>
+      {drafts.length ? (
+        <Section title="Maps you are building" description="Started by Fattixx staff without a request. Publish one from its page when it is ready.">
+          <Table>
+            <TableHeader><TableRow><TableHead>Map</TableHead><TableHead>Built for</TableHead><TableHead className="text-right">Seats</TableHead><TableHead>Unsaved work</TableHead><TableHead>Last change</TableHead></TableRow></TableHeader>
+            <TableBody>
+              {drafts.map((m) => (
+                <TableRow key={m.id}>
+                  <TableCell><Link href={`/admin/seating/maps/${m.id}`} className="font-medium hover:underline">{m.name}</Link><span className="block text-xs text-muted-foreground">{[m.venue_name, m.venue_city].filter(Boolean).join(", ")} · #{m.id}</span></TableCell>
+                  <TableCell className="text-sm">{m.org_name ?? "Venue Library"}</TableCell>
+                  <TableCell className="text-right tabular-nums">{m.seat_count}</TableCell>
+                  <TableCell className="text-xs">{m.draft_saved_at ? `Autosaved ${formatDate(m.draft_saved_at)}` : "—"}</TableCell>
+                  <TableCell className="text-sm">{formatDate(m.updated_at)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Section>
+      ) : null}
       <Section title="Venue Library" description="Approved maps. A listed map can be used by every Pro organizer for events at that venue, free of charge; unlisted maps only by the organization they were built for.">
         {library.length === 0 ? <p className="text-sm text-muted-foreground">No approved maps yet.</p> : (
           <Table>
@@ -62,7 +87,7 @@ export default async function SeatingQueuePage({ searchParams }: PageProps<"/adm
             <TableBody>
               {library.map((m) => (
                 <TableRow key={m.id}>
-                  <TableCell><span className="font-medium">{m.name}</span><span className="block text-xs text-muted-foreground">{[m.venue_name, m.venue_city, m.venue_region].filter(Boolean).join(", ")} · #{m.id}</span></TableCell>
+                  <TableCell>{m.request_id ? <Link href={`/admin/seating/${m.request_id}`} className="font-medium hover:underline">{m.name}</Link> : superAdmin ? <Link href={`/admin/seating/maps/${m.id}`} className="font-medium hover:underline">{m.name}</Link> : <span className="font-medium">{m.name}</span>}<span className="block text-xs text-muted-foreground">{[m.venue_name, m.venue_city, m.venue_region].filter(Boolean).join(", ")} · #{m.id}</span></TableCell>
                   <TableCell className="text-sm">{m.org_name ?? "Fattixx"}</TableCell>
                   <TableCell className="text-right tabular-nums">{m.seat_count}</TableCell>
                   <TableCell className="text-right tabular-nums">{m.events_using}</TableCell>

@@ -9,7 +9,7 @@ import { assertOrg, canAccessEvent } from '../authz';
 import { getEvent } from '../events/queries';
 import { parseDollarsToCents } from '../money';
 import { orgIsPro } from '../pro/gate';
-import { diffLayouts, expandLayout, parseLayout, seatCount, TIER_COLORS } from './layout';
+import { diffLayouts, expandLayout, parseLayout, seatCount, TIER_COLORS, type SeatMapLayout } from './layout';
 import { createFeeCheckout, feeSettled } from './fee';
 import { holdIfUnverified } from '../orgs/verification';
 import { copyMapToEvent, inTransaction, lockSeatsForChange, seatingInUse, syncSeatedQuantities } from './inventory';
@@ -177,42 +177,163 @@ async function editableMap(r: SeatMapRequestRow) {
   return map;
 }
 
-/** Save the builder: validate, write the readable change list to the map's history, store. */
+function revalidateStaffMap(mapId: number) {
+  revalidatePath('/admin/seating');
+  revalidatePath(`/admin/seating/maps/${mapId}`);
+}
+
+/** The request a map was built for, if any. Maps a Super Admin started from Admin → Seat maps have none. */
+async function requestOfMap(mapId: number): Promise<number | null> {
+  const row = await queryOne<Row & { id: number }>(`SELECT id FROM seat_map_requests WHERE seat_map_id = ? LIMIT 1`, [mapId]);
+  return row ? Number(row.id) : null;
+}
+
+/** A map a Super Admin builds without a request (Admin → Seat maps → New seat map). */
+async function staffMap(fd: FormData) {
+  const session = await assertPlatformRole(['super_admin']);
+  const map = await getSeatMap(Number(fd.get('map_id')));
+  if (!map) throw new Error('Map not found.');
+  if (await requestOfMap(Number(map.id))) throw new Error('This map belongs to an organizer’s request. Edit it from the request page.');
+  return { session, map };
+}
+
+/**
+ * What the builder is editing: the draft map of a request (`request_id`, Support or Super Admin) or a map a Super Admin
+ * started without a request (`map_id`). Either way only a draft can change.
+ */
+async function builderTarget(fd: FormData) {
+  if (fd.get('map_id')) {
+    const { session, map } = await staffMap(fd);
+    if (map.status !== 'draft') throw new Error('This map is published. Move it back to draft to change it.');
+    return { session, map, revalidate: () => revalidateStaffMap(Number(map.id)) };
+  }
+  const { session, r } = await staffRequest(fd);
+  const map = await editableMap(r);
+  return { session, map, revalidate: () => revalidateRequest(r) };
+}
+
+function readLayoutField(fd: FormData): { layout: SeatMapLayout } | { error: string } {
+  let raw: unknown;
+  try { raw = JSON.parse(str(fd, 'layout', 900_000)); } catch { return { error: 'The layout could not be read. Reload the page.' }; }
+  return parseLayout(raw);
+}
+
+/** Save the builder: validate, write the readable change list to the map's history, store. Clears the autosave. */
 export type SaveState = { error?: string; ok?: boolean; message?: string; saved?: number } | undefined;
 
 export async function saveSeatMapLayout(_prev: SaveState, fd: FormData): Promise<SaveState> {
   try {
-    const { session, r } = await staffRequest(fd);
-    const map = await editableMap(r);
-    let raw: unknown;
-    try { raw = JSON.parse(str(fd, 'layout', 900_000)); } catch { return { error: 'The layout could not be read. Reload the page.' }; }
-    const parsed = parseLayout(raw);
+    const { session, map, revalidate } = await builderTarget(fd);
+    const parsed = readLayoutField(fd);
     if ('error' in parsed) return { error: parsed.error };
     const before = mapLayout(map);
-    const lines = diffLayouts(before, parsed.layout);
-    if (!lines.length) return { ok: true, message: 'No changes to save.' };
-    const seats = seatCount(parsed.layout);
     const name = str(fd, 'name', 160);
-    await execute(`UPDATE seat_maps SET layout = ?, seat_count = ?, name = IF(? = '', name, ?) WHERE id = ? AND status = 'draft'`, [JSON.stringify(parsed.layout), seats, name, name, map.id]);
+    const lines = diffLayouts(before, parsed.layout);
+    if (name && name !== map.name) lines.unshift(`Renamed the map “${map.name}” to “${name}”`);
+    if (!lines.length) {
+      await execute(`UPDATE seat_maps SET draft_layout = NULL, draft_saved_at = NULL, draft_saved_by = NULL WHERE id = ?`, [map.id]);
+      return { ok: true, message: 'No changes to save.', saved: Date.now() };
+    }
+    const seats = seatCount(parsed.layout);
+    await execute(
+      `UPDATE seat_maps SET layout = ?, seat_count = ?, name = IF(? = '', name, ?), draft_layout = NULL, draft_saved_at = NULL, draft_saved_by = NULL WHERE id = ? AND status = 'draft'`,
+      [JSON.stringify(parsed.layout), seats, name, name, map.id],
+    );
     await logMapChange(Number(map.id), session.user.id, 'saved', `${lines.length} change${lines.length === 1 ? '' : 's'} · ${seats} seats`, lines);
     await audit('seatmap.saved', { actorUserId: session.user.id, targetType: 'seat_map', targetId: map.id, metadata: { changes: lines.length, seats } });
-    revalidateRequest(r);
+    revalidate();
     return { ok: true, message: `Saved: ${lines.length} change${lines.length === 1 ? '' : 's'}, ${seats} seats.`, saved: Date.now() };
   } catch (e) { return fail(e); }
+}
+
+/**
+ * The builder's timed autosave: keeps the work in progress on the server (seat_maps.draft_layout) without touching the
+ * saved layout or the change history, so nothing is lost if the browser closes or the session times out. Each call also
+ * counts as activity, so a long building session doesn't sign the user out. `discard=1` drops the autosave.
+ */
+export type AutosaveState = { ok?: boolean; error?: string; at?: number };
+
+export async function autosaveSeatMapLayout(fd: FormData): Promise<AutosaveState> {
+  try {
+    const { session, map } = await builderTarget(fd);
+    if (str(fd, 'discard', 1) === '1') {
+      await execute(`UPDATE seat_maps SET draft_layout = NULL, draft_saved_at = NULL, draft_saved_by = NULL WHERE id = ?`, [map.id]);
+      return { ok: true, at: Date.now() };
+    }
+    const parsed = readLayoutField(fd);
+    // A layout that doesn't validate yet (two sections with one name while typing) stays in the browser's own backup.
+    if ('error' in parsed) return { error: parsed.error };
+    const name = str(fd, 'name', 160);
+    if (JSON.stringify(parsed.layout) === JSON.stringify(mapLayout(map)) && (!name || name === map.name)) {
+      // Nothing differs from the saved map (e.g. an autosave that crossed a Save): there is no unsaved work.
+      await execute(`UPDATE seat_maps SET draft_layout = NULL, draft_saved_at = NULL, draft_saved_by = NULL WHERE id = ?`, [map.id]);
+      return { ok: true, at: Date.now() };
+    }
+    // The browser's clock is kept with it, to compare with the browser's own backup on the next visit.
+    const clientAt = Number(fd.get('client_at'));
+    const draft = JSON.stringify({ layout: parsed.layout, name, clientAt: Number.isFinite(clientAt) && clientAt > 0 ? clientAt : null });
+    await execute(`UPDATE seat_maps SET draft_layout = ?, draft_saved_at = NOW(), draft_saved_by = ? WHERE id = ? AND status = 'draft'`, [draft, session.user.id, map.id]);
+    return { ok: true, at: Date.now() };
+  } catch (e) { return { error: e instanceof Error ? e.message : 'Autosave failed.' }; }
+}
+
+/** Publish a map a Super Admin built: it becomes approved, usable by its organization and (if listed) every Pro organizer. */
+export async function staffPublishMap(fd: FormData): Promise<ActionState> {
+  try {
+    const { session, map } = await staffMap(fd);
+    if (map.status !== 'draft') return { error: 'This map is already published.' };
+    if (map.draft_layout) return { error: 'The builder has unsaved changes. Save them (or discard them) first.' };
+    if (!Number(map.seat_count)) return { error: 'The map has no seats yet.' };
+    // A map built for no organization can only be used through the Venue Library, so it is always listed.
+    const listed = !map.organization_id || str(fd, 'listed', 1) === '1';
+    await execute(`UPDATE seat_maps SET status = 'approved', approved_at = NOW(), approved_by = ?, in_library = ? WHERE id = ? AND status = 'draft'`, [session.user.id, listed ? 1 : 0, map.id]);
+    await logMapChange(Number(map.id), session.user.id, 'approved', `Published by ${session.user.name}${listed ? ' and listed in the Venue Library' : ''}`);
+    await audit('seatmap.published', { actorUserId: session.user.id, targetType: 'seat_map', targetId: map.id, metadata: { org: map.organization_id, listed } });
+    revalidateStaffMap(Number(map.id));
+    if (map.org_slug) revalidatePath(`/org/${map.org_slug}/seating`);
+    return { ok: true, message: map.organization_id ? `Published. ${map.org_name} can now use it on their events.` : 'Published and listed in the Venue Library.' };
+  } catch (e) { return fail(e); }
+}
+
+/** Take a published staff map back to draft to change it. Only while no event uses it (events keep their own seats). */
+export async function staffMapToDraft(fd: FormData): Promise<ActionState> {
+  try {
+    const { session, map } = await staffMap(fd);
+    if (map.status !== 'approved') return { error: 'Only a published map can go back to draft.' };
+    if (Number(map.events_using)) return { error: `${map.events_using} event${Number(map.events_using) === 1 ? ' uses' : 's use'} this map, so it can’t go back to draft.` };
+    await execute(`UPDATE seat_maps SET status = 'draft', in_library = 0, approved_at = NULL, approved_by = NULL WHERE id = ? AND status = 'approved'`, [map.id]);
+    await logMapChange(Number(map.id), session.user.id, 'draft', `Moved back to draft by ${session.user.name}`);
+    revalidateStaffMap(Number(map.id));
+    return { ok: true, message: 'Back to draft. Organizers can’t use it until it is published again.' };
+  } catch (e) { return fail(e); }
+}
+
+/** Delete a staff map that is still a draft. */
+export async function staffDeleteMap(fd: FormData): Promise<ActionState> {
+  let done = false;
+  try {
+    const { session, map } = await staffMap(fd);
+    if (map.status !== 'draft') return { error: 'Only a draft can be deleted.' };
+    await execute(`DELETE FROM seat_maps WHERE id = ? AND status = 'draft'`, [map.id]);
+    await audit('seatmap.deleted', { actorUserId: session.user.id, targetType: 'seat_map', targetId: map.id, metadata: { name: map.name } });
+    revalidatePath('/admin/seating');
+    done = true;
+  } catch (e) { return fail(e); }
+  if (done) redirect('/admin/seating');
+  return { ok: true };
 }
 
 /** Replace the draft with a copy of another approved map (e.g. the same venue in another layout). */
 export async function staffCopyLayout(fd: FormData): Promise<ActionState> {
   try {
-    const { session, r } = await staffRequest(fd);
-    const map = await editableMap(r);
+    const { session, map, revalidate } = await builderTarget(fd);
     const from = await getSeatMap(Number(fd.get('from_map_id')));
     if (!from || from.status !== 'approved') return { error: 'Choose an approved map to copy.' };
     const layout = mapLayout(from);
     const lines = diffLayouts(mapLayout(map), layout);
-    await execute(`UPDATE seat_maps SET layout = ?, seat_count = ? WHERE id = ?`, [JSON.stringify(layout), seatCount(layout), map.id]);
+    await execute(`UPDATE seat_maps SET layout = ?, seat_count = ?, draft_layout = NULL, draft_saved_at = NULL, draft_saved_by = NULL WHERE id = ?`, [JSON.stringify(layout), seatCount(layout), map.id]);
     await logMapChange(Number(map.id), session.user.id, 'copied', `Copied the layout of “${from.name}” (#${from.id})`, lines);
-    revalidateRequest(r);
+    revalidate();
     return { ok: true };
   } catch (e) { return fail(e); }
 }
@@ -221,6 +342,7 @@ export async function staffSendForApproval(_prev: ActionState, fd: FormData): Pr
   try {
     const { session, r } = await staffRequest(fd);
     const map = await editableMap(r);
+    if (map.draft_layout) return { error: 'The builder has unsaved changes. Save them (or discard them) first.' };
     if (!Number(map.seat_count)) return { error: 'The map has no seats yet.' };
     const message = str(fd, 'body', 5000);
     const next = await moveRequest(r, 'awaiting_approval', 'staff', session.user.id, `Sent to the organizer for approval (${map.seat_count} seats).${message ? ` ${message}` : ''}`);
