@@ -27,6 +27,10 @@ const tokenContext = cache(async (): Promise<Tokens> => {
     processing_rate: processing ? processing.replace(" per order", "") : "Included",
     processing_clause: processing ? `, plus card processing of ${processing}` : ", with card processing included",
     processing_answer: processing ? `Card processing is ${processing}, charged once per paid order. The ${fee} fee is per ticket.` : `No. Card processing is included in the ${fee} fee per ticket.`,
+    // No figures: the pricing page keeps fees off the page (they are sent by email on request).
+    fee_limit_answer: cap
+      ? "Yes. The fee on any single ticket is capped, so higher-priced tickets never pay more than the cap. The pricing we send you includes the exact figure."
+      : "There’s one fee per paid ticket, the same on every event, and free tickets never pay anything. The pricing we send you spells out exactly what you’d pay.",
     platform_name: brand.name,
     support_email: brand.supportEmail,
     year: String(new Date().getFullYear()),

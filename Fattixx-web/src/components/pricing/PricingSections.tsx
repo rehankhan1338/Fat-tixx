@@ -27,9 +27,9 @@ export function FeeRules({ content: c }: { content: PricingContent["rules"] }) {
 
 /* FAQ */
 
-export function PricingFaq({ content: c }: { content: PricingContent["faq"] }) {
+export function PricingFaq({ content: c, last = false }: { content: PricingContent["faq"]; last?: boolean }) {
   return (
-    <section aria-labelledby="faq-h" className={cx(container, "pt-[120px] max-[721px]:pt-[88px]")}>
+    <section aria-labelledby="faq-h" className={cx(container, "pt-[120px] max-[721px]:pt-[88px]", last && "pb-[150px] max-[721px]:pb-[110px]")}>
       <div className="flex flex-wrap items-start gap-x-16 gap-y-8">
         <div className="flex-[1_1_300px]">
           <div className={eyebrow}>{c.eyebrow}</div>
