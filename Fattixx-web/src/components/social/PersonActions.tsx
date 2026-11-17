@@ -18,14 +18,14 @@ export function PersonFollowButton({ userId, initial, signedIn, small = false, f
   const router = useRouter();
 
   function go() {
-    if (!signedIn) { window.location.href = `/login?next=${encodeURIComponent(path)}`; return; }
+    if (!signedIn) { router.push(`/login?next=${encodeURIComponent(path)}`); return; }
     setError(null);
     start(async () => {
       if (state === "none") {
         const r = await followUser(userId);
         if (r.ok && r.state) setState(r.state);
         else if (r.error === "profile") router.push(`/account/profile?next=${encodeURIComponent(path)}`);
-        else if (r.error === "signin") window.location.href = `/login?next=${encodeURIComponent(path)}`;
+        else if (r.error === "signin") router.push(`/login?next=${encodeURIComponent(path)}`);
         else setError(r.error ?? "Couldn’t follow.");
       } else {
         await unfollowUser(userId);

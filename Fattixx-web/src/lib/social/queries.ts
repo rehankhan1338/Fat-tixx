@@ -46,7 +46,8 @@ export async function whosGoing(
 
   const blockClause = viewerId ? ` AND ${notBlockedSql('u.id', '?')}` : '';
   const where = `${LISTED} AND ${holdsTicketSql('u')}${blockClause}`;
-  const params: SqlParam[] = [event.id, event.id, event.id, ...(viewerId ? [viewerId] : [])];
+  // notBlockedSql uses the viewer placeholder twice
+  const params: SqlParam[] = [event.id, event.id, event.id, ...(viewerId ? [viewerId, viewerId] : [])];
   const followed = viewerId ? await followingIds(viewerId) : [];
   const followedOrder = followed.length ? `(u.id IN (${placeholders(followed)})) DESC, ` : '';
   const [rows, count, tickets] = await Promise.all([
@@ -224,7 +225,7 @@ export async function searchPeople(q: string, viewerId: number, limit = 30): Pro
       WHERE u.status = 'active' AND u.username IS NOT NULL AND u.age_confirmed_at IS NOT NULL AND u.id <> ?
         AND (u.username LIKE ? OR u.name LIKE ?) AND ${notBlockedSql('u.id', '?')}
       ORDER BY (u.username = ?) DESC, (u.username LIKE ?) DESC, u.name LIMIT ${Math.max(1, Math.min(100, limit))}`,
-    [viewerId, viewerId, like, like, viewerId, term.toLowerCase(), `${term.toLowerCase()}%`],
+    [viewerId, viewerId, like, like, viewerId, viewerId, term.toLowerCase(), `${term.toLowerCase()}%`],
   );
   return rows.map((r) => ({ ...personCard(r), state: r.state ?? 'none' }));
 }

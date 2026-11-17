@@ -7,7 +7,7 @@
  */
 
 import { useState, useTransition } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { setOrgFollow } from "@/lib/social/actions";
 import { CheckIcon, PlusIcon } from "@/components/event/icons";
 import { button, cx } from "@/components/ui/styles";
@@ -25,10 +25,11 @@ export default function FollowButton({
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const path = usePathname();
+  const router = useRouter();
 
   function toggle() {
     if (!signedIn) {
-      window.location.href = `/login?next=${encodeURIComponent(path + window.location.search)}`;
+      router.push(`/login?next=${encodeURIComponent(path + window.location.search)}`);
       return;
     }
     const next = !following;
@@ -38,7 +39,7 @@ export default function FollowButton({
       const r = await setOrgFollow(organizerId, next, source);
       if (!r.ok) {
         setFollowing(!next);
-        if (r.error === "signin") window.location.href = `/login?next=${encodeURIComponent(path)}`;
+        if (r.error === "signin") router.push(`/login?next=${encodeURIComponent(path)}`);
         else setError(r.error ?? "Couldn’t save that. Try again.");
         return;
       }

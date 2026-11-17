@@ -4,7 +4,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { joinPublicOffer } from "@/lib/social/referral-actions";
 import { button, cx } from "@/components/ui/styles";
 
@@ -17,6 +17,7 @@ export default function EarnBox({ eventId, reward, link: initialLink, signedIn, 
   const [copied, setCopied] = useState(false);
   const [pending, start] = useTransition();
   const path = usePathname();
+  const router = useRouter();
 
   return (
     <section aria-labelledby="earn-h" className={cx("rounded-[22px] border border-fx-yellow bg-fx-yellow/25 px-5 py-5 text-fx-red", className)}>
@@ -47,7 +48,7 @@ export default function EarnBox({ eventId, reward, link: initialLink, signedIn, 
           start(async () => {
             const r = await joinPublicOffer(eventId, terms);
             if (r?.url) setLink(r.url);
-            else if (r?.error === "signin") window.location.href = `/login?next=${encodeURIComponent(path)}`;
+            else if (r?.error === "signin") router.push(`/login?next=${encodeURIComponent(path)}`);
             else setError(r?.error ?? "Couldn’t create your link.");
           });
         }}>
