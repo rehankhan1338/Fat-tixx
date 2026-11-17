@@ -10,6 +10,8 @@ export type EventRow = Row & {
   online_url: string | null;
   image_path: string | null; video_url: string | null; starts_at: Date; ends_at: Date | null; show_end_time: number; doors_at: Date | null; timezone: string; capacity: number | null; waitlist_enabled: number; queue_enabled: number; queue_rate_per_min: number; reminder_sent_at: Date | null;
   status: 'draft' | 'in_review' | 'published' | 'cancelled' | 'postponed' | 'completed'; visibility: 'public' | 'private' | 'unlisted'; private_key: string | null;
+  /** Social & Community (migration 0021): Who's Going and the activity feed */
+  guest_list_mode: 'off' | 'faces' | 'faces_total'; feed_enabled: number; feed_attendee_photos: number; feed_open_days: number; followers_notified_at: Date | null;
   /** encrypted event password (src/lib/events/password.ts); null = none */
   access_password: string | null;
   age_restriction: number | null; fee_mode: 'buyer_pays' | 'organizer_absorbs'; tax_bps: number | null; tax_label: string | null; currency: string;
@@ -88,6 +90,16 @@ export type PublicOrgRow = Row & {
 export async function getPublicOrganization(slug: string): Promise<PublicOrgRow | null> {
   if (!/^[a-z0-9-]{1,64}$/.test(slug)) return null;
   return queryOne<PublicOrgRow>(`SELECT id, slug, name, description, website, logo_path, pro_until, brand_primary, brand_accent, brand_cover_path, brand_own_header, white_label, social_links, hide_follower_count FROM organizations WHERE slug = ? AND status = 'active'`, [slug]);
+}
+
+/** Public (listed, no password) events by id, any date: attendee profiles and "For you" (Social & Community 11). */
+export async function listPublicEventsByIds(ids: number[]): Promise<PublicEventRow[]> {
+  const clean = [...new Set(ids.filter((n) => Number.isSafeInteger(n) && n > 0))].slice(0, 500);
+  if (!clean.length) return [];
+  return query<PublicEventRow>(
+    `${PUBLIC_SELECT} WHERE e.id IN (${clean.map(() => '?').join(',')}) AND e.status IN ('published','postponed','completed') AND e.visibility = 'public' AND e.access_password IS NULL AND g.status = 'active'`,
+    clean,
+  );
 }
 
 export async function getPublicEventBySlug(slug: string): Promise<PublicEventRow | null> {

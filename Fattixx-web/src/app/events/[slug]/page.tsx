@@ -32,6 +32,12 @@ import { PublicPage } from "@/components/layout/PublicPage";
 import { eventBrand } from "@/lib/pro/branding";
 import { publicOriginFor, requestCustomDomain, resolveActiveDomain } from "@/lib/pro/domains";
 import { PasswordGate } from "./password-gate";
+import { orgFollowInfo, whosGoing, goingLine } from "@/lib/social/queries";
+import { feedAccess, feedClosesAt, getFeedEvent, listFeed } from "@/lib/social/feed";
+import { myReferralCode, publicOffer, rewardLabel } from "@/lib/social/referrals";
+import WhosGoing from "@/components/social/WhosGoing";
+import EventFeed from "@/components/social/EventFeed";
+import EarnBox from "@/components/social/EarnBox";
 
 export async function generateMetadata({ params }: PageProps<"/events/[slug]">): Promise<Metadata> {
   const { slug } = await params;
@@ -202,6 +208,28 @@ export default async function EventRoute({ params, searchParams }: PageProps<"/e
     brand: brand ? { cover: brand.cover, organizerHref: customHost ? "/" : `/o/${brand.slug}` } : null,
   };
 
+  // Social & Community (plan 11): follow state, Who's Going, the activity feed and referral rewards.
+  const viewerId = session?.user.id ?? null;
+  const [follow, going, offer] = await Promise.all([
+    orgFollowInfo(Number(event.organization_id), viewerId),
+    isLive ? whosGoing(event, viewerId) : Promise.resolve(null),
+    isLive && !rsvp ? publicOffer(event.id) : Promise.resolve(null),
+  ]);
+  data.follow = { following: follow.following, signedIn: follow.signedIn };
+  let feed: { access: Awaited<ReturnType<typeof feedAccess>>; posts: Awaited<ReturnType<typeof listFeed>>; closes: Date } | null = null;
+  if (event.feed_enabled) {
+    const fe = await getFeedEvent(event.id);
+    if (fe) {
+      const access = await feedAccess(fe);
+      feed = { access, posts: access.canView ? await listFeed(fe, access.userId) : [], closes: feedClosesAt(fe) };
+    }
+  }
+  const earn = offer ? {
+    reward: rewardLabel(offer, event.currency),
+    link: viewerId ? await myReferralCode(viewerId, event.id).then((c) => (c ? `${env.APP_URL}/r/${c}` : null)) : null,
+    holder: !!going?.viewer?.holder,
+  } : null;
+
   const mode = !isLive && event.status !== "postponed" ? "unpublished" : tickets.length === 0 && !hasPresale ? "none" : tickets.length === 0 ? "presale_only" : inQueue ? "queue" : "tickets";
   const notices = typeof sp.leave === "string" ? [{ title: leftWaitlist ? "You have been removed from the waitlist." : "That waitlist link is no longer valid." }] : [];
 
@@ -212,6 +240,13 @@ export default async function EventRoute({ params, searchParams }: PageProps<"/e
           data={data}
           notices={notices}
           ad={<AdSlot placement="event_detail" eventId={event.id} />}
+          going={going ? <WhosGoing data={going} line={goingLine(going)} eventId={event.id} listHref={`/events/${event.slug}/going${linkKey ? `?key=${encodeURIComponent(linkKey)}` : ""}`} /> : null}
+          earn={earn ? <EarnBox eventId={event.id} reward={earn.reward} link={earn.link} signedIn={!!session} holder={earn.holder} appUrl={env.APP_URL} /> : null}
+          feed={feed ? (
+            <EventFeed eventId={event.id} initial={feed.posts} allowPhotos={!!event.feed_attendee_photos}
+              access={{ canView: feed.access.canView, canPost: feed.access.canPost, moderator: feed.access.moderator, readOnly: feed.access.readOnly, notificationsMuted: feed.access.notificationsMuted, reason: feed.access.reason }}
+              closesText={`Open until ${formatEventDate(feed.closes, event.timezone, { withTime: false })}, then read-only.`} />
+          ) : null}
           panel={
             <TicketPanel
               eventId={event.id}
@@ -229,6 +264,7 @@ export default async function EventRoute({ params, searchParams }: PageProps<"/e
               ageRestriction={event.age_restriction}
               defaultEmail={session?.user.email}
               defaultName={session?.user.name}
+              followOrg={session && !follow.following ? event.org_name : null}
               hasPromo={Number(promos[0]?.n) > 0}
               attribution={attribution}
               smsEnabled={isSmsConfigured()}

@@ -56,11 +56,11 @@ export type SocialUserRow = Row & {
   username: string | null; avatar_path: string | null; bio: string | null; city: string | null;
   instagram: string | null; tiktok: string | null; x_handle: string | null;
   profile_public: number; show_on_guest_lists: number; show_events_on_profile: number; follow_approval: number;
-  social_sms_opt_in: number; favorite_categories: string | null; age_confirmed_at: Date | null; phone: string | null; created_at: Date;
+  social_sms_opt_in: number; favorite_categories: string | null; age_confirmed_at: Date | null; phone: string | null; created_at: Date; marketing_opt_in: number;
 };
 
 const SOCIAL_COLS = `id, public_id, name, email, email_verified_at, status, username, avatar_path, bio, city, instagram, tiktok, x_handle,
-  profile_public, show_on_guest_lists, show_events_on_profile, follow_approval, social_sms_opt_in, favorite_categories, age_confirmed_at, phone, created_at`;
+  profile_public, show_on_guest_lists, show_events_on_profile, follow_approval, social_sms_opt_in, favorite_categories, age_confirmed_at, phone, created_at, marketing_opt_in`;
 
 export async function getSocialUser(id: number): Promise<SocialUserRow | null> {
   return queryOne<SocialUserRow>(`SELECT ${SOCIAL_COLS} FROM users WHERE id = ?`, [id]);

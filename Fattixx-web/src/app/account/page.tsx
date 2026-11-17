@@ -12,6 +12,7 @@ import { AdSlot } from "@/components/ad-slot";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PrivacyPanel, VerifyEmailBanner } from "./account-client";
+import { AccountNav } from "./account-nav";
 
 export const metadata: Metadata = { title: "My account" };
 
@@ -28,6 +29,7 @@ export default async function AccountPage({ searchParams }: PageProps<"/account"
   return (
     <PublicShell>
       <PageHeader title={`Hi, ${session.user.name}`} description={session.user.email} actions={<>{memberships.length ? <Button variant="outline" render={<Link href="/dashboard" />}>Organizer tools</Button> : null}<form action={logout}><Button variant="ghost" type="submit">Sign out</Button></form></>} />
+      <AccountNav active="tickets" />
       {!verified ? <VerifyEmailBanner email={session.user.email} justSent={sp.verify === "sent"} /> : null}
       <h2 className="mt-8 mb-3 text-lg font-semibold">Your tickets & orders</h2>
       {orders.length === 0 ? <EmptyState title="No orders yet" description={verified ? "Tickets you buy with this email appear here." : "Confirm your email to see tickets bought earlier with it."} action={<Button render={<Link href="/" />}>Browse events</Button>} /> : (

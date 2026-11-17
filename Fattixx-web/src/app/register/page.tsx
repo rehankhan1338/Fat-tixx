@@ -20,7 +20,7 @@ export default async function RegisterPage({ searchParams }: PageProps<"/registe
       subtitle="Keep all your tickets and orders in one place. You can also buy as a guest without an account."
       footer={<>Already have an account? <Link href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"} className="text-primary underline-offset-4 hover:underline">Sign in</Link></>}
     >
-      <RegisterForm next={next} />
+      <RegisterForm next={next} email={typeof sp.email === "string" && sp.email.length <= 254 ? sp.email : undefined} />
     </AuthShell>
   );
 }

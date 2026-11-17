@@ -122,6 +122,8 @@ export async function startCheckout(_prev: ActionState, fd: FormData): Promise<A
     if (e instanceof CheckoutError) return { error: e.message };
     throw e;
   }
+  // "Follow this organizer" at checkout (Social & Community 11.5): signed-in buyers only, unchecked by default.
+  if (session && fd.get('follow_org')) await execute(`INSERT IGNORE INTO org_follows (user_id, organization_id, source) VALUES (?, ?, 'checkout')`, [session.user.id, event.organization_id]);
   await audit('order.created', { actorUserId: session?.user.id ?? null, targetType: 'order', targetId: r.orderId, metadata: { code: r.code, total: r.totalCents, discount: r.discountCents, channel: attribution.channel } });
   // Embedded widget: checkout continues in a new top-level tab (cookies set inside a third-party iframe are usually blocked).
   if (attribution.channel === 'embed') return { ok: true, checkoutUrl: `/api/embed/continue?code=${encodeURIComponent(r.code)}&t=${encodeURIComponent(r.accessToken)}` };

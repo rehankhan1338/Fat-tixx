@@ -18,6 +18,7 @@ import { Separator } from "@/components/ui/separator";
 import { heldByRecipient, holderMayTransfer } from "@/lib/orders/transfer";
 import { AttendeeNameForm, BuyerTransferButton, RefundRequestButton } from "./order-client";
 import { SaveImageButton } from "@/components/save-image-button";
+import OrderSocial from "@/components/social/OrderSocial";
 
 export const metadata: Metadata = { title: "Your order", robots: { index: false } };
 
@@ -90,6 +91,7 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/or
           </div>
 
           <div className="space-y-4 lg:col-span-2">
+            {["paid", "partially_refunded"].includes(order.status) ? <OrderSocial order={order} /> : null}
             <Card>
               <CardHeader><CardTitle className="text-base">Receipt · <span className="font-mono">{order.code}</span></CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
