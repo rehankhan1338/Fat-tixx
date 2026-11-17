@@ -82,7 +82,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
           {cover ? (
             // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text -- rendered to PNG, not HTML
             <img src={cover} width={504} height={630} style={{ width: 504, height: 630, objectFit: 'cover' }} />
-          ) : null}
+          ) : (
+            <div style={{ display: 'flex', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', padding: 48, fontSize: 56, fontWeight: 700, color: YELLOW, textAlign: 'center' }}>{e.org_name}</div>
+          )}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 60px', flex: 1 }}>
           <div style={{ display: 'flex', fontSize: 30, fontWeight: 700, letterSpacing: 4, color: YELLOW }}>I’M GOING</div>
