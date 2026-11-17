@@ -32,7 +32,21 @@ export type HomeContent = {
 
 export type PricingContent = {
   meta: { title: string; description: string };
+  /** "Send me pricing" email form at the top of /pricing; each request is emailed to `inbox`. */
+  request: {
+    show: boolean;
+    eyebrow: string;
+    title: string;
+    lead: string;
+    placeholder: string;
+    button: string;
+    note: string;
+    success: string;
+    inbox: string;
+  };
+  /** The fee calculator. */
   hero: {
+    show: boolean;
     eyebrow: string;
     title: string;
     lead: string;
@@ -109,7 +123,7 @@ export const DEFAULT_HOME: HomeContent = {
   featured: { show: true },
   browse: { show: true, eyebrow: "On sale now", title: "Upcoming events", link: { label: "Browse all events", href: "/events" } },
   host: {
-    show: true,
+    show: false,
     eyebrow: "For organizers",
     title: "Hosting something?\nDo it all with FATTIXX.",
     lead: "Build your event page, set your ticket tiers and check guests in at the door, with one simple fee.",
@@ -126,9 +140,23 @@ export const DEFAULT_HOME: HomeContent = {
 export const DEFAULT_PRICING: PricingContent = {
   meta: {
     title: "Pricing",
-    description: "One simple fee: {fee} per paid ticket{processing_clause}{fee_cap_clause}. Free events cost nothing.",
+    description: "Want to know more about Fattixx pricing? Put in your email and we’ll send you the details. Creating an event and listing free tickets is free.",
+  },
+  // Launch: fee figures stay off public pages, so organizers request pricing by email instead of seeing the calculator,
+  // the fee rules and the comparison. Switch those back on with their `show` flags.
+  request: {
+    show: true,
+    eyebrow: "Pricing",
+    title: "Want to know more\nabout pricing?",
+    lead: "Put in your email and we’ll send you the details.",
+    placeholder: "you@example.com",
+    button: "Send me pricing",
+    note: "We’ll only use your email to send pricing information.",
+    success: "Thanks! We’ll send pricing to {email} shortly.",
+    inbox: "info@fattixx.com",
   },
   hero: {
+    show: false,
     eyebrow: "Pricing",
     title: "Every ticket,\nbroken down.",
     lead: "Pick a price and see exactly where the money goes. One fee per paid ticket{processing_clause}{fee_cap_clause}. Free tickets cost nothing.",
@@ -144,7 +172,7 @@ export const DEFAULT_PRICING: PricingContent = {
     taxNote: "Sales tax, where it applies, is added at the venue’s rate.",
   },
   rules: {
-    show: true,
+    show: false,
     items: [
       { big: "$0", title: "Free events", text: "Create an event and list free tickets without paying a thing." },
       { big: "{fee}", title: "Paid tickets", text: "One fee per ticket sold{fee_cap_clause}. Add it to the ticket price or cover it yourself, per event." },
@@ -152,7 +180,7 @@ export const DEFAULT_PRICING: PricingContent = {
     ],
   },
   compare: {
-    show: true,
+    show: false,
     eyebrow: "Compare",
     title: "More for you. Less for your buyers.",
     lead: "See what a ticket costs in fees on Fattixx next to another platform’s published rates. Pass the difference on to your buyers, or keep it yourself.",
@@ -168,9 +196,9 @@ export const DEFAULT_PRICING: PricingContent = {
     lead: "Something else on your mind? [Contact us](mailto:{support_email}).",
     items: [
       { q: "Does it cost anything to create an event?", a: "No. Creating an event and listing free tickets is $0. You only pay when you sell a paid ticket." },
-      { q: "Is card processing extra?", a: "{processing_answer}" },
+      { q: "Is card processing extra?", a: "The pricing we send you covers card processing along with the ticket fee, so you know the full cost before you sell. Put in your email above and we’ll send it." },
       { q: "Who pays the fee, me or my buyers?", a: "You choose for each event: add the fees to the ticket price at checkout, or cover them yourself. Either way, buyers see the full price up front." },
-      { q: "What about sales tax?", a: "Admissions or sales tax, where it applies, is set per venue or event and shown in the all-in price buyers see." },
+      { q: "Is there a limit on fees?", a: "{fee_limit_answer}" },
       { q: "When do I get paid?", a: "Ticket sales are paid out to your bank account through Stripe once your organizer account is verified, with a settlement statement for every event." },
       {
         q: "What happens to the fee if I refund a ticket?",
@@ -179,7 +207,7 @@ export const DEFAULT_PRICING: PricingContent = {
     ],
   },
   cta: {
-    show: true,
+    show: false,
     title: "Your first event is free to set up.",
     lead: "Set up your event in minutes. You only pay when you sell.",
     primary: { label: "Create an event", href: "/create" },
