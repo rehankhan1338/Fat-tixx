@@ -25,6 +25,8 @@ export async function AdminShell({ session, extraGroups = [], headerRight, child
     ] : []),
     { href: "/admin/orders", label: "Orders & Tickets", icon: "receipt" },
     ...(isSupport ? [{ href: "/admin/users", label: "Users", icon: "users" as const }] : []),
+    // Social & Community (plan 11.11): reported posts and profiles
+    ...(isSupport ? [{ href: "/admin/reports", label: "Reports", icon: "shield" as const }] : []),
     ...(isSuper ? [{ href: "/admin/ads", label: "Ads & sponsors", icon: "megaphone" as const }, { href: "/admin/advertisers", label: "Advertisers", icon: "megaphone" as const }] : []),
   ];
   const money: NavItem[] = isFinance ? [
@@ -33,6 +35,8 @@ export async function AdminShell({ session, extraGroups = [], headerRight, child
     { href: "/admin/disputes", label: "Disputes", icon: "shield" },
     { href: "/admin/subscriptions", label: "Pro subscriptions", icon: "sparkles" },
     { href: "/admin/sponsorships", label: "Sponsorships", icon: "handshake" },
+    // Social & Community (plan 11.9): rewards owed to referrers, flagged sales
+    { href: "/admin/referrals", label: "Referral payouts", icon: "banknote" },
   ] : [];
   const system: NavItem[] = [
     ...(isFinance ? [{ href: "/admin/settings", label: "Fees & Settings", icon: "settings" as const }] : []),

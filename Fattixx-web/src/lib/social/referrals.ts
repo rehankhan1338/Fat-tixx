@@ -320,3 +320,31 @@ export async function syncReferrerAccounts(): Promise<void> {
     } catch (e) { console.error('[referrals] account sync failed', r.account_id, (e as Error).message); }
   }
 }
+
+export type StaffRewardRow = Row & {
+  id: number; order_id: number; order_code: string; event_title: string; org_name: string; referrer_name: string | null; referrer_email: string | null;
+  buyer_email: string; ip: string | null; amount_cents: number; platform_cents: number; currency: string; status: string; flagged: number; flag_reason: string | null;
+  clawed_back: number; payable_at: Date | null; paid_at: Date | null; payout_reference: string | null; created_at: Date;
+};
+
+/** Admin → Referral payouts: flagged rewards first, then the most recent. */
+export async function listRewardsForStaff(filter: 'flagged' | 'recent'): Promise<StaffRewardRow[]> {
+  return query<StaffRewardRow>(
+    `SELECT rr.*, o.code AS order_code, o.buyer_email, o.ip, e.title AS event_title, g.name AS org_name, u.name AS referrer_name, u.email AS referrer_email
+       FROM referral_rewards rr JOIN orders o ON o.id = rr.order_id JOIN events e ON e.id = rr.event_id JOIN organizations g ON g.id = rr.organization_id
+       LEFT JOIN users u ON u.id = rr.user_id
+      ${filter === 'flagged' ? "WHERE rr.flagged = 1 AND rr.status IN ('pending','payable')" : ''}
+      ORDER BY rr.id DESC LIMIT 200`,
+  );
+}
+
+export async function rewardTotals(): Promise<{ pending: number; payable: number; paid: number; platform: number }> {
+  const r = await queryOne<Row & { pending: number; payable: number; paid: number; platform: number }>(
+    `SELECT COALESCE(SUM(CASE WHEN status = 'pending' THEN amount_cents END), 0) AS pending,
+            COALESCE(SUM(CASE WHEN status = 'payable' THEN amount_cents - platform_cents END), 0) AS payable,
+            COALESCE(SUM(CASE WHEN status = 'paid' THEN amount_cents - platform_cents END), 0) AS paid,
+            COALESCE(SUM(CASE WHEN status IN ('payable','paid') THEN platform_cents END), 0) AS platform
+       FROM referral_rewards`,
+  );
+  return { pending: Number(r?.pending ?? 0), payable: Number(r?.payable ?? 0), paid: Number(r?.paid ?? 0), platform: Number(r?.platform ?? 0) };
+}

@@ -21,6 +21,7 @@ import { ensureReferrerLink, recomputeReferralReward, rewardLabel } from './refe
 
 export type RefState = { ok?: boolean; error?: string; message?: string; url?: string; code?: string } | undefined;
 const str = (fd: FormData, k: string, max = 500) => String(fd.get(k) ?? '').trim().slice(0, max);
+const checked = (fd: FormData, k: string) => ['on', '1', 'true'].includes(String(fd.get(k) ?? ''));
 
 async function orgEvent(fd: FormData) {
   const ctx = await assertOrg(str(fd, 'org', 64), 'organizer');
@@ -43,7 +44,7 @@ export async function saveReferralOffer(_prev: RefState, fd: FormData): Promise<
   if (type === 'fixed' && value > 100_000) return { error: 'That reward is too high.' };
   const paid = await queryOne(`SELECT 1 FROM ticket_types WHERE event_id = ? AND price_cents > 0`, [event.id]);
   if (!paid) return { error: 'Referral rewards are for paid events. Add a paid ticket type first.' };
-  const active = fd.get('active') === 'on' ? 1 : 0;
+  const active = checked(fd, 'active') ? 1 : 0;
   await execute(
     `INSERT INTO referral_offers (event_id, organization_id, kind, reward_type, reward_basis, reward_value, active, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE reward_type = VALUES(reward_type), reward_basis = VALUES(reward_basis), reward_value = VALUES(reward_value), active = VALUES(active)`,

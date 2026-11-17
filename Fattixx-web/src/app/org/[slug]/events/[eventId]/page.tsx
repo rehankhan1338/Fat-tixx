@@ -41,6 +41,10 @@ import { eventDrawing, getEventSeating, listManagedSeats, listUsableMaps, tierSu
 import { ProUpsell } from "@/components/pro/dashboard";
 import { SeatingPanel } from "./seating-panel";
 import { TIER_COLORS } from "@/lib/seating/layout";
+import { eventReferrers, eventRewardsTotal, getOffers } from "@/lib/social/referrals";
+import { eventShareStats } from "@/lib/social/audience";
+import { whosGoing } from "@/lib/social/queries";
+import { SocialPanel } from "./social-panel";
 
 export const metadata: Metadata = { title: "Event" };
 
@@ -79,6 +83,14 @@ export default async function EventPage({ params, searchParams }: PageProps<"/or
   // a seat map with no seat in a pricing tier has nothing to sell
   const seatsOffSale = !!seatingRow && !ticketTypes.some((t) => Number(t.quantity) > 0);
   const waitingCount = waitlist.filter((w) => w.status === "waiting").length;
+  // Social & Community (plan 11): referral offers and referrers, shares, and the guest list count.
+  const social = canEdit ? await (async () => {
+    const [offers, referrers, rewards, shares, going] = await Promise.all([
+      getOffers(event.id), eventReferrers(event.id), eventRewardsTotal(event.id), eventShareStats(event.id),
+      whosGoing({ id: event.id, guest_list_mode: event.guest_list_mode === "off" ? "faces" : event.guest_list_mode, access_password: null }, null, 1),
+    ]);
+    return { offers, referrers, rewards, shares, going };
+  })() : null;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -122,6 +134,7 @@ export default async function EventPage({ params, searchParams }: PageProps<"/or
           {canEdit ? <TabsTrigger value="waitlist">Waitlist{waitingCount ? ` (${waitingCount})` : ""}</TabsTrigger> : null}
           {canEdit ? <TabsTrigger value="sales">Sales & settlement</TabsTrigger> : null}
           {canEdit ? <TabsTrigger value="analytics">Analytics</TabsTrigger> : null}
+          {canEdit ? <TabsTrigger value="social">Social</TabsTrigger> : null}
           {canEdit ? <TabsTrigger value="marketing">Marketing{promos.length + sponsors.length ? ` (${promos.length + sponsors.length})` : ""}</TabsTrigger> : null}
           {canEdit ? <TabsTrigger value="team">Team</TabsTrigger> : null}
           {canEdit ? <TabsTrigger value="details">Details</TabsTrigger> : null}
@@ -183,6 +196,18 @@ export default async function EventPage({ params, searchParams }: PageProps<"/or
         {canEdit && sales ? (
           <TabsContent value="sales" className="pt-4">
             <SalesPanel orgSlug={slug} event={{ id: event.id, currency: event.currency, fee_mode: event.fee_mode }} sales={sales} />
+          </TabsContent>
+        ) : null}
+
+        {canEdit && social ? (
+          <TabsContent value="social" className="pt-4">
+            <SocialPanel orgSlug={slug} eventId={event.id} eventSlug={event.slug} currency={event.currency} paid={ticketTypes.some((t) => Number(t.price_cents) > 0)}
+              settings={{ mode: event.guest_list_mode, feed: !!event.feed_enabled, photos: !!event.feed_attendee_photos, days: Number(event.feed_open_days) }}
+              offers={social.offers.map((o) => ({ kind: o.kind, type: o.reward_type, basis: o.reward_basis, value: o.reward_type === "percent" ? String(Number(o.reward_value) / 100) : (Number(o.reward_value) / 100).toFixed(2), active: !!o.active }))}
+              referrers={social.referrers.map((r) => ({ id: Number(r.id), who: r.name ?? r.invite_email ?? r.invite_phone ?? "Invited", status: r.status, kind: r.kind, code: r.code, clicks: Number(r.clicks), orders: Number(r.orders), tickets: Number(r.tickets), revenue: formatCents(Number(r.revenue), event.currency), rewards: formatCents(Number(r.rewards), event.currency), flagged: Number(r.flagged) }))}
+              rewardsTotal={formatCents(social.rewards, event.currency)}
+              shares={social.shares.shares} shareOrders={social.shares.orders} shareRevenue={formatCents(social.shares.revenue, event.currency)}
+              guestList={{ listed: social.going.listed, total: social.going.total ?? 0 }} />
           </TabsContent>
         ) : null}
 

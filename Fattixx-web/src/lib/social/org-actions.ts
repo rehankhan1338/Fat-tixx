@@ -17,6 +17,7 @@ import { audienceUnsubToken, messageRecipients, parseAudienceFilters, parseAudie
 
 export type OrgSocialState = { ok?: boolean; error?: string; message?: string } | undefined;
 const str = (fd: FormData, k: string, max = 500) => String(fd.get(k) ?? '').trim().slice(0, max);
+const checked = (fd: FormData, k: string) => ['on', '1', 'true'].includes(String(fd.get(k) ?? ''));
 
 const NETWORK_HOSTS: Record<string, RegExp> = {
   instagram: /^(www\.)?instagram\.com$/i, tiktok: /^(www\.)?tiktok\.com$/i, facebook: /^(www\.|m\.)?facebook\.com$/i, x: /^(www\.)?(x|twitter)\.com$/i, youtube: /^(www\.)?youtube\.com$/i,
@@ -38,7 +39,7 @@ export async function saveOrgSocial(_prev: OrgSocialState, fd: FormData): Promis
     } catch { return { error: `That ${net} link doesn’t look right.` }; }
   }
   await execute(`UPDATE organizations SET social_links = ?, hide_follower_count = ? WHERE id = ?`,
-    [Object.keys(links).length ? JSON.stringify(links) : null, fd.get('hide_follower_count') === 'on' ? 1 : 0, ctx.org.id]);
+    [Object.keys(links).length ? JSON.stringify(links) : null, checked(fd, 'hide_follower_count') ? 1 : 0, ctx.org.id]);
   await audit('org.updated', { actorUserId: ctx.session.user.id, targetType: 'organization', targetId: ctx.org.id, metadata: { social: Object.keys(links) } });
   revalidatePath(`/o/${ctx.org.slug}`);
   revalidatePath(`/org/${ctx.org.slug}/settings`);
@@ -55,8 +56,8 @@ export async function saveEventSocial(_prev: OrgSocialState, fd: FormData): Prom
   const days = Math.round(Number(str(fd, 'feed_open_days', 4)));
   if (!Number.isFinite(days) || days < 0 || days > 90) return { error: 'The feed can stay open 0 to 90 days after the event.' };
   await execute(`UPDATE events SET guest_list_mode = ?, feed_enabled = ?, feed_attendee_photos = ?, feed_open_days = ? WHERE id = ?`,
-    [mode, fd.get('feed_enabled') === 'on' ? 1 : 0, fd.get('feed_attendee_photos') === 'on' ? 1 : 0, days, event.id]);
-  await audit('social.settings', { actorUserId: ctx.session.user.id, targetType: 'event', targetId: event.id, metadata: { mode, feed: fd.get('feed_enabled') === 'on', days } });
+    [mode, checked(fd, 'feed_enabled') ? 1 : 0, checked(fd, 'feed_attendee_photos') ? 1 : 0, days, event.id]);
+  await audit('social.settings', { actorUserId: ctx.session.user.id, targetType: 'event', targetId: event.id, metadata: { mode, feed: checked(fd, 'feed_enabled'), days } });
   revalidatePath(`/events/${event.slug}`);
   revalidatePath(`/org/${ctx.org.slug}/events/${event.id}`);
   return { ok: true, message: 'Saved.' };
@@ -72,7 +73,7 @@ export async function sendAudienceMessage(_prev: OrgSocialState, fd: FormData): 
   if (subject.length < 3 || body.length < 10) return { error: 'Enter a subject and a message.' };
   if (rateLimited(`audience-msg:${ctx.org.id}`, 3, 24 * 60 * 60_000)) return { error: 'You can send up to 3 audience messages a day.' };
   const filters = parseAudienceFilters(Object.fromEntries([...fd.entries()].filter(([, v]) => typeof v === 'string')) as Record<string, string>);
-  const withSms = fd.get('with_sms') === 'on';
+  const withSms = checked(fd, 'with_sms');
   await syncContacts(ctx.org.id);
   const recipients = await messageRecipients(ctx.org.id, filters);
   if (!recipients.length) return { error: 'Nobody in this audience can receive messages yet.' };

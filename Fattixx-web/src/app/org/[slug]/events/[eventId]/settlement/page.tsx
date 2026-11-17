@@ -30,6 +30,7 @@ export default async function SettlementPage({ params }: PageProps<"/org/[slug]/
         {row("Gross sales (tickets + add-ons)", c(s.grossCents))}
         {row("Refunds", `−${c(s.refundedCents)}`)}
         {row("Platform fees absorbed by organizer", `−${c(s.absorbedFeesCents)}`)}
+        {s.referralRewardsCents ? row("Referral rewards (paid to referrers after the event)", `−${c(s.referralRewardsCents)}`) : null}
         {row("Net payout to organizer", c(s.payoutCents), true)}
         {s.connectTransferredCents ? row("Of which sent to your Stripe account with each sale (before refunds)", c(s.connectTransferredCents)) : null}
       </tbody></table>

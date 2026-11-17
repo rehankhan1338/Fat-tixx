@@ -11,7 +11,7 @@ import { usePathname } from "next/navigation";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   BuildingIcon, CalendarIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, HomeIcon, LogOutIcon, MailIcon, MapPinIcon, ReceiptIcon, ScanLineIcon,
-  SettingsIcon, ShieldIcon, TicketIcon, UsersIcon, ListIcon, ExternalLinkIcon, MegaphoneIcon, ChartColumnIcon, ClipboardCheckIcon, LinkIcon, TagIcon, GlobeIcon, SparklesIcon, LifeBuoyIcon, ArmchairIcon, BanknoteIcon, HandshakeIcon, type LucideIcon,
+  SettingsIcon, ShieldIcon, TicketIcon, UsersIcon, ListIcon, ExternalLinkIcon, MegaphoneIcon, ChartColumnIcon, ClipboardCheckIcon, LinkIcon, TagIcon, GlobeIcon, SparklesIcon, LifeBuoyIcon, ArmchairIcon, BanknoteIcon, HandshakeIcon, HeartIcon, type LucideIcon,
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
@@ -29,7 +29,7 @@ const ICONS: Record<string, LucideIcon> = {
   home: HomeIcon, building: BuildingIcon, users: UsersIcon, calendar: CalendarIcon, ticket: TicketIcon, receipt: ReceiptIcon,
   mail: MailIcon, settings: SettingsIcon, shield: ShieldIcon, scan: ScanLineIcon, map: MapPinIcon, list: ListIcon,
   megaphone: MegaphoneIcon, chart: ChartColumnIcon, clipboard: ClipboardCheckIcon, link: LinkIcon, tag: TagIcon, globe: GlobeIcon, sparkles: SparklesIcon, lifebuoy: LifeBuoyIcon, seats: ArmchairIcon,
-  banknote: BanknoteIcon, handshake: HandshakeIcon,
+  banknote: BanknoteIcon, handshake: HandshakeIcon, heart: HeartIcon,
 };
 
 export interface NavItem { href: string; label: string; icon: keyof typeof ICONS; exact?: boolean; badge?: string | number }

@@ -115,6 +115,8 @@ export interface SalesSummary {
   buyerFeesCents: number; absorbedFeesCents: number; processingFeesCents: number; taxCents: number; payoutCents: number; connectTransferredCents: number; byType: { name: string; sold: number; grossCents: number }[];
   byAddon: { name: string; sold: number; grossCents: number }[]; addonGrossCents: number;
   refundsCount: number; compTickets: number;
+  /** referral rewards owed to referrers for this event (Social & Community 11.9), out of the organizer's proceeds */
+  referralRewardsCents: number;
 }
 
 /** Per-event settlement numbers: gross, fees, tax, refunds, net payout. */
@@ -143,12 +145,13 @@ export async function eventSalesSummary(eventId: number): Promise<SalesSummary> 
       WHERE a.event_id = ? GROUP BY a.id ORDER BY a.sort_order, a.id`,
     [eventId],
   );
+  const rewards = Number((await queryOne<Row & { n: number }>(`SELECT COALESCE(SUM(amount_cents),0) AS n FROM referral_rewards WHERE event_id = ? AND status <> 'reversed'`, [eventId]))?.n ?? 0);
   const gross = Number(totals?.gross ?? 0), refunded = Number(totals?.refunded ?? 0), absorbed = Number(totals?.absorbed ?? 0), tax = Number(totals?.tax ?? 0);
-  // Payout = ticket + add-on revenue (subtotal) − refunds − fees the organizer absorbed. Buyer-paid fees and tax are not organizer money.
+  // Payout = ticket + add-on revenue (subtotal) − refunds − fees the organizer absorbed − referral rewards. Buyer-paid fees and tax are not organizer money.
   return {
     paidOrders: Number(totals?.orders ?? 0), ticketsSold: Number(sold?.n ?? 0), grossCents: gross, refundedCents: refunded, netCents: gross - refunded,
     buyerFeesCents: Number(totals?.buyer_fees ?? 0), absorbedFeesCents: absorbed, processingFeesCents: Number(totals?.processing ?? 0), taxCents: tax,
-    payoutCents: Math.max(0, gross - refunded - absorbed), connectTransferredCents: Number(totals?.connect ?? 0), byType: byType.map((r) => ({ name: r.name, sold: Number(r.sold), grossCents: Number(r.gross) })),
+    payoutCents: Math.max(0, gross - refunded - absorbed - rewards), referralRewardsCents: rewards, connectTransferredCents: Number(totals?.connect ?? 0), byType: byType.map((r) => ({ name: r.name, sold: Number(r.sold), grossCents: Number(r.gross) })),
     byAddon: byAddon.map((r) => ({ name: r.name, sold: Number(r.sold), grossCents: Number(r.gross) })), addonGrossCents: byAddon.reduce((n, r) => n + Number(r.gross), 0),
     refundsCount: Number(refunds?.n ?? 0), compTickets: Number(sold?.comps ?? 0),
   };

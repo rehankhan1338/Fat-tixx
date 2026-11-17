@@ -13,7 +13,7 @@ export function SalesPanel({ orgSlug, event, sales }: { orgSlug: string; event: 
         <Stat label="Gross sales" value={c(sales.grossCents)} hint={`${sales.paidOrders} orders · ${sales.ticketsSold} tickets (${sales.compTickets} comps)${sales.addonGrossCents ? ` · incl. ${c(sales.addonGrossCents)} add-ons` : ""}`} />
         <Stat label="Refunds" value={c(sales.refundedCents)} hint={`${sales.refundsCount} refund(s)`} />
         <Stat label={event.fee_mode === "buyer_pays" ? "Fees paid by buyers" : "Fees absorbed"} value={c(event.fee_mode === "buyer_pays" ? sales.buyerFeesCents + sales.processingFeesCents : sales.absorbedFeesCents)} hint={event.fee_mode === "buyer_pays" ? "Not deducted from you" : "Deducted from payout"} />
-        <Stat label="Estimated payout" value={c(sales.payoutCents)} hint="Gross − refunds − absorbed fees" />
+        <Stat label="Estimated payout" value={c(sales.payoutCents)} hint="Gross − refunds − absorbed fees − referral rewards" />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -33,6 +33,7 @@ export function SalesPanel({ orgSlug, event, sales }: { orgSlug: string; event: 
               <TableRow><TableCell>Gross ticket sales</TableCell><TableCell className="text-right font-mono">{c(sales.grossCents)}</TableCell></TableRow>
               <TableRow><TableCell>Refunds</TableCell><TableCell className="text-right font-mono">−{c(sales.refundedCents)}</TableCell></TableRow>
               <TableRow><TableCell>Platform fees absorbed by organizer</TableCell><TableCell className="text-right font-mono">−{c(sales.absorbedFeesCents)}</TableCell></TableRow>
+              {sales.referralRewardsCents ? <TableRow><TableCell>Referral rewards</TableCell><TableCell className="text-right font-mono">−{c(sales.referralRewardsCents)}</TableCell></TableRow> : null}
               <TableRow className="font-semibold"><TableCell>Net payout to organizer</TableCell><TableCell className="text-right font-mono">{c(sales.payoutCents)}</TableCell></TableRow>
               <TableRow><TableCell className="text-muted-foreground">Service fees paid by buyers (platform revenue)</TableCell><TableCell className="text-right font-mono text-muted-foreground">{c(sales.buyerFeesCents)}</TableCell></TableRow>
               <TableRow><TableCell className="text-muted-foreground">Processing fees paid by buyers</TableCell><TableCell className="text-right font-mono text-muted-foreground">{c(sales.processingFeesCents)}</TableCell></TableRow>

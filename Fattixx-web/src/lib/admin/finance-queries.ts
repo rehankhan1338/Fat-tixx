@@ -11,6 +11,8 @@ export type OwedRow = Row & {
   org_id: number; org_name: string; org_slug: string; legal_name: string | null;
   gross_cents: number; refunded_cents: number; absorbed_cents: number; paid_orders: number; tickets: number;
   paid_out_cents: number; approved_cents: number; last_payout_status: string | null; connect_cents: number;
+  /** referral rewards on orders Fattixx settles by hand (Social & Community 11.9): Finance pays these to referrers instead */
+  rewards_cents: number;
 };
 
 export async function listSettlements(): Promise<OwedRow[]> {
@@ -25,7 +27,8 @@ export async function listSettlements(): Promise<OwedRow[]> {
             (SELECT COUNT(*) FROM tickets k WHERE k.event_id = e.id AND k.status IN ('valid','used')) AS tickets,
             (SELECT COALESCE(SUM(p.amount_cents),0) FROM payouts p WHERE p.event_id = e.id AND p.status = 'paid') AS paid_out_cents,
             (SELECT COALESCE(SUM(p.amount_cents),0) FROM payouts p WHERE p.event_id = e.id AND p.status = 'approved') AS approved_cents,
-            (SELECT p.status FROM payouts p WHERE p.event_id = e.id AND p.status <> 'void' ORDER BY p.id DESC LIMIT 1) AS last_payout_status
+            (SELECT p.status FROM payouts p WHERE p.event_id = e.id AND p.status <> 'void' ORDER BY p.id DESC LIMIT 1) AS last_payout_status,
+            (SELECT COALESCE(SUM(rr.amount_cents),0) FROM referral_rewards rr JOIN orders ro ON ro.id = rr.order_id WHERE rr.event_id = e.id AND rr.status <> 'reversed' AND ro.connect_account_id IS NULL) AS rewards_cents
        FROM events e JOIN organizations g ON g.id = e.organization_id LEFT JOIN orders o ON o.event_id = e.id
       WHERE e.status <> 'draft'
       GROUP BY e.id HAVING gross_cents > 0 OR paid_out_cents > 0 OR approved_cents > 0
@@ -34,7 +37,7 @@ export async function listSettlements(): Promise<OwedRow[]> {
 }
 
 export function dueCents(r: OwedRow): number {
-  return Math.max(0, Number(r.gross_cents) - Number(r.refunded_cents) - Number(r.absorbed_cents) - Number(r.paid_out_cents) - Number(r.approved_cents));
+  return Math.max(0, Number(r.gross_cents) - Number(r.refunded_cents) - Number(r.absorbed_cents) - Number(r.rewards_cents ?? 0) - Number(r.paid_out_cents) - Number(r.approved_cents));
 }
 
 export type PayoutRow = Row & { id: number; organization_id: number; org_name: string; org_slug: string; event_id: number | null; event_title: string | null; amount_cents: number; currency: string; status: string; method: string | null; reference: string | null; notes: string | null; approved_by_name: string | null; approved_at: Date; paid_by_name: string | null; paid_at: Date | null };
