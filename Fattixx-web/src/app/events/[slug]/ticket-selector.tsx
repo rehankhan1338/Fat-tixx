@@ -13,7 +13,7 @@ import { BotFields } from "@/components/bot-fields";
 import { Captcha } from "@/components/captcha";
 
 /** Promoter / UTM attribution passed through from the event page URL. */
-export interface Attribution { ref?: string; utm_source?: string; utm_medium?: string; utm_campaign?: string }
+export interface Attribution { ref?: string; utm_source?: string; utm_medium?: string; utm_campaign?: string; via?: string }
 
 export interface TicketOption { id: number; name: string; description: string | null; kind: string; priceCents: number; allInCents: number; available: number; min: number; max: number; seats: number; onSale: boolean; reason?: string; salesStart: string | null; presale?: boolean; dayLabel?: string | null }
 export interface AddonOption { id: number; name: string; description: string | null; priceCents: number; allInCents: number; available: number | null; max: number }

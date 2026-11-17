@@ -14,7 +14,7 @@ import { sitePageLinks } from '../pro/white-label';
 import { isProActive } from '../pro/status';
 import { listUpcoming } from './events';
 import { citiesOf, type OrganizerPageData } from './organizer-page';
-import type { EventItem, Organizer } from './types';
+import type { EventItem, Organizer, SocialNetwork } from './types';
 
 export function initialsOf(name: string): string {
   const words = name.split(/\s+/).filter(Boolean);
@@ -113,14 +113,27 @@ export async function organizerPage(slug: string): Promise<OrganizerPageData | n
   const past = listUpcoming(pastItems, null).reverse();
   const organizer: Organizer = {
     id: org.slug, name: org.name, initials: initialsOf(org.name), logo: uploadUrl(org.logo_path), pro: isProActive(org.pro_until),
-    bio: org.description, website: org.website, eventCount: upcoming.length + past.length,
+    bio: org.description, website: org.website, eventCount: upcoming.length + past.length, social: parseSocialLinks(org.social_links),
   };
   const brand = orgBrandFrom(org);
   if (brand?.whiteLabel) brand.pages = await sitePageLinks(org);
-  return { organizer, upcoming, past, cities: citiesOf(upcoming), brand };
+  return { organizer, upcoming, past, cities: citiesOf(upcoming), brand, orgId: Number(org.id), hideFollowerCount: !!Number(org.hide_follower_count) };
 }
 
 /** How many public events (upcoming and past) an organization has on Fattixx, for the event page's organizer card. */
 export async function organizerEventCount(orgId: number): Promise<number> {
   return countOrgPublicEvents(orgId);
+}
+
+const NETWORKS: SocialNetwork[] = ['instagram', 'tiktok', 'facebook', 'x', 'youtube'];
+
+/** organizations.social_links (JSON) → only https links for the known networks */
+export function parseSocialLinks(raw: string | null | undefined): Organizer['social'] {
+  if (!raw) return undefined;
+  try {
+    const obj = JSON.parse(raw) as Record<string, unknown>;
+    const out: Partial<Record<SocialNetwork, string>> = {};
+    for (const n of NETWORKS) if (typeof obj[n] === 'string' && /^https:\/\//.test(obj[n] as string)) out[n] = obj[n] as string;
+    return Object.keys(out).length ? out : undefined;
+  } catch { return undefined; }
 }

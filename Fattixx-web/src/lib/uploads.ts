@@ -23,7 +23,7 @@ const BLOB_PREFIX = 'uploads';
 const BLOB_HOST = /^https:\/\/[a-z0-9-]+\.public\.blob\.vercel-storage\.com\//i;
 const BLOB_CACHE_SECONDS = 365 * 24 * 60 * 60;
 
-export type UploadKind = 'events' | 'orgs' | 'ads' | 'sponsors' | 'site' | 'seatmaps';
+export type UploadKind = 'events' | 'orgs' | 'ads' | 'sponsors' | 'site' | 'seatmaps' | 'avatars' | 'posts';
 
 function blobEnabled(): boolean {
   return !!process.env.BLOB_READ_WRITE_TOKEN;
@@ -144,7 +144,7 @@ export async function deleteUpload(stored: string | null | undefined): Promise<v
 
 /** A relative path of a locally stored upload (the pre-Blob format, still used in local dev). */
 export function isSafeUploadPath(rel: string): boolean {
-  return /^(events|orgs|ads|sponsors|site|seatmaps)\/[a-z0-9-]+\.webp$/.test(rel) || /^seatmaps\/[a-z0-9-]+\.(pdf|xlsx|xls|csv)$/.test(rel);
+  return /^(events|orgs|ads|sponsors|site|seatmaps|avatars|posts)\/[a-z0-9-]+\.webp$/.test(rel) || /^seatmaps\/[a-z0-9-]+\.(pdf|xlsx|xls|csv)$/.test(rel);
 }
 
 /** A public URL on a Vercel Blob store. */
@@ -153,7 +153,7 @@ export function isBlobUrl(value: string): boolean {
 }
 
 function blobKind(url: string): UploadKind | null {
-  const m = new URL(url).pathname.match(/^\/uploads\/(events|orgs|ads|sponsors|site|seatmaps)\//);
+  const m = new URL(url).pathname.match(/^\/uploads\/(events|orgs|ads|sponsors|site|seatmaps|avatars|posts)\//);
   return (m?.[1] as UploadKind | undefined) ?? null;
 }
 

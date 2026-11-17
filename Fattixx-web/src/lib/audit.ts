@@ -45,7 +45,10 @@ export type AuditAction =
   | 'connect.onboarding.started' | 'connect.dashboard.opened' | 'connect.event_payout' | 'settings.payouts'
   | 'advertiser.applied' | 'advertiser.reviewed' | 'ad.checkout.started' | 'ad.paid' | 'ad.reviewed' | 'ad.refunded'
   | 'sponsorship.package.saved' | 'sponsorship.package.deleted' | 'sponsorship.requested' | 'sponsorship.decided' | 'sponsorship.paid' | 'sponsorship.cancelled' | 'sponsorship.refunded'
-  | 'whitelabel.updated' | 'site_page.saved' | 'site_page.deleted';
+  | 'whitelabel.updated' | 'site_page.saved' | 'site_page.deleted'
+  | 'social.post.removed' | 'social.feed.moderated' | 'social.report.created' | 'social.report.resolved' | 'social.profile.removed' | 'social.settings'
+  | 'referral.offer.saved' | 'referral.referrer.invited' | 'referral.referrer.removed' | 'referral.joined' | 'referral.reward.flag_cleared'
+  | 'referral.reward.paid' | 'referral.payout_details' | 'referral.clawback' | 'audience.message.sent';
 
 export async function audit(
   action: AuditAction,

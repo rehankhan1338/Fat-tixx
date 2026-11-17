@@ -103,7 +103,7 @@ export default async function EventRoute({ params, searchParams }: PageProps<"/e
   ]);
   // Promoter / UTM attribution from the URL travels with the checkout form.
   const param = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string).slice(0, 120) : undefined);
-  const attribution = { ref: param("ref"), utm_source: param("utm_source"), utm_medium: param("utm_medium"), utm_campaign: param("utm_campaign") };
+  const attribution = { ref: param("ref"), utm_source: param("utm_source"), utm_medium: param("utm_medium"), utm_campaign: param("utm_campaign"), via: param("via") };
   const inQueue = isLive && !!event.queue_enabled && !admitted;
   const taxBps = effectiveTaxBps(event);
   const dayLabelFor = (id: number | null) => {

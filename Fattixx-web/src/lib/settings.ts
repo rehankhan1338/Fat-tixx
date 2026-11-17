@@ -7,7 +7,8 @@ export type SettingKey =
   | 'platform_fee_bps' | 'platform_fee_fixed_cents' | 'platform_fee_cap_cents' | 'processing_fee_bps' | 'processing_fee_fixed_cents'
   | 'default_fee_mode' | 'default_currency' | 'hold_minutes' | 'platform_name' | 'support_email'
   | 'brand_color' | 'brand_logo_path' | 'stripe_mode' | 'seat_map_setup_fee_cents'
-  | 'payout_mode' | 'connect_payout_delay_days' | 'ad_cpm_cents' | 'ad_min_impressions' | 'sponsorship_fee_bps';
+  | 'payout_mode' | 'connect_payout_delay_days' | 'ad_cpm_cents' | 'ad_min_impressions' | 'sponsorship_fee_bps'
+  | 'referral_platform_share_bps';
 
 export type Settings = Record<SettingKey, string>;
 
@@ -22,6 +23,8 @@ const DEFAULTS: Settings = {
   // account's balance before paying it out; the advertiser portal's price per 1,000 impressions and smallest purchase;
   // Fattixx's share of a sponsorship deal in basis points.
   payout_mode: 'manual', connect_payout_delay_days: '7', ad_cpm_cents: '1000', ad_min_impressions: '5000', sponsorship_fee_bps: '1000',
+  // Social & Community (11.9): Fattixx's share of each referral reward, in basis points (Posh keeps 20% = 2000)
+  referral_platform_share_bps: '0',
 };
 
 /** All settings rows (public + secret keys) keyed by name. */

@@ -80,12 +80,14 @@ export async function countOrgPublicEvents(orgId: number): Promise<number> {
 export type PublicOrgRow = Row & {
   id: number; slug: string; name: string; description: string | null; website: string | null; logo_path: string | null;
   pro_until: Date | null; brand_primary: string | null; brand_accent: string | null; brand_cover_path: string | null; brand_own_header: number; white_label: number;
+  /** Social & Community (migration 0021): JSON of the organizer's social links, and whether the follower count is hidden */
+  social_links: string | null; hide_follower_count: number;
 };
 
 /** An active organization by slug, the fields its public page shows. */
 export async function getPublicOrganization(slug: string): Promise<PublicOrgRow | null> {
   if (!/^[a-z0-9-]{1,64}$/.test(slug)) return null;
-  return queryOne<PublicOrgRow>(`SELECT id, slug, name, description, website, logo_path, pro_until, brand_primary, brand_accent, brand_cover_path, brand_own_header, white_label FROM organizations WHERE slug = ? AND status = 'active'`, [slug]);
+  return queryOne<PublicOrgRow>(`SELECT id, slug, name, description, website, logo_path, pro_until, brand_primary, brand_accent, brand_cover_path, brand_own_header, white_label, social_links, hide_follower_count FROM organizations WHERE slug = ? AND status = 'active'`, [slug]);
 }
 
 export async function getPublicEventBySlug(slug: string): Promise<PublicEventRow | null> {

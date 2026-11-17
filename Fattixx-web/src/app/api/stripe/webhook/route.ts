@@ -6,6 +6,7 @@ import { finalizePaidOrder } from '@/lib/orders/checkout';
 import { getOrderById } from '@/lib/orders/queries';
 import { handleOversoldAfterPayment } from '@/lib/orders/access';
 import { notifyStaffOfNewDispute } from '@/lib/payments/dispute-alerts';
+import { recomputeReferralReward } from '@/lib/social/referrals';
 import { recordBuyerLocation } from '@/lib/orders/location';
 import { applyNewPaymentMethod, syncInvoice, syncSubscription } from '@/lib/pro/subscription';
 import { applyFeeSession, FEE_KIND as SEATMAP_FEE_KIND } from '@/lib/seating/fee';
@@ -72,6 +73,7 @@ export async function POST(req: Request) {
           await execute(`INSERT INTO refunds (order_id, amount_cents, reason, kind, status, stripe_refund_id) VALUES (?, ?, 'Refunded in Stripe dashboard', ?, 'succeeded', NULL)`, [order.id, charge.amount_refunded - Number(order.refunded_cents), full ? 'full' : 'partial']);
           if (full) await execute(`UPDATE tickets SET status = 'refunded' WHERE order_id = ? AND status IN ('valid','used')`, [order.id]);
           await audit('order.refunded', { targetType: 'order', targetId: order.id, metadata: { via: 'stripe_dashboard', amount: charge.amount_refunded } });
+          await recomputeReferralReward(Number(order.id));
         }
         break;
       }
@@ -90,6 +92,8 @@ export async function POST(req: Request) {
            ON DUPLICATE KEY UPDATE status = VALUES(status), fee_cents = VALUES(fee_cents), evidence_due_at = COALESCE(VALUES(evidence_due_at), evidence_due_at), closed_at = VALUES(closed_at)`,
           [order.id, d.id, d.amount, fee, d.reason ?? null, d.status, evidenceDueAt, event.type === 'charge.dispute.closed' ? new Date() : null],
         );
+        // A disputed sale reverses its referral reward (Social & Community 11.9); a won dispute restores it.
+        await recomputeReferralReward(Number(order.id));
         // affectedRows is 1 for a new row and 2 for an update, so staff are alerted once per dispute (plan 7.4).
         if (r.affectedRows === 1) {
           await audit('dispute.opened', { targetType: 'order', targetId: order.id, metadata: { via: 'webhook', dispute: d.id, amount: d.amount } });

@@ -1,6 +1,7 @@
 import 'server-only';
 import { audit } from '../audit';
 import { pushEventPublished } from '../push';
+import { eventWentLive } from '../social/notify';
 import { execute, query, queryOne, type Row } from '../db';
 import { connectState, getConnectAccount, parseDue, payoutMode, syncConnectAccount, type ConnectState } from '../payments/connect';
 import { getActiveStripe } from '../payments/stripe';
@@ -67,6 +68,7 @@ export async function releaseHeldEvents(orgId: number, actorUserId: number): Pro
     if (!r.affectedRows) continue;
     await audit('event.published', { actorUserId, targetType: 'event', targetId: e.id, metadata: { status: 'published', viaVerification: true } });
     await pushEventPublished(Number(e.id), actorUserId);
+    eventWentLive(Number(e.id));
   }
   return held.map((e) => ({ id: Number(e.id), slug: e.slug, title: e.title }));
 }

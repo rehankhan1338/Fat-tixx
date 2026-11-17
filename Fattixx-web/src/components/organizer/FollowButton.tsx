@@ -1,47 +1,70 @@
 "use client";
 
 /*
- * Follow / Following for an organizer (organizer page and the event page's organizer card).
- * Preview only: the choice is remembered in this browser.
- * TODO(accounts): ask visitors to sign in first, save follows on the server, and email followers when the
- * organizer publishes a new event (only followers who agreed to emails).
+ * Follow / Following for an organizer (organizer page, the event page's host card and organizer card, the order page).
+ * Saved on the server (org_follows); followers get one email when the organizer publishes a new public event
+ * (src/lib/social/notify.ts). Signed-out visitors are sent to sign in and come back to the same page.
  */
 
-import { useEffect, useState } from "react";
+import { useState, useTransition } from "react";
+import { usePathname } from "next/navigation";
+import { setOrgFollow } from "@/lib/social/actions";
 import { CheckIcon, PlusIcon } from "@/components/event/icons";
 import { button, cx } from "@/components/ui/styles";
 
-export default function FollowButton({ organizerId, name, className }: { organizerId: string; name: string; className?: string }) {
-  const key = `fx-follow-${organizerId}`;
-  const [following, setFollowing] = useState(false);
-
-  useEffect(() => {
-    const id = requestAnimationFrame(() => {
-      try {
-        setFollowing(localStorage.getItem(key) === "1");
-      } catch {
-        /* storage blocked: start as not following */
-      }
-    });
-    return () => cancelAnimationFrame(id);
-  }, [key]);
+export default function FollowButton({
+  organizerId, name, className, initialFollowing = false, signedIn = false, source = "page", followers = null, compact = false,
+}: {
+  /** organization slug */
+  organizerId: string; name: string; className?: string; initialFollowing?: boolean; signedIn?: boolean; source?: string;
+  /** follower count to show under the button (null = hidden by the organizer, or not shown here) */
+  followers?: number | null; compact?: boolean;
+}) {
+  const [following, setFollowing] = useState(initialFollowing);
+  const [count, setCount] = useState(followers);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+  const path = usePathname();
 
   function toggle() {
+    if (!signedIn) {
+      window.location.href = `/login?next=${encodeURIComponent(path + window.location.search)}`;
+      return;
+    }
     const next = !following;
     setFollowing(next);
-    try {
-      if (next) localStorage.setItem(key, "1");
-      else localStorage.removeItem(key);
-    } catch {
-      /* storage blocked: the button still switches for this visit */
-    }
+    setError(null);
+    start(async () => {
+      const r = await setOrgFollow(organizerId, next, source);
+      if (!r.ok) {
+        setFollowing(!next);
+        if (r.error === "signin") window.location.href = `/login?next=${encodeURIComponent(path)}`;
+        else setError(r.error ?? "Couldn’t save that. Try again.");
+        return;
+      }
+      setCount((c) => (c == null ? c : Math.max(0, c + (next ? 1 : -1))));
+    });
   }
 
   return (
-    <button type="button" onClick={toggle} className={cx(button(following ? "outline" : "red"), "min-w-[132px]", className)}>
-      {following ? <CheckIcon size={18} /> : <PlusIcon size={18} />}
-      {following ? "Following" : "Follow"}
-      <span className="sr-only"> {name}</span>
-    </button>
+    <span className={cx("inline-flex flex-col items-center", compact ? "" : "gap-1")}>
+      <button
+        type="button"
+        onClick={toggle}
+        disabled={pending}
+        aria-pressed={following}
+        className={cx(compact ? button(following ? "outline" : "red", "sm") : button(following ? "outline" : "red"), compact ? "min-w-[104px] px-4 text-[14px]" : "min-w-[132px]", "disabled:opacity-70", className)}
+      >
+        {following ? <CheckIcon size={compact ? 16 : 18} /> : <PlusIcon size={compact ? 16 : 18} />}
+        {following ? "Following" : "Follow"}
+        <span className="sr-only"> {name}</span>
+      </button>
+      {count != null && !compact && (
+        <span className="text-[13px] text-fx-red/70 tabular-nums">
+          {count.toLocaleString()} {count === 1 ? "follower" : "followers"}
+        </span>
+      )}
+      {error && <span role="alert" className="text-[13px] text-fx-red">{error}</span>}
+    </span>
   );
 }

@@ -26,7 +26,7 @@ import { useEventEnded } from "./useEventEnded";
 const LOW = 20; // show "Only N left" at or below this
 
 /** Promoter / UTM attribution passed through from the event page URL. */
-export type Attribution = { ref?: string; utm_source?: string; utm_medium?: string; utm_campaign?: string };
+export type Attribution = { ref?: string; utm_source?: string; utm_medium?: string; utm_campaign?: string; via?: string };
 
 export type TicketPanelProps = {
   eventId: number;

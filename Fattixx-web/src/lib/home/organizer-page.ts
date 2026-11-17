@@ -13,6 +13,11 @@ export type OrganizerPageData = {
   cities: string[];
   /** Fattixx Pro branding (null when the organizer is not on Pro) */
   brand?: OrgBrand | null;
+  /** organizations.id, for the follow state */
+  orgId?: number;
+  hideFollowerCount?: boolean;
+  /** the visitor's follow state and the follower count (null when hidden); set by the page */
+  follow?: { following: boolean; signedIn: boolean; count: number | null };
 };
 
 /** Cities of the given events, most events first */

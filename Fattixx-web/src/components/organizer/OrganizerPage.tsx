@@ -95,9 +95,8 @@ export default function OrganizerPage({ data }: { data: OrganizerPageData }) {
             {[...cities.slice(0, 3), ...(cities.length > 3 ? [`+${cities.length - 3} more`] : [])].join("\u00a0· ")}
           </p>
         )}
-        {/* TODO: "Contact" once accounts exist */}
-        <div className="mt-7 flex items-center justify-center gap-3">
-          <FollowButton organizerId={o.id} name={o.name} />
+        <div className="mt-7 flex items-start justify-center gap-3">
+          <FollowButton organizerId={o.id} name={o.name} initialFollowing={data.follow?.following} signedIn={data.follow?.signedIn} followers={data.follow?.count ?? null} source="page" />
           <ShareButton title={o.name} label={`Share ${o.name}’s page`} />
         </div>
 

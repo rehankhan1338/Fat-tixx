@@ -7,6 +7,7 @@ import { expireStaleHolds } from './orders/checkout';
 import { reconcileWithStripe } from './payments/reconcile';
 import { runDomainDailyJobs } from './pro/domains';
 import { runConnectDailySync, runConnectEventPayouts } from './payments/connect';
+import { runReferralJobs } from './social/referrals';
 import { sendPayoutReminders } from './payments/payout-reminders';
 import { orgMail, withOrgMail } from './pro/white-label';
 import { runMarketingSends } from './pro/email-marketing';
@@ -80,6 +81,9 @@ export async function runDailyJobs(today = new Date().toISOString().slice(0, 10)
   try { await runDomainDailyJobs(); } catch (e) { console.error('[jobs] domain checks failed', e); }
   // Stripe Connect: pick up verifications Stripe finished since yesterday.
   try { await runConnectDailySync(); } catch (e) { console.error('[jobs] Stripe Connect sync failed', e); }
+  // Referral rewards (Social & Community 11.9): payable after the event, taken back from the organizer's transfer and
+  // paid to referrers. Runs before the event payouts so those are reduced by the rewards.
+  try { await runReferralJobs(); } catch (e) { console.error('[jobs] referral rewards failed', e); }
   // Stripe Connect: pay out each event's held share once the event is over.
   try { await runConnectEventPayouts(); } catch (e) { console.error('[jobs] Stripe Connect event payouts failed', e); }
   // Paid events live before payouts are set up (plan 5.6.9): remind the organization's admins.
