@@ -6,19 +6,8 @@ import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cx } from "@/components/ui/styles";
 import { CloseIcon } from "./icons";
+import { lockScroll } from "./scroll-lock";
 import { useEventEnded } from "./useEventEnded";
-
-/** stop the page behind the pop-up from scrolling, without the layout shifting when the scrollbar goes away */
-function lockScroll(lock: boolean) {
-  const root = document.documentElement;
-  if (lock) {
-    root.style.paddingRight = `${window.innerWidth - root.clientWidth}px`;
-    root.style.overflow = "hidden";
-  } else {
-    root.style.paddingRight = "";
-    root.style.overflow = "";
-  }
-}
 
 export default function TicketDialog({ pillText, endIso, summary, children }: { pillText: string; endIso: string; summary: ReactNode; children: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null);

@@ -74,6 +74,11 @@ export type PricingContent = {
   };
   faq: { show: boolean; eyebrow: string; title: string; lead: string; items: Faq[] };
   cta: { show: boolean; title: string; lead: string; primary: Link; secondaryLabel: string };
+  /**
+   * /pricing/breakdown: the full page with fee figures (calculator, fee rules, comparison, FAQ, CTA), sent by link to
+   * organizers who ask for pricing. It ignores the `show` flags above, uses its own meta and FAQ answers, and is noindex.
+   */
+  breakdown: { meta: { title: string; description: string }; faq: Faq[] };
 };
 
 export type FooterContent = {
@@ -212,6 +217,23 @@ export const DEFAULT_PRICING: PricingContent = {
     lead: "Set up your event in minutes. You only pay when you sell.",
     primary: { label: "Create an event", href: "/create" },
     secondaryLabel: "Contact us",
+  },
+  breakdown: {
+    meta: {
+      title: "Pricing breakdown",
+      description: "One simple fee: {fee} per paid ticket{processing_clause}{fee_cap_clause}. Free events cost nothing.",
+    },
+    faq: [
+      { q: "Does it cost anything to create an event?", a: "No. Creating an event and listing free tickets is $0. You only pay when you sell a paid ticket." },
+      { q: "Is card processing extra?", a: "{processing_answer}" },
+      { q: "Who pays the fee, me or my buyers?", a: "You choose for each event: add the fees to the ticket price at checkout, or cover them yourself. Either way, buyers see the full price up front." },
+      { q: "What about sales tax?", a: "Admissions or sales tax, where it applies, is set per venue or event and shown in the all-in price buyers see." },
+      { q: "When do I get paid?", a: "Ticket sales are paid out to your bank account through Stripe once your organizer account is verified, with a settlement statement for every event." },
+      {
+        q: "What happens to the fee if I refund a ticket?",
+        a: "You set the refund policy for your event. When you refund a ticket, the buyer gets the ticket price back and the Fattixx fee isn’t refunded, except when the event is cancelled. [Read the refund rules](/terms#s-5-4).",
+      },
+    ],
   },
 };
 
