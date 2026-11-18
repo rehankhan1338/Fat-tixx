@@ -28,6 +28,8 @@ import { completeFreeOrderNow, confirmPaidOrderWithStripe, createPaymentIntentFo
 import { getOrderByCode, getTicketByCode, type OrderRow } from './queries';
 import { TransferError, heldByRecipient, holderMayTransfer, listTransferHolders, sendTransferEmail, transferTicket } from './transfer';
 import { returnInventoryForTickets } from './manage-actions';
+import { postEventUpdate } from '../social/feed';
+import { recomputeReferralReward } from '../social/referrals';
 import { inTransaction, lockSeatsForChange, syncSeatedQuantities } from '../seating/inventory';
 import { orgMail, withOrgMail } from '../pro/white-label';
 import { canAccessOrder, rememberOrderAccess } from './access';
@@ -55,7 +57,14 @@ async function attributionFrom(fd: FormData, organizationId: number, eventId: nu
       utm = { utmSource: utm.utmSource ?? link.utm_source, utmMedium: utm.utmMedium ?? link.utm_medium, utmCampaign: utm.utmCampaign ?? link.utm_campaign };
     }
   }
-  return { trackingLinkId, ...utm, channel: str(fd, 'channel', 10) === 'embed' ? 'embed' : 'web' };
+  // "Share that you're going" links carry ?via=<username> (Social & Community 11.8).
+  let sharedByUserId: number | null = null;
+  const via = str(fd, 'via', 40).toLowerCase();
+  if (via && /^[a-z0-9._]{3,30}$/.test(via)) {
+    const u = await queryOne<Row & { id: number }>(`SELECT id FROM users WHERE username = ? AND status = 'active'`, [via]);
+    sharedByUserId = u ? Number(u.id) : null;
+  }
+  return { trackingLinkId, ...utm, channel: str(fd, 'channel', 10) === 'embed' ? 'embed' : 'web', sharedByUserId };
 }
 
 // ---------------------------------------------------------------------------
@@ -113,6 +122,8 @@ export async function startCheckout(_prev: ActionState, fd: FormData): Promise<A
     if (e instanceof CheckoutError) return { error: e.message };
     throw e;
   }
+  // "Follow this organizer" at checkout (Social & Community 11.5): signed-in buyers only, unchecked by default.
+  if (session && fd.get('follow_org')) await execute(`INSERT IGNORE INTO org_follows (user_id, organization_id, source) VALUES (?, ?, 'checkout')`, [session.user.id, event.organization_id]);
   await audit('order.created', { actorUserId: session?.user.id ?? null, targetType: 'order', targetId: r.orderId, metadata: { code: r.code, total: r.totalCents, discount: r.discountCents, channel: attribution.channel } });
   // Embedded widget: checkout continues in a new top-level tab (cookies set inside a third-party iframe are usually blocked).
   if (attribution.channel === 'embed') return { ok: true, checkoutUrl: `/api/embed/continue?code=${encodeURIComponent(r.code)}&t=${encodeURIComponent(r.accessToken)}` };
@@ -304,6 +315,8 @@ async function refundOrderInternal(order: OrderRow, amountCents: number, reason:
   const fullyRefunded = order.refunded_cents + amountCents >= order.total_cents;
   await execute(`UPDATE refunds SET status = 'succeeded', stripe_refund_id = ? WHERE id = ?`, [stripeRefundId, refundId]);
   await execute(`UPDATE orders SET refunded_cents = refunded_cents + ?, status = ? WHERE id = ?`, [amountCents, fullyRefunded ? 'refunded' : 'partially_refunded', order.id]);
+  // the referrer's reward follows the refund (a full refund reverses it)
+  const recompute = () => recomputeReferralReward(order.id).catch((e) => console.error('[referrals] recompute failed', order.id, e));
   if (fullyRefunded) {
     // Void the tickets that were still live and give their seats back.
     const live = (await query<Row & { id: number }>(`SELECT id FROM tickets WHERE order_id = ? AND status IN ('valid','used')`, [order.id])).map((r) => Number(r.id));
@@ -311,6 +324,7 @@ async function refundOrderInternal(order: OrderRow, amountCents: number, reason:
     await returnInventoryForTickets(live);
     await returnAddonInventory(order.id);
   }
+  await recompute();
   const when = formatEventDate(new Date(order.event_starts_at), order.event_timezone);
   const wl = await orgMail(Number(order.organization_id));
   const mail = await renderEmail('refund_issued', { amount: formatCents(amountCents, order.currency), order_code: order.code, event_title: order.event_title, event_when: when, reason, tickets_note: fullyRefunded ? 'The tickets on this order are no longer valid.' : 'Your remaining tickets stay valid.' }, withOrgMail({}, wl));
@@ -539,6 +553,7 @@ export async function emailAttendees(_prev: ActionState, fd: FormData): Promise<
   const holders = await listTransferHolders(event.id);
   for (const h of holders) await sendEmail({ to: h.email, toName: h.name, subject: mail.subject, text: mail.text, html: mail.html, related: { type: 'event', id: event.id } });
   await audit('event.updated', { actorUserId: ctx.session.user.id, targetType: 'event', targetId: event.id, metadata: { broadcast: subject, recipients: buyers.length + holders.length } });
+  await postEventUpdate(event.id, `${subject}\n\n${body}`);
   return { ok: true, message: `Sent to ${buyers.length + holders.length} ticket holder(s).` };
 }
 

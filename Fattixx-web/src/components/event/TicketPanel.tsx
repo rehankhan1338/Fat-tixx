@@ -26,7 +26,7 @@ import { useEventEnded } from "./useEventEnded";
 const LOW = 20; // show "Only N left" at or below this
 
 /** Promoter / UTM attribution passed through from the event page URL. */
-export type Attribution = { ref?: string; utm_source?: string; utm_medium?: string; utm_campaign?: string };
+export type Attribution = { ref?: string; utm_source?: string; utm_medium?: string; utm_campaign?: string; via?: string };
 
 export type TicketPanelProps = {
   eventId: number;
@@ -45,6 +45,8 @@ export type TicketPanelProps = {
   accessCode: string;
   ageRestriction: number | null;
   defaultEmail?: string;
+  /** signed-in buyers who don't follow the organizer yet: the optional "Follow this organizer" box (Social 11.5), unchecked by default */
+  followOrg?: string | null;
   defaultName?: string;
   hasPromo: boolean;
   attribution: Attribution;
@@ -400,6 +402,7 @@ export default function TicketPanel(p: TicketPanelProps) {
             </Field>
           )}
           <Check id="tk-marketing" name="marketing" label="Email me about future events from this organizer" />
+          {p.followOrg ? <Check id="tk-follow" name="follow_org" label={`Follow ${p.followOrg} to hear about their next event`} /> : null}
           {p.ageRestriction ? <p className="text-[13px] leading-[1.5] text-fx-red-second">This event is {p.ageRestriction}+. Every attendee must show a valid photo ID at the door.</p> : null}
         </div>
       )}

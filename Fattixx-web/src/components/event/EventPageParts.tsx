@@ -102,7 +102,7 @@ export function eventView(data: EventPageData) {
   /** "Friday, October 9, 2026", or "Sunday, October 25 and Monday, October 26, 2026" */
   const dateText = days ? joinDates(days) : longDate(e.date);
 
-  return { e, org, listed, startIso, endIso, end, tz, place, online, mapsUrl, lowest, cta, cal, more, moreFromOrg: data.moreFromOrg, timeLine, shortDate, dateText, brand: data.brand ?? null };
+  return { e, org, listed, startIso, endIso, end, tz, place, online, mapsUrl, lowest, cta, cal, more, moreFromOrg: data.moreFromOrg, timeLine, shortDate, dateText, brand: data.brand ?? null, follow: data.follow };
 }
 
 /* ---------- small shared bits ---------- */
@@ -374,7 +374,7 @@ export function OrganizerCard({ v, className }: { v: EventView; className?: stri
           </p>
         )}
         <div className="mt-6 flex flex-wrap justify-center gap-3">
-          <FollowButton organizerId={org.id} name={org.name} />
+          <FollowButton organizerId={org.id} name={org.name} initialFollowing={v.follow?.following} signedIn={v.follow?.signedIn} source="event" />
           <Link href={v.brand?.organizerHref ?? organizerHref(org.id)} className={button("outline")}>
             View their page
           </Link>

@@ -21,7 +21,7 @@ export type TemplateKey =
   | 'event_reminder' | 'verify_email' | 'application_received' | 'application_approved' | 'application_rejected' | 'org_verified' | 'reconciliation_alert'
   | 'dispute_opened' | 'sign_in_code' | 'event_updated'
   | 'pro_activated' | 'pro_payment_failed' | 'pro_grace_ending' | 'pro_ended' | 'support_request_staff' | 'support_reply'
-  | 'seatmap_staff' | 'seatmap_organizer';
+  | 'seatmap_staff' | 'seatmap_organizer' | 'follower_new_event';
 
 export interface TemplateDef { key: TemplateKey; name: string; description: string; variables: string[]; subject: string; body: string; sample: Record<string, string> }
 
@@ -327,6 +327,16 @@ ${BUTTON('{{url}}', 'Open the request')}`,
 <p>{{message}}</p>
 ${BUTTON('{{url}}', 'Open your seat map request')}`,
     sample: { headline: 'Your seat map is ready to approve', map_name: 'Main hall, theatre layout', venue: 'The Music Hall, Charleston', message: 'Check every section, row and seat number, then approve it to start selling reserved seats.', url: `${APP}/org/lowcountry-live/seating/4` },
+  },
+  {
+    key: 'follower_new_event', name: 'New event from an organizer you follow', description: 'Sent once to each follower (who has not muted the organizer) when the organizer publishes a new public event.',
+    variables: ['org_name', 'event_title', 'event_when', 'venue_line', 'event_url', 'manage_url'],
+    subject: 'New from {{org_name}}: {{event_title}}',
+    body: `<p><strong>{{org_name}}</strong> just announced a new event.</p>
+<p><strong>{{event_title}}</strong><br>{{event_when}}<br>{{venue_line}}</p>
+${BUTTON('{{event_url}}', 'See the event')}
+<p class="muted">You get this because you follow {{org_name}} on {{platform_name}}. <a href="{{manage_url}}">Mute or unfollow</a>.</p>`,
+    sample: { org_name: 'Lowcountry Live', event_title: 'Demo Night Live', event_when: 'Fri, Nov 20, 2026, 8:00 PM EST', venue_line: 'The Warehouse, Charleston', event_url: `${APP}/events/demo-night-live`, manage_url: `${APP}/account/following` },
   },
 ];
 

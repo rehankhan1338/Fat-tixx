@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { execute, query, queryOne, type Row } from '../db';
 import { audit } from '../audit';
 import { pushEventPublished, pushStaffAssigned } from '../push';
+import { eventWentLive } from '../social/notify';
 import { assertOrg, canAccessEvent } from '../authz';
 import { parseDollarsToCents } from '../money';
 import { randomToken } from '../security/crypto';
@@ -319,7 +320,7 @@ export async function setEventStatus(fd: FormData): Promise<ActionState> {
   await execute(`UPDATE events SET status = ? WHERE id = ?`, [status, event.id]);
   const action = status === 'published' ? 'event.published' : status === 'in_review' ? 'event.held_for_review' : status === 'draft' ? 'event.unpublished' : 'event.updated';
   await audit(action, { actorUserId: ctx.session.user.id, targetType: 'event', targetId: event.id, metadata: { status } });
-  if (status === 'published') await pushEventPublished(event.id, ctx.session.user.id);
+  if (status === 'published') { await pushEventPublished(event.id, ctx.session.user.id); eventWentLive(event.id); }
   revalidateEvent(ctx.org.slug, event.id, event.slug);
   if (status === 'in_review') return { ok: true, message: 'In review: paid events go live once your organization is verified.' };
   return { ok: true };

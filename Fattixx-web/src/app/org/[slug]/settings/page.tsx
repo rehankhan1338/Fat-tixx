@@ -5,6 +5,9 @@ import { formatCents } from "@/lib/money";
 import { uploadUrl } from "@/lib/uploads";
 import { PageHeader, Section } from "@/components/shared";
 import { OrgSettingsForm } from "./org-settings-form";
+import { OrgSocialForm } from "./org-social-form";
+import { queryOne, type Row } from "@/lib/db";
+import { parseSocialLinks } from "@/lib/home/data";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -12,6 +15,7 @@ export default async function OrgSettingsPage({ params }: PageProps<"/org/[slug]
   const { slug } = await params;
   const ctx = await requireOrg(slug, "org_admin");
   const s = await getSettings();
+  const social = await queryOne<Row & { social_links: string | null; hide_follower_count: number }>(`SELECT social_links, hide_follower_count FROM organizations WHERE id = ?`, [ctx.org.id]);
   const feeBps = ctx.org.fee_bps_override ?? Number(s.platform_fee_bps);
   const feeFixed = ctx.org.fee_fixed_cents_override ?? Number(s.platform_fee_fixed_cents);
   return (
@@ -19,6 +23,9 @@ export default async function OrgSettingsPage({ params }: PageProps<"/org/[slug]
       <PageHeader title="Organization settings" description="Profile shown on your event pages and receipts." />
       <Section title="Profile">
         <OrgSettingsForm org={{ slug: ctx.org.slug, name: ctx.org.name, legal_name: ctx.org.legal_name, contact_email: ctx.org.contact_email, contact_phone: ctx.org.contact_phone, website: ctx.org.website, description: ctx.org.description, logoUrl: uploadUrl(ctx.org.logo_path) }} />
+      </Section>
+      <Section title="Social" description="Links and followers on your public organizer page. Followers get one email when you publish a new public event.">
+        <OrgSocialForm slug={ctx.org.slug} links={parseSocialLinks(social?.social_links) ?? {}} hideCount={!!Number(social?.hide_follower_count)} />
       </Section>
       <Section title="Fees" description="Set by Fattixx. Each event chooses whether buyers pay these fees or you absorb them.">
         <p className="text-sm">

@@ -115,6 +115,8 @@ export type EventPageData = {
    * organizer's own pages (their page or custom domain) instead of Fattixx listings.
    */
   brand?: { cover: string | null; organizerHref: string } | null;
+  /** the visitor's follow state for the organizer (Social & Community, 11.5) */
+  follow?: { following: boolean; signedIn: boolean };
 };
 
 /* ---------- small helpers used by the page ---------- */

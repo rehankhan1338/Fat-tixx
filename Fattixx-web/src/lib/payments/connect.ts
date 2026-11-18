@@ -5,6 +5,7 @@ import { execute, query, queryOne, type Row } from '../db';
 import { getSettings, getStripeSettings } from '../settings';
 import { getActiveStripe, getStripe, stripeClient } from './stripe';
 import type { StripeMode } from '../settings';
+import { clawedBackForEvent } from '../social/referrals';
 
 /**
  * Stripe Connect organizer payouts (Phase 3, plan 7.2).
@@ -237,7 +238,8 @@ export async function runConnectEventPayouts(): Promise<number> {
   let n = 0;
   for (const d of due) {
     try {
-      const share = Math.max(0, Number(d.share));
+      // referral rewards already taken back from this event's transfers (src/lib/social/referrals.ts)
+      const share = Math.max(0, Number(d.share) - (await clawedBackForEvent(Number(d.event_id))));
       const currency = (d.currency || 'USD').toLowerCase();
       let amount = 0;
       let payoutId: string | null = null;

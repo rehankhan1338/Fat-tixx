@@ -1,4 +1,5 @@
 import 'server-only';
+import { recordReferralReward } from '../social/referrals';
 import { randomBytes } from 'node:crypto';
 import type { PoolConnection } from 'mysql2/promise';
 import { db, execute, query, queryOne, type Row } from '../db';
@@ -62,7 +63,7 @@ export class CheckoutError extends Error {}
  * tier (a seated ticket type). Online buyers must pick seats for seated tiers; box office and comps given a quantity of
  * a seated tier get the best free seats.
  */
-export interface Attribution { trackingLinkId?: number | null; utmSource?: string | null; utmMedium?: string | null; utmCampaign?: string | null; channel?: 'web' | 'embed' }
+export interface Attribution { trackingLinkId?: number | null; utmSource?: string | null; utmMedium?: string | null; utmCampaign?: string | null; channel?: 'web' | 'embed'; /** "Share that you're going" link (Social & Community 11.8) */ sharedByUserId?: number | null }
 
 export const MAX_SEATS_PER_ORDER = 50;
 
@@ -244,12 +245,12 @@ export async function createPendingOrder(input: {
     const [res] = await conn.query<import('mysql2').ResultSetHeader>(
       `INSERT INTO orders (code, access_token_hash, organization_id, event_id, user_id, buyer_email, buyer_name, buyer_phone, checkout_answer, marketing_opt_in, sms_opt_in, status, source, currency,
          subtotal_cents, discount_cents, platform_fee_cents, processing_fee_cents, tax_cents, total_cents, absorbed_fee_cents, fee_mode, hold_expires_at, ip, created_by,
-         promo_code_id, tracking_link_id, utm_source, utm_medium, utm_campaign, channel)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW() + INTERVAL ? MINUTE, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         promo_code_id, tracking_link_id, utm_source, utm_medium, utm_campaign, channel, shared_by_user_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW() + INTERVAL ? MINUTE, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [code, sha256(accessToken), event.organization_id, event.id, input.userId, input.email.toLowerCase(), input.name || null, input.phone || null, input.answer || null, input.marketingOptIn ? 1 : 0, input.smsOptIn && input.phone ? 1 : 0,
         input.source ?? 'online', event.currency, pricing.subtotalCents, discountCents, pricing.platformFeeCents, pricing.processingFeeCents, pricing.taxCents, pricing.totalCents, pricing.absorbedFeeCents,
         event.fee_mode, holdMinutes, input.ip, input.createdBy ?? null,
-        promoId, att.trackingLinkId ?? null, clip(att.utmSource, 80), clip(att.utmMedium, 80), clip(att.utmCampaign, 120), att.channel === 'embed' ? 'embed' : 'web'],
+        promoId, att.trackingLinkId ?? null, clip(att.utmSource, 80), clip(att.utmMedium, 80), clip(att.utmCampaign, 120), att.channel === 'embed' ? 'embed' : 'web', att.sharedByUserId ?? null],
     );
     const orderId = res.insertId;
     await holdSeatsForOrder(conn, orderId, claimSeats);
@@ -362,6 +363,8 @@ export async function finalizePaidOrder(orderId: number, payment: { paymentInten
   await execute(`UPDATE waitlist_entries SET status = 'converted' WHERE event_id = ? AND email = ? AND status IN ('waiting','notified')`, [eventId, buyerEmail.toLowerCase()]);
   await sendOrderConfirmation(orderId);
   await pushIfSoldOut(eventId);
+  // Referral rewards (Social & Community 11.9): never allowed to break a paid order.
+  try { await recordReferralReward(orderId); } catch (e) { console.error('[referrals] reward not recorded', orderId, e); }
   return true;
 }
 

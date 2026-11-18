@@ -16,6 +16,8 @@ export function orgNavGroups(ctx: OrgContext): NavGroup[] {
     { href: `${base}/orders`, label: "Orders", icon: "receipt" },
     { href: `${base}/analytics`, label: "Analytics", icon: "chart" },
     { href: `${base}/marketing`, label: "Marketing", icon: "megaphone" },
+    // Social & Community (plan 11.10): followers and past attendees, messages, follower growth, feed reports
+    { href: `${base}/audience`, label: "Audience", icon: "heart" },
     // Fattixx Pro (plan 5.7.2); the pages explain Pro to organizations that are not on it
     { href: `${base}/email`, label: "Email", icon: "mail" },
     { href: `${base}/reports`, label: "Reports", icon: "list" },

@@ -13,6 +13,7 @@
 import { revalidatePath } from 'next/cache';
 import { audit } from '../audit';
 import { pushEventPublished } from '../push';
+import { eventWentLive } from '../social/notify';
 import { getSession, type CurrentSession } from '../auth/session';
 import { assertOrg, canAccessEvent, listMemberships } from '../authz';
 import { execute, queryOne, type Row } from '../db';
@@ -375,7 +376,7 @@ export async function publishDraft(_prev: CreateState, fd: FormData): Promise<Cr
   await audit('event.created', { actorUserId: session.user.id, targetType: 'event', targetId: eventId, metadata: { title: cols.title, viaCreatePage: true, status } });
   if (status === 'in_review') await audit('event.held_for_review', { actorUserId: session.user.id, targetType: 'event', targetId: eventId, metadata: { reason: 'paid_tickets_unverified_org' } });
   if (published) await audit('event.published', { actorUserId: session.user.id, targetType: 'event', targetId: eventId, metadata: { status: 'published' } });
-  if (published) await pushEventPublished(eventId, session.user.id);
+  if (published) { await pushEventPublished(eventId, session.user.id); eventWentLive(eventId); }
   revalidateEventPages(org.slug, eventId, [slug]);
 
   return {
@@ -472,7 +473,7 @@ export async function saveEventEdits(_prev: CreateState, fd: FormData): Promise<
       status = await liveStatus(event.id, verified);
       await execute(`UPDATE events SET status = ? WHERE id = ?`, [status, event.id]);
       await audit(status === 'published' ? 'event.published' : 'event.held_for_review', { actorUserId: ctx.session.user.id, targetType: 'event', targetId: event.id, metadata: { status } });
-      if (status === 'published') await pushEventPublished(event.id, ctx.session.user.id);
+      if (status === 'published') { await pushEventPublished(event.id, ctx.session.user.id); eventWentLive(event.id); }
     }
   } else if (await holdIfUnverified(event.id, verified, ctx.session.user.id)) {
     // a paid ticket added to a live free event

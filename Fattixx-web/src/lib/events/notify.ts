@@ -2,6 +2,7 @@ import 'server-only';
 import { query, queryOne, type Row } from '../db';
 import { audit } from '../audit';
 import { pushEventChanged } from '../push';
+import { postEventUpdate } from '../social/feed';
 import { env } from '../env';
 import { escapeHtml, sendEmail } from '../email';
 import { renderEmail } from '../email-templates';
@@ -70,6 +71,8 @@ export async function notifyEventChanged(before: EventSnapshot | null, actorUser
   if (endsAt.getTime() < Date.now()) return 0;
   const changes = describeChanges(before, after);
   if (!changes.length) return 0;
+  // The event feed shows the change too (Social & Community 11.7), when it is on.
+  await postEventUpdate(after.id, `Event details changed:\n${changes.map((c) => `${c.label}: ${c.now} (was ${c.was})`).join('\n')}`);
   // The event's team hears about it in the app, whether or not anyone holds tickets yet.
   await pushEventChanged(after.id, changes.map((c) => c.label), actorUserId);
 

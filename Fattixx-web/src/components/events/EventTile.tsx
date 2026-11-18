@@ -5,6 +5,7 @@ import { eventHref, isPro, organizerName, priceAtVenue, whenText } from "@/lib/h
 import type { ListedEvent } from "@/lib/home/events";
 import EventPoster from "./EventPoster";
 import ProBadge from "./ProBadge";
+import { FriendsGoingBadge } from "@/components/social/FriendsGoing";
 
 export default function EventTile({ e, big = false }: { e: ListedEvent; big?: boolean }) {
   return (
@@ -22,6 +23,7 @@ export default function EventTile({ e, big = false }: { e: ListedEvent; big?: bo
         <br />
         {whenText(e.dt)}
       </span>
+      <FriendsGoingBadge eventId={e.id} />
     </a>
   );
 }

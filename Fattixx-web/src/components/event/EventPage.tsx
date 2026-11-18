@@ -40,7 +40,15 @@ function Notice({ title, text }: { title: string; text?: string }) {
   );
 }
 
-export default function EventPage({ data, panel, ad, notices = [] }: { data: EventPageData; panel: ReactNode; ad?: ReactNode; notices?: { title: string; text?: string }[] }) {
+export default function EventPage({ data, panel, ad, notices = [], going, feed, earn }: {
+  data: EventPageData; panel: ReactNode; ad?: ReactNode; notices?: { title: string; text?: string }[];
+  /** Who's Going (Social & Community 11.4), under the summary */
+  going?: ReactNode;
+  /** the event activity feed (11.7), below the description */
+  feed?: ReactNode;
+  /** referral rewards: "Earn by sharing" (11.9) */
+  earn?: ReactNode;
+}) {
   const v = eventView(data);
   const { e } = v;
 
@@ -145,8 +153,11 @@ export default function EventPage({ data, panel, ad, notices = [] }: { data: Eve
             </dl>
 
             {data.summary && <p className="mt-8 border-y border-fx-red/12 py-7 text-[18px] leading-[1.6] text-fx-red/85 max-[641px]:text-[16px]">{data.summary}</p>}
+            {going && <div className="mt-8">{going}</div>}
+            {earn && <div className="mt-6">{earn}</div>}
 
             <About data={data} className="mt-10" />
+            {feed && <div className="mt-14">{feed}</div>}
             <Media data={data} className="mt-14" />
             <Lineup data={data} className="mt-14" />
             <Sponsors sponsors={data.sponsors} className="mt-14" />
