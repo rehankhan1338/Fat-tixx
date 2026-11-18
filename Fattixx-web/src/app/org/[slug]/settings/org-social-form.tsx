@@ -20,10 +20,13 @@ export function OrgSocialForm({ slug, links, hideCount }: { slug: string; links:
     <form action={action} className="space-y-4">
       <FormStatus state={state} successText={state?.message} />
       <input type="hidden" name="org" value={slug} />
+      {/* remount the fields with the saved values after a save */}
+      <div key={JSON.stringify([links, hideCount])} className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         {NETWORKS.map((n) => <TextField key={n.key} label={n.label} id={`soc-${n.key}`} name={`social_${n.key}`} defaultValue={links[n.key] ?? ""} placeholder={n.placeholder} maxLength={255} />)}
       </div>
       <CheckField id="soc-hide" name="hide_follower_count" defaultChecked={hideCount} label="Hide my follower count on my organizer page" />
+      </div>
       <SubmitButton pendingText="Saving…">Save</SubmitButton>
     </form>
   );

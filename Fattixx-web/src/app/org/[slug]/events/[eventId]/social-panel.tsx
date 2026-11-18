@@ -29,12 +29,14 @@ function SettingsForm({ p }: { p: SocialPanelProps }) {
     <form action={action} className="space-y-4">
       <FormStatus state={state} successText={state?.message} />
       <input type="hidden" name="org" value={p.orgSlug} /><input type="hidden" name="event_id" value={p.eventId} />
+      <div key={JSON.stringify(p.settings)} className="space-y-4">
       <SelectField label="Who’s Going on the event page" id="sp-mode" name="guest_list_mode" defaultValue={p.settings.mode}
         options={[{ value: "faces", label: "Faces only: photos and names, no total" }, { value: "faces_total", label: "Faces and total: photos, names and how many are going" }, { value: "off", label: "Off" }]}
         hint={`${p.guestList.listed} ticket holder(s) chose to show on the list. Only signed-in ticket holders who allow it appear.`} />
       <CheckField id="sp-feed" name="feed_enabled" defaultChecked={p.settings.feed} label="Event feed: a discussion area for ticket holders below the description" />
       <CheckField id="sp-photos" name="feed_attendee_photos" defaultChecked={p.settings.photos} label="Let attendees add photos to their posts (your team can always add photos)" />
       <TextField label="Days the feed stays open after the event" id="sp-days" name="feed_open_days" type="number" min={0} max={90} defaultValue={p.settings.days} hint="Then it turns read-only." className="max-w-xs" />
+      </div>
       <SubmitButton pendingText="Saving…">Save</SubmitButton>
     </form>
   );
@@ -49,12 +51,14 @@ function OfferForm({ p, kind }: { p: SocialPanelProps; kind: "public" | "invite"
       <p className="text-xs text-muted-foreground">{kind === "public" ? "Any ticket buyer can join from the event page and get a personal link." : "Only promoters, influencers or partners you invite, usually with a higher reward."}</p>
       <FormStatus state={state} successText={state?.message} />
       <input type="hidden" name="org" value={p.orgSlug} /><input type="hidden" name="event_id" value={p.eventId} /><input type="hidden" name="kind" value={kind} />
+      <div key={JSON.stringify(o ?? null)} className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-3">
         <SelectField label="Reward" id={`of-type-${kind}`} name="reward_type" defaultValue={o?.type ?? "fixed"} options={[{ value: "fixed", label: `Fixed amount (${p.currency})` }, { value: "percent", label: "Percentage" }]} />
         <SelectField label="Per" id={`of-basis-${kind}`} name="reward_basis" defaultValue={o?.basis ?? "ticket"} options={[{ value: "ticket", label: "Ticket" }, { value: "order", label: "Order" }]} hint="Percentages are of each sale." />
         <TextField label="Amount" id={`of-value-${kind}`} name="reward_value" defaultValue={o?.value ?? ""} placeholder="5.00 or 10" required inputMode="decimal" />
       </div>
       <CheckField id={`of-active-${kind}`} name="active" defaultChecked={o ? o.active : true} label="Offer is on" />
+      </div>
       <SubmitButton size="sm" pendingText="Saving…">Save offer</SubmitButton>
     </form>
   );

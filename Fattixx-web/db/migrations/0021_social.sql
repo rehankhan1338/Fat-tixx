@@ -227,6 +227,7 @@ CREATE TABLE IF NOT EXISTS referral_rewards (
   original_cents   INT UNSIGNED NOT NULL,
   amount_cents     INT UNSIGNED NOT NULL,
   platform_cents   INT UNSIGNED NOT NULL DEFAULT 0,
+  platform_bps     SMALLINT UNSIGNED NOT NULL DEFAULT 0, -- the share in force when the reward was earned; later changes don't apply
   status           ENUM('pending','reversed','payable','paid') NOT NULL DEFAULT 'pending',
   flagged          TINYINT(1) NOT NULL DEFAULT 0,    -- unusual pattern: held until Fattixx support clears it
   flag_reason      VARCHAR(200) NULL,

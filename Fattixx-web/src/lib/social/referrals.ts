@@ -89,11 +89,12 @@ export async function recordReferralReward(orderId: number): Promise<number | nu
   if (Number(o.user_id) === Number(ref.user_id) || (ref.email && ref.email.toLowerCase() === o.buyer_email.toLowerCase())) return null;
   const amount = computeReward(ref, o, Number(o.live));
   if (amount <= 0) return null;
-  const platform = Math.floor((amount * (await platformShareBps())) / 10_000);
+  const bps = await platformShareBps();
+  const platform = Math.floor((amount * bps) / 10_000);
   const r = await execute(
-    `INSERT IGNORE INTO referral_rewards (referrer_id, order_id, event_id, organization_id, user_id, currency, original_cents, amount_cents, platform_cents)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [ref.id, o.id, o.event_id, o.organization_id, ref.user_id, o.currency, amount, amount, platform],
+    `INSERT IGNORE INTO referral_rewards (referrer_id, order_id, event_id, organization_id, user_id, currency, original_cents, amount_cents, platform_cents, platform_bps)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [ref.id, o.id, o.event_id, o.organization_id, ref.user_id, o.currency, amount, amount, platform, bps],
   );
   if (r.affectedRows) await flagUnusualPatterns(Number(ref.id), o);
   return r.affectedRows ? r.insertId : null;
@@ -117,14 +118,15 @@ async function flagUnusualPatterns(referrerId: number, o: OrderForReward): Promi
 
 /** Bring a reward in line with its order after a refund, cancellation or dispute. Paid rewards are left as they are. */
 export async function recomputeReferralReward(orderId: number): Promise<void> {
-  const rr = await queryOne<Row & { id: number; status: string; referrer_id: number }>(`SELECT id, status, referrer_id FROM referral_rewards WHERE order_id = ?`, [orderId]);
+  const rr = await queryOne<Row & { id: number; status: string; referrer_id: number; platform_bps: number }>(`SELECT id, status, referrer_id, platform_bps FROM referral_rewards WHERE order_id = ?`, [orderId]);
   if (!rr || rr.status === 'paid' || rr.status === 'reversed') return;
   const o = await orderForReward(orderId);
   const offer = await queryOne<OfferRow>(`SELECT f.* FROM referral_offers f JOIN referrers r ON r.offer_id = f.id WHERE r.id = ?`, [rr.referrer_id]);
   if (!o || !offer) return;
   const dead = Number(o.disputed) || !['paid', 'partially_refunded'].includes(o.status);
   const amount = dead ? 0 : computeReward(offer, o, Number(o.live));
-  const platform = Math.floor((amount * (await platformShareBps())) / 10_000);
+  // the share in force when the reward was earned
+  const platform = Math.floor((amount * Number(rr.platform_bps)) / 10_000);
   await execute(
     `UPDATE referral_rewards SET amount_cents = ?, platform_cents = ?, status = IF(? = 0, 'reversed', status) WHERE id = ? AND status IN ('pending','payable')`,
     [amount, platform, amount, rr.id],

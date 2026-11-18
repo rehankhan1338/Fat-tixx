@@ -92,7 +92,8 @@ export async function inviteReferrers(_prev: RefState, fd: FormData): Promise<Re
   }
   await audit('referral.referrer.invited', { actorUserId: ctx.session.user.id, targetType: 'event', targetId: event.id, metadata: { sent } });
   revalidatePath(`/org/${ctx.org.slug}/events/${event.id}`);
-  return bad.length ? { ok: sent > 0, message: `${sent} invitation(s) sent.`, error: `Not an email or phone number: ${bad.slice(0, 5).join(', ')}` } : { ok: true, message: `${sent} invitation(s) sent.` };
+  // The form shows the error box when there is one, so it also says what was sent (otherwise organizers resend).
+  return bad.length ? { ok: sent > 0, message: `${sent} invitation(s) sent.`, error: `${sent} invitation(s) sent. Not an email or phone number: ${bad.slice(0, 5).join(', ')}` } : { ok: true, message: `${sent} invitation(s) sent.` };
 }
 
 export async function removeReferrer(orgSlug: string, referrerId: number): Promise<RefState> {

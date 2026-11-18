@@ -13,7 +13,7 @@ export function ShareForm({ percent }: { percent: number }) {
   return (
     <form action={action} className="flex flex-wrap items-end gap-3">
       <FormStatus state={state} successText={state?.message} />
-      <TextField label="Fattixx share (%)" id="rs-pct" name="share_percent" type="number" min={0} max={100} step="0.01" defaultValue={percent} className="w-40" />
+      <TextField key={percent} label="Fattixx share (%)" id="rs-pct" name="share_percent" type="number" min={0} max={100} step="0.01" defaultValue={percent} className="w-40" />
       <SubmitButton pendingText="Saving…">Save</SubmitButton>
     </form>
   );

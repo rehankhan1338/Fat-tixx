@@ -16,6 +16,8 @@ export function ProfileForm({ me, categories, next }: { me: Me; categories: stri
   return (
     <form action={action} className="space-y-5">
       <FormStatus state={state} successText={next ? "Saved. Taking you back…" : state?.message} />
+      {/* Remount the fields when the saved values change (after a save): uncontrolled fields can't change their defaults. */}
+      <div key={JSON.stringify(me)} className="space-y-5">
       <div className="flex items-center gap-4">
         {/* eslint-disable-next-line @next/next/no-img-element -- uploaded image */}
         {me.avatar ? <img src={me.avatar} alt="" className="size-20 rounded-full object-cover" /> : <div className="grid size-20 place-items-center rounded-full bg-muted text-2xl font-semibold">{me.name.slice(0, 1)}</div>}
@@ -55,6 +57,7 @@ export function ProfileForm({ me, categories, next }: { me: Me; categories: stri
           <span>I confirm I am 18 or older. Public profiles and guest lists are for adults only.</span>
         </label>
       ) : null}
+      </div>
       <SubmitButton pendingText="Saving…">{me.username ? "Save profile" : "Create my profile"}</SubmitButton>
     </form>
   );
