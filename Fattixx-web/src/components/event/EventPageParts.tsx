@@ -13,6 +13,7 @@ import type { ListedEvent } from "@/lib/home/events";
 import { formatCents } from "@/lib/home/pricing";
 import { RichText } from "@/components/rich-text";
 import type { CalendarInfo } from "./EventActions";
+import PhotoGallery from "./PhotoGallery";
 import ReadMore from "./ReadMore";
 import VideoEmbed from "./VideoEmbed";
 import { DoorIcon, FlagIcon, IdIcon, PinIcon, RefundIcon, TagIcon } from "./icons";
@@ -230,18 +231,7 @@ export function Media({ data, className }: { data: EventPageData; className?: st
           <VideoEmbed id={data.video.id} title={data.video.title} />
         </div>
       )}
-      {data.gallery.length > 0 && (
-        <ul className="mt-5 grid grid-cols-3 gap-3 max-[641px]:grid-cols-2">
-          {data.gallery.map((src, i) => (
-            <li key={src} className={cx("overflow-hidden rounded-[18px] bg-white", i === 0 && data.gallery.length % 2 === 1 && "col-span-2 row-span-2 max-[641px]:col-span-2")}>
-              <a href={src} target="_blank" rel="noopener" className="block h-full">
-                {/* eslint-disable-next-line @next/next/no-img-element -- pre-optimized upload */}
-                <img src={src} alt={`Photo ${i + 1} of ${data.gallery.length}`} loading="lazy" className="aspect-square h-full w-full object-cover transition-transform duration-300 hover:scale-[1.03]" />
-              </a>
-            </li>
-          ))}
-        </ul>
-      )}
+      {data.gallery.length > 0 && <PhotoGallery photos={data.gallery} />}
     </section>
   );
 }

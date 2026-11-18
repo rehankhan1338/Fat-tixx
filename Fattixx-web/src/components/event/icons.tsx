@@ -85,7 +85,19 @@ export const ChevronDown = ({ size = 16 }: { size?: number }) => (
   </Icon>
 );
 
-export const FlagIcon = ({ size = 15 }: { size?: number }) => (
+export const ChevronLeft = ({ size = 22 }: { size?: number }) => (
+  <Icon size={size}>
+    <path d="m15 5-7 7 7 7" />
+  </Icon>
+);
+
+export const ChevronRight = ({ size = 22 }: { size?: number }) => (
+  <Icon size={size}>
+    <path d="m9 5 7 7-7 7" />
+  </Icon>
+);
+
+export const FlagIcon =({ size = 15 }: { size?: number }) => (
   <Icon size={size}>
     <path d="M5 21V4M5 4h11l-2 4 2 4H5" />
   </Icon>
