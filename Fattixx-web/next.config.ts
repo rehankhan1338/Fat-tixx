@@ -18,8 +18,8 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: [...lanAddresses(), "*.trycloudflare.com"],
   reactStrictMode: true,
   // next/image qualities used by the public site (the hero photos request 85).
-  // Uploaded photos live on Vercel Blob in production (src/lib/uploads.ts).
-  images: { qualities: [75, 85], remotePatterns: [{ protocol: "https", hostname: "*.public.blob.vercel-storage.com" }] },
+  // Uploaded photos live on a DigitalOcean Space in production (src/lib/uploads.ts).
+  images: { qualities: [75, 85], remotePatterns: [{ protocol: "https", hostname: "*.digitaloceanspaces.com" }] },
   // The policy pages read content/legal/*.md and Apple Wallet passes content/wallet/*.png at request time; make sure the
   // files ship with the server build.
   outputFileTracingIncludes: { "/terms": ["./content/legal/**"], "/privacy": ["./content/legal/**"], "/t/[code]/wallet/apple": ["./content/wallet/**"] },

@@ -269,7 +269,7 @@ export async function previewEmailTemplate(key: string, subject: string, body: s
   const brand = await getBranding();
   // The preview is shown in a sandboxed iframe on the admin origin, whose CSP only allows images from itself, data: URIs and the
   // public site (APP_URL). The default wordmark is embedded as a data: URI so the preview never depends on APP_URL being set or
-  // on the public site being up; an uploaded logo (Vercel Blob / public site) is shown from its real URL, as in the sent email.
+  // on the public site being up; an uploaded logo (DigitalOcean Space / public site) is shown from its real URL, as in the sent email.
   const logo = brand.logoPath ? undefined : BRAND_LOGO_INLINE;
   const { subject: renderedSubject, html } = await renderEmailDraft(key, subject, body, { brand, logo });
   return { subject: renderedSubject, html };
