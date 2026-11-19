@@ -43,7 +43,7 @@ const nextConfig: NextConfig = {
   // The shared code is outside this folder, so the bundler's root is the repo root.
   turbopack: { root },
   outputFileTracingRoot: root,
-  images: { qualities: [75, 85], remotePatterns: [{ protocol: "https", hostname: "*.public.blob.vercel-storage.com" }] },
+  images: { qualities: [75, 85], remotePatterns: [{ protocol: "https", hostname: "*.digitaloceanspaces.com" }] },
   // Native / Node-only packages must not be bundled into the server build.
   serverExternalPackages: ["@node-rs/argon2", "mysql2"],
 };

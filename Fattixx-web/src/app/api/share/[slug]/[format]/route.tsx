@@ -3,7 +3,7 @@ import path from 'node:path';
 import sharp from 'sharp';
 import { ImageResponse } from 'next/og';
 import { getPublicEventBySlug } from '@/lib/events/queries';
-import { isBlobUrl, isSafeUploadPath, UPLOAD_ROOT } from '@/lib/uploads';
+import { isSpacesUrl, isSafeUploadPath, UPLOAD_ROOT } from '@/lib/uploads';
 import { formatEventDate } from '@/lib/tz';
 
 /**
@@ -23,7 +23,7 @@ async function coverDataUrl(stored: string | null, width: number): Promise<strin
   if (!stored) return null;
   try {
     let buf: Buffer;
-    if (isBlobUrl(stored)) {
+    if (isSpacesUrl(stored)) {
       const res = await fetch(stored);
       if (!res.ok) return null;
       buf = Buffer.from(await res.arrayBuffer());
