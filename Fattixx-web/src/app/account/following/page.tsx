@@ -28,7 +28,7 @@ export default async function FollowingPage() {
               {orgs.map((o) => (
                 <li key={o.slug} className="flex flex-wrap items-center gap-3 p-3">
                   {/* eslint-disable-next-line @next/next/no-img-element -- uploaded image */}
-                  {o.logo_path ? <img src={uploadUrl(o.logo_path)!} alt="" className="size-10 rounded-full object-cover" /> : <span className="grid size-10 place-items-center rounded-full bg-muted text-sm font-semibold">{o.name.slice(0, 2).toUpperCase()}</span>}
+                  {uploadUrl(o.logo_path) ? <img src={uploadUrl(o.logo_path)!} alt="" className="size-10 rounded-full object-cover" /> : <span className="grid size-10 place-items-center rounded-full bg-muted text-sm font-semibold">{o.name.slice(0, 2).toUpperCase()}</span>}
                   <Link href={`/o/${o.slug}`} className="min-w-0 flex-1 truncate font-medium hover:underline">{o.name}</Link>
                   <OrgFollowControls slug={o.slug} muted={!!Number(o.muted)} />
                 </li>
