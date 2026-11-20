@@ -7,7 +7,6 @@
 node_modules/
 
 # env files (each app's .env.example is kept)
-.env*
 !.env.example
 
 # next.js build output and generated files
@@ -24,3 +23,4 @@ next-env.d.ts
 
 # Expo mobile app (Fattixx-app has its own .gitignore for .expo and builds)
 Fattixx-app/*.keystore
+config.bat

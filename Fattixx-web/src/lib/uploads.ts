@@ -189,7 +189,12 @@ function spacesKind(url: string): UploadKind | null {
   return (m?.[1] as UploadKind | undefined) ?? null;
 }
 
+/**
+ * Something an <img> can load, or null when there is nothing loadable: no upload, or a value from an old store
+ * (e.g. a Vercel Blob URL from before the move to Spaces). Callers already show their "no image" state for null.
+ */
 export function uploadUrl(stored: string | null | undefined): string | null {
   if (!stored) return null;
-  return isSpacesUrl(stored) ? stored : `/api/uploads/${stored}`;
+  if (isSpacesUrl(stored)) return stored;
+  return isSafeUploadPath(stored) ? `/api/uploads/${stored}` : null;
 }
