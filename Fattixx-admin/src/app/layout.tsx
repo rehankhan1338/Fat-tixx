@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { brandingForLayout } from "@/lib/branding";
 import { FormValidation } from "@/components/form-validation";
+import { ImageFallback } from "@/components/image-fallback";
 import { display, sans } from "@/app/fonts";
 import "./globals.css";
 
@@ -31,6 +32,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <TooltipProvider>{children}</TooltipProvider>
         <Toaster richColors position="top-right" />
         <FormValidation />
+        <ImageFallback />
       </body>
     </html>
   );

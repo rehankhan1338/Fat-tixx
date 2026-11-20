@@ -43,7 +43,8 @@ export async function generateMetadata({ params }: PageProps<"/events/[slug]">):
   const { slug } = await params;
   const e = await getPublicEventBySlug(slug);
   if (!e) return { title: "Event not found" };
-  const img = e.image_path ? `${env.APP_URL}${uploadUrl(e.image_path)}` : e.org_logo ? `${env.APP_URL}${uploadUrl(e.org_logo)}` : undefined;
+  const absUpload = (stored: string | null) => { const u = uploadUrl(stored); return u ? (/^https?:/.test(u) ? u : `${env.APP_URL}${u}`) : undefined; };
+  const img = absUpload(e.image_path) ?? absUpload(e.org_logo);
   const description = e.summary ?? `${e.title} — ${formatEventDate(new Date(e.starts_at), e.timezone)}${e.venue_name ? ` at ${e.venue_name}` : e.online_url ? " (online)" : ""}.`;
   // Pro organizers: their name in the title instead of Fattixx's, and their custom domain as the canonical address
   const brand = eventBrand(e);
