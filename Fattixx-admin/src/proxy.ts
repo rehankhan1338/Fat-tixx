@@ -46,14 +46,14 @@ export function proxy(request: NextRequest) {
   }
 
   // --- CSP with per-request nonce ---
-  // Branding images (logo, site photos) are addressed on the public site's origin; uploads may live on Vercel Blob.
+  // Branding images (logo, site photos) are addressed on the public site's origin; uploads may live on a DigitalOcean Space.
   const site = (process.env.APP_URL?.trim() || 'http://localhost:3000').replace(/\/+$/, '');
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
   const csp = [
     `default-src 'self'`,
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ''}`,
     `style-src 'self' 'unsafe-inline'`,
-    `img-src 'self' blob: data: ${site} https://*.public.blob.vercel-storage.com`,
+    `img-src 'self' blob: data: ${site} https://*.digitaloceanspaces.com`,
     `font-src 'self'`,
     `connect-src 'self'`,
     `worker-src 'self'`,

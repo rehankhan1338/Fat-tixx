@@ -34,7 +34,7 @@ describe("spreadsheetExt", () => {
 
 describe("saveFloorPlanUpload", () => {
   const saved: string[] = [];
-  beforeAll(() => { delete process.env.BLOB_READ_WRITE_TOKEN; });
+  beforeAll(() => { delete process.env.DO_SPACES_KEY; });
   afterEach(async () => { await Promise.all(saved.splice(0).map((p) => deleteUpload(p))); });
 
   it.each([
